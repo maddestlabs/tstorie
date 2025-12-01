@@ -1,0 +1,28 @@
+# Nim compiler artifacts
+nimcache/
+nimcache_wasm/
+*.exe
+*.out
+storie
+
+# WASM build artifacts (keep only source files in web/)
+web/storie.wasm
+web/storie.wasm.js
+web/storie.wasm.wasm
+
+# Emscripten SDK (local installation)
+emsdk/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
