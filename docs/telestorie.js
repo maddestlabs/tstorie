@@ -16,7 +16,7 @@ class TeletorieTerminal {
         
         // Font settings
         this.fontSize = 16;
-        this.fontFamily = "'AnomalyMono', 'Consolas', 'Monaco', monospace";
+        this.fontFamily = "'FiraCode', 'Consolas', 'Monaco', monospace";
         
         // Performance
         this.lastFrameTime = 0;
@@ -331,9 +331,9 @@ class TeletorieTerminal {
 // Global terminal instance
 let terminal = null;
 
-async function initStorie() {
+async function inittelestorie() {
     try {
-        console.log('Initializing Storie...');
+        console.log('Initializing Telestorie...');
         
         // Wait for fonts to load
         if (document.fonts && document.fonts.ready) {
@@ -364,7 +364,7 @@ async function initStorie() {
         console.log('Starting animation loop...');
         terminal.startAnimationLoop();
     } catch (error) {
-        console.error('Failed to initialize Storie:', error);
+        console.error('Failed to initialize Telestorie:', error);
         document.getElementById('container').innerHTML = 
             `<div class="error">
                 <h2>Initialization Error</h2>
@@ -375,5 +375,5 @@ async function initStorie() {
 
 // Export for use in HTML
 if (typeof window !== 'undefined') {
-    window.initStorie = initStorie;
+    window.inittelestorie = inittelestorie;
 }
