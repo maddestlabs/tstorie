@@ -1,8 +1,8 @@
-# Storie
+# Telestorie
 
-Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim code blocks. Fast prototyping that exports to Nim for native compilation across platforms.
+Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms.
 
-Check it out live: [Demo](https://maddestlabs.github.io/Storie/)
+Check it out live: [Demo](https://maddestlabs.github.io/telestorie/)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 
@@ -15,18 +15,17 @@ Core engine features:
 - **Input Handling** - Comprehensive keyboard, mouse, and special key support
 - **Color Support** - True color (24-bit), 256-color, and 8-color terminal support
 - **Layer System** - Z-ordered layers with transparency support
-- **Automatic Terminal Resize Handling** - All layers automatically resize when the terminal or browser window changes size
-- **Direct Callback Architecture** - Simple onInit/onUpdate/onRender callback system
+- **Automatic Terminal Resize Handling** - All layers automatically resize when terminal or browser window changes size
 
-Storie features:
-- Minimal Markdown-like parser
-- Nim-based scripting using [Nimini](https://github.com/maddestlabs/nimini)
+Higher level features:
+- **Literate programming** - Write with familiar markdown features, separating prose from code.
+- **Nim-based scripting** - Code with executable code blocks. Powered by [Nimini](https://github.com/maddestlabs/nimini).
 
 ## Getting Started
 
 Quick Start:
 - Create a gist using Markdown and Nim code blocks
-- See your gist running live: https://maddestlabs.github.io/Storie?gist=gistid
+- See your gist running live: `https://maddestlabs.github.io/telestorie?gist=gistid`
 
 Create your own project:
 - Create a template from Storie and enable GitHub Pages
@@ -44,4 +43,5 @@ You'll get a native compiled binary in just moments, Nim compiles super fast.
 ## History
 
 - Successor to [Storiel](https://github.com/maddestlabs/storiel), the Lua-based proof-of-concept.
-- Rebuilt from [Backstorie](https://github.com/maddestlabs/Backstorie), a template that extends concepts from Storiel, providing a more robust foundation for further projects.
+- Rebuilt from [Backstorie](https://github.com/maddestlabs/backstorie), a template that extends concepts from Storiel, providing a more robust foundation for further projects.
+- Forked from [Storie](https://github.com/maddestlabs/storie), which was originally just a terminal engine but this branch now continues with terminal functionality while the original fork is now the much more complex media engine.

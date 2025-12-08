@@ -12,6 +12,7 @@ web/storie.wasm.wasm
 
 # Emscripten SDK (local installation)
 emsdk/
+.emsdk/
 
 # OS files
 .DS_Store

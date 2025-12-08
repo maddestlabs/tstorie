@@ -1,11 +1,11 @@
 #!/bin/bash
-# Storie compiler script - compile and run with custom file support
+# telestorie compiler script - compile and run with custom file support
 
 VERSION="0.1.0"
 
 show_help() {
     cat << EOF
-storie v$VERSION
+telestorie v$VERSION
 Terminal engine with sophisticated input parsing
 
 Usage: ./build.sh [OPTIONS] [FILE]
@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -v|--version)
-            echo "storie version $VERSION"
+            echo "telestorie version $VERSION"
             exit 0
             ;;
         -r|--release)
@@ -95,9 +95,9 @@ if [ ! -f "${FILE_BASE}.nim" ]; then
 fi
 
 # Compile with userFile define
-echo "Compiling storie with ${FILE_BASE}.nim..."
-nim c $RELEASE_MODE -d:userFile="$FILE_BASE" storie.nim || \
-  (echo "Compilation failed. Make sure ${FILE_BASE}.nim is added to the include list in storie.nim" && exit 1)
+echo "Compiling telestorie with ${FILE_BASE}.nim..."
+nim c $RELEASE_MODE -d:userFile="$FILE_BASE" telestorie.nim || \
+  (echo "Compilation failed. Make sure ${FILE_BASE}.nim is added to the include list in telestorie.nim" && exit 1)
 
 if [ $? -ne 0 ]; then
     echo "Compilation failed!"
@@ -106,10 +106,10 @@ fi
 
 # Run if not compile-only
 if [ "$COMPILE_ONLY" = false ]; then
-    echo "Running storie..."
+    echo "Running telestorie..."
     echo ""
-    ./storie "$@"
+    ./telestorie "$@"
 else
     echo "Compilation successful!"
-    echo "Run with: ./storie"
+    echo "Run with: ./telestorie"
 fi

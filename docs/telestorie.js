@@ -1,7 +1,7 @@
-// Storie JavaScript Interface
+// Telestorie JavaScript Interface
 // Handles terminal rendering, input, and WASM module integration
 
-class StorieTerminal {
+class TeletorieTerminal {
     constructor(canvasElement) {
         this.canvas = canvasElement;
         this.ctx = canvasElement.getContext('2d', { alpha: false });
@@ -341,7 +341,7 @@ async function initStorie() {
         }
         
         const canvas = document.getElementById('terminal');
-        terminal = new StorieTerminal(canvas);
+        terminal = new TeletorieTerminal(canvas);
         
         console.log('Terminal created:', terminal.cols, 'x', terminal.rows);
         

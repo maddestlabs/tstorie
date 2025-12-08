@@ -1,5 +1,7 @@
 # Storie - Markdown-based Nim execution engine
 # Parses index.md for Nim code blocks and executes them using Nimini
+# Don't need markdown parsing? Keep imports you want, overwrite the rest.
+# Don't need scripting? Just remove `import src/nimini`
 
 import strutils, tables, os
 import src/nimini
@@ -256,10 +258,6 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     return false
 
 # ================================================================
-# DEFAULT STYLES (initialized in initStorieContext)
-# ================================================================
-
-# ================================================================
 # LIFECYCLE MANAGEMENT
 # ================================================================
 
@@ -489,5 +487,3 @@ onShutdown = proc(state: AppState) =
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "shutdown":
       discard executeCodeBlock(storieCtx.niminiContext, codeBlock, state)
-  
-  # TODO: Clean up Nimini context

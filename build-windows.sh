@@ -1,11 +1,11 @@
 #!/bin/bash
-# Windows build script for Storie (Unix-style)
+# Windows build script for Telestorie (Unix-style)
 # Can be used from WSL or Git Bash
 # Usage: ./build-windows.sh [filename]
 # Example: ./build-windows.sh examples/boxes.nim
 
 echo "========================================"
-echo "Storie Windows Build (Cross-compile)"
+echo "Telestorie Windows Build (Cross-compile)"
 echo "========================================"
 echo ""
 
@@ -27,7 +27,7 @@ echo ""
 # Compile for Windows (cross-compile if on Linux/WSL)
 if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
     # Native Windows
-    nim c -d:release -d:userFile="$USERFILE" --out:storie.exe storie.nim
+    nim c -d:release -d:userFile="$USERFILE" --out:telestorie.exe telestorie.nim
 else
     # Cross-compile from Linux/Mac using MinGW
     echo "Cross-compiling for Windows..."
@@ -43,7 +43,7 @@ else
         --gcc.exe:x86_64-w64-mingw32-gcc \
         --gcc.linkerexe:x86_64-w64-mingw32-gcc \
         -d:release -d:userFile="$USERFILE" \
-        --out:storie.exe storie.nim
+        --out:telestorie.exe telestorie.nim
 fi
 
 if [ $? -eq 0 ]; then
@@ -52,7 +52,7 @@ if [ $? -eq 0 ]; then
     echo "Build successful!"
     echo "========================================"
     echo ""
-    echo "Run with: storie.exe"
+    echo "Run with: telestorie.exe"
     echo ""
     echo "NOTE: For best results, use Windows Terminal"
     echo "      Legacy CMD may have limited support"
