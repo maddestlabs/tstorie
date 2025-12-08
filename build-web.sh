@@ -1,12 +1,12 @@
 #!/bin/bash
-# Telestorie WASM compiler script
+# TStorie WASM compiler script
 
 VERSION="0.1.0"
 
 show_help() {
     cat << EOF
-Telestorie WASM compiler v$VERSION
-Compile Telestorie for web deployment
+TStorie WASM compiler v$VERSION
+Compile TStorie for web deployment
 
 Usage: ./build-web.sh [OPTIONS] [FILE]
 
@@ -58,7 +58,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -v|--version)
-            echo "telestorie WASM compiler version $VERSION"
+            echo "tstorie WASM compiler version $VERSION"
             exit 0
             ;;
         -r|--release)
@@ -135,7 +135,7 @@ fi
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-echo "Compiling telestorie to WASM with ${FILE_BASE}.nim..."
+echo "Compiling tstorie to WASM with ${FILE_BASE}.nim..."
 echo "Output directory: $OUTPUT_DIR"
 echo ""
 
@@ -155,8 +155,8 @@ NIM_OPTS="c
   --exceptions:goto
   $RELEASE_MODE
   --nimcache:nimcache_wasm
-  -o:$OUTPUT_DIR/telestorie.wasm.js
-  telestorie.nim"
+  -o:$OUTPUT_DIR/tstorie.wasm.js
+  tstorie.nim"
 
 # Emscripten flags
 export EMCC_CFLAGS="-s ALLOW_MEMORY_GROWTH=1 \
@@ -184,15 +184,15 @@ echo ""
 echo "✓ Compilation successful!"
 echo ""
 echo "Output files:"
-echo "  - $OUTPUT_DIR/telestorie.wasm.js"
-echo "  - $OUTPUT_DIR/telestorie.wasm"
+echo "  - $OUTPUT_DIR/tstorie.wasm.js"
+echo "  - $OUTPUT_DIR/tstorie.wasm"
 echo ""
 
 # Copy supporting files from web/ template if they exist and output is different
 if [ "$OUTPUT_DIR" != "web" ]; then
-    if [ -f "web/telestorie.js" ]; then
-        cp web/telestorie.js "$OUTPUT_DIR/telestorie.js"
-        echo "  - $OUTPUT_DIR/telestorie.js (copied from web/)"
+    if [ -f "web/tstorie.js" ]; then
+        cp web/tstorie.js "$OUTPUT_DIR/tstorie.js"
+        echo "  - $OUTPUT_DIR/tstorie.js (copied from web/)"
     fi
     if [ -f "web/index.html" ]; then
         cp web/index.html "$OUTPUT_DIR/index.html"
@@ -204,7 +204,7 @@ if [ "$OUTPUT_DIR" != "web" ]; then
         echo "  - $OUTPUT_DIR/index.md (runtime content)"
     fi
 else
-    echo "  - $OUTPUT_DIR/telestorie.js (JavaScript interface)"
+    echo "  - $OUTPUT_DIR/tstorie.js (JavaScript interface)"
     echo "  - $OUTPUT_DIR/index.html (HTML template)"
     # Copy index.md if it exists (needed at runtime)
     if [ -f "index.md" ]; then
@@ -214,10 +214,10 @@ else
 fi
 
 # Check for required supporting files
-if [ ! -f "$OUTPUT_DIR/telestorie.js" ]; then
+if [ ! -f "$OUTPUT_DIR/tstorie.js" ]; then
     echo ""
-    echo "Warning: $OUTPUT_DIR/telestorie.js not found."
-    echo "         Copy web/telestorie.js to $OUTPUT_DIR/ or create the JavaScript interface."
+    echo "Warning: $OUTPUT_DIR/tstorie.js not found."
+    echo "         Copy web/tstorie.js to $OUTPUT_DIR/ or create the JavaScript interface."
 fi
 
 if [ ! -f "$OUTPUT_DIR/index.html" ]; then

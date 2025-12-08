@@ -1,7 +1,7 @@
-// Telestorie JavaScript Interface
+// TStorie JavaScript Interface
 // Handles terminal rendering, input, and WASM module integration
 
-class TeletorieTerminal {
+class TStorieTerminal {
     constructor(canvasElement) {
         this.canvas = canvasElement;
         this.ctx = canvasElement.getContext('2d', { alpha: false });
@@ -331,9 +331,9 @@ class TeletorieTerminal {
 // Global terminal instance
 let terminal = null;
 
-async function inittelestorie() {
+async function inittstorie() {
     try {
-        console.log('Initializing Telestorie...');
+        console.log('Initializing TStorie...');
         
         // Wait for fonts to load
         if (document.fonts && document.fonts.ready) {
@@ -341,7 +341,7 @@ async function inittelestorie() {
         }
         
         const canvas = document.getElementById('terminal');
-        terminal = new TeletorieTerminal(canvas);
+        terminal = new TStorieTerminal(canvas);
         
         console.log('Terminal created:', terminal.cols, 'x', terminal.rows);
         
@@ -364,7 +364,7 @@ async function inittelestorie() {
         console.log('Starting animation loop...');
         terminal.startAnimationLoop();
     } catch (error) {
-        console.error('Failed to initialize Telestorie:', error);
+        console.error('Failed to initialize TStorie:', error);
         document.getElementById('container').innerHTML = 
             `<div class="error">
                 <h2>Initialization Error</h2>
@@ -375,5 +375,5 @@ async function inittelestorie() {
 
 // Export for use in HTML
 if (typeof window !== 'undefined') {
-    window.inittelestorie = inittelestorie;
+    window.inittstorie = inittstorie;
 }

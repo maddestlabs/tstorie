@@ -1,8 +1,8 @@
-# Telestorie
+# TStorie
 
 Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms.
 
-Check it out live: [Demo](https://maddestlabs.github.io/telestorie/)
+Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 
@@ -11,21 +11,21 @@ The engine is built around GitHub features. No need to actually install Nim, or 
 Core engine features:
 - **Cross-Platform** - Runs natively in terminals and in web browsers via WebAssembly
 - **Minimal Filesize** - Compiled games/apps average from maybe 400KB to 2MB.
-- **Reusable Libraries** - Helper modules for events, animations, and UI components
 - **Input Handling** - Comprehensive keyboard, mouse, and special key support
 - **Color Support** - True color (24-bit), 256-color, and 8-color terminal support
 - **Layer System** - Z-ordered layers with transparency support
-- **Automatic Terminal Resize Handling** - All layers automatically resize when terminal or browser window changes size
+- **Terminal Resizing** - All layers automatically resize when terminal or browser window changes size
 
 Higher level features:
 - **Literate programming** - Write with familiar markdown features, separating prose from code.
 - **Nim-based scripting** - Code with executable code blocks. Powered by [Nimini](https://github.com/maddestlabs/nimini).
+- **Reusable Libraries** - Helper modules for advanced events, animations, and UI components
 
 ## Getting Started
 
 Quick Start:
 - Create a gist using Markdown and Nim code blocks
-- See your gist running live: `https://maddestlabs.github.io/telestorie?gist=gistid`
+- See your gist running live: `https://maddestlabs.github.io/tstorie?gist=gistid`
 
 Create your own project:
 - Create a template from Storie and enable GitHub Pages

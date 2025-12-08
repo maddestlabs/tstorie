@@ -1,13 +1,13 @@
-# Telestorie Engine
+# TStorie Engine
 
-Welcome to Telestorie! Edit this file to create your interactive terminal app.
+Welcome to TStorie! Edit this file to create your interactive terminal app.
 
 ```nim on:render
 # Clear the foreground layer each frame
 fgClearTransparent()
 
 # Center a welcome message
-var msg = "Hello from Telestorie!"
+var msg = "Hello from TStorie!"
 var x = (termWidth - 19) / 2
 var y = termHeight / 2
 fgWriteText(x, y, msg)

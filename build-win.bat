@@ -1,10 +1,10 @@
 @echo off
-REM Windows build script for Telestorie
+REM Windows build script for TStorie
 REM Usage: build-windows.bat [filename]
 REM Example: build-windows.bat examples\boxes.nim
 
 echo ========================================
-echo Telestorie Windows Build
+echo TStorie Windows Build
 echo ========================================
 echo.
 
@@ -27,7 +27,7 @@ echo Target: Windows Console
 echo.
 
 REM Compile for Windows
-nim c -d:release -d:userFile=%USERFILE% --out:telestorie.exe telestorie.nim
+nim c -d:release -d:userFile=%USERFILE% --out:tstorie.exe tstorie.nim
 
 if %ERRORLEVEL% EQU 0 (
     echo.
@@ -35,7 +35,7 @@ if %ERRORLEVEL% EQU 0 (
     echo Build successful!
     echo ========================================
     echo.
-    echo Run with: telestorie.exe
+    echo Run with: tstorie.exe
     echo.
     echo NOTE: For best results, use Windows Terminal
     echo       Legacy CMD may have limited support

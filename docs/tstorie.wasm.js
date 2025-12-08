@@ -259,7 +259,7 @@ function abort(what) {
 var wasmBinaryFile;
 
 function findWasmBinary() {
-  return locateFile('telestorie.wasm.wasm');
+  return locateFile('tstorie.wasm.wasm');
 }
 
 function getBinarySync(file) {

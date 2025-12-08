@@ -1,11 +1,11 @@
 #!/bin/bash
-# telestorie compiler script - compile and run with custom file support
+# tstorie compiler script - compile and run with custom file support
 
 VERSION="0.1.0"
 
 show_help() {
     cat << EOF
-telestorie v$VERSION
+tstorie v$VERSION
 Terminal engine with sophisticated input parsing
 
 Usage: ./build.sh [OPTIONS] [FILE]
@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -v|--version)
-            echo "telestorie version $VERSION"
+            echo "tstorie version $VERSION"
             exit 0
             ;;
         -r|--release)
@@ -95,9 +95,9 @@ if [ ! -f "${FILE_BASE}.nim" ]; then
 fi
 
 # Compile with userFile define
-echo "Compiling telestorie with ${FILE_BASE}.nim..."
-nim c $RELEASE_MODE -d:userFile="$FILE_BASE" telestorie.nim || \
-  (echo "Compilation failed. Make sure ${FILE_BASE}.nim is added to the include list in telestorie.nim" && exit 1)
+echo "Compiling tstorie with ${FILE_BASE}.nim..."
+nim c $RELEASE_MODE -d:userFile="$FILE_BASE" tstorie.nim || \
+  (echo "Compilation failed. Make sure ${FILE_BASE}.nim is added to the include list in tstorie.nim" && exit 1)
 
 if [ $? -ne 0 ]; then
     echo "Compilation failed!"
@@ -106,10 +106,10 @@ fi
 
 # Run if not compile-only
 if [ "$COMPILE_ONLY" = false ]; then
-    echo "Running telestorie..."
+    echo "Running tstorie..."
     echo ""
-    ./telestorie "$@"
+    ./tstorie "$@"
 else
     echo "Compilation successful!"
-    echo "Run with: ./telestorie"
+    echo "Run with: ./tstorie"
 fi

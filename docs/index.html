@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telestorie - Terminal Engine</title>
+    <title>TStorie - Terminal Engine</title>
     <style>
         @font-face {
             font-family: 'FiraCode';
@@ -68,7 +68,7 @@
 <body>
     <div id="container">
         <div id="loading">
-            <div>Loading Telestorie...</div>
+            <div>Loading TStorie...</div>
             <div id="progress"></div>
         </div>
         <canvas id="terminal" tabindex="0"></canvas>
@@ -97,19 +97,19 @@
                 }
             },
             onRuntimeInitialized: function() {
-                if (typeof inittelestorie === 'function') {
-                    inittelestorie();
+                if (typeof inittstorie === 'function') {
+                    inittstorie();
                 } else {
-                    console.error('inittelestorie function not found. Make sure telestorie.js is loaded.');
+                    console.error('inittstorie function not found. Make sure tstorie.js is loaded.');
                 }
             }
         };
     </script>
     
     <!-- Load our terminal interface first -->
-    <script src="telestorie.js"></script>
+    <script src="tstorie.js"></script>
     
     <!-- Then load the WASM module -->
-    <script src="telestorie.wasm.js" onerror="document.getElementById('container').innerHTML = '<div class=\'error\'><h2>Failed to load WASM module</h2><p>Make sure telestorie.wasm.js exists in the same directory.</p></div>';"></script>
+    <script src="tstorie.wasm.js" onerror="document.getElementById('container').innerHTML = '<div class=\'error\'><h2>Failed to load WASM module</h2><p>Make sure tstorie.wasm.js exists in the same directory.</p></div>';"></script>
 </body>
 </html>
