@@ -1,10 +1,10 @@
 # Storie - Markdown-based Nim execution engine
 # Parses index.md for Nim code blocks and executes them using Nimini
 # Don't need markdown parsing? Keep imports you want, overwrite the rest.
-# Don't need scripting? Just remove `import src/nimini`
+# Don't need scripting? Just remove `import nimini`
 
 import strutils, tables, os
-import src/nimini
+import nimini
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
