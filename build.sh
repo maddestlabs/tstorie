@@ -17,7 +17,7 @@ Arguments:
 Options:
   -h, --help            Show this help message
   -v, --version         Show version information
-  -r, --release         Compile in release mode (optimized)
+  -d, --debug           Compile in debug mode (default is release with size optimization)
   -c, --compile-only    Compile without running
 
 Examples:
@@ -30,7 +30,7 @@ Examples:
 EOF
 }
 
-RELEASE_MODE=""
+RELEASE_MODE="-d:release --opt:size"
 COMPILE_ONLY=false
 USER_FILE=""
 
@@ -45,8 +45,8 @@ while [[ $# -gt 0 ]]; do
             echo "tstorie version $VERSION"
             exit 0
             ;;
-        -r|--release)
-            RELEASE_MODE="-d:release"
+        -d|--debug)
+            RELEASE_MODE=""
             shift
             ;;
         -c|--compile-only)

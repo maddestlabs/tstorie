@@ -1,4 +1,4 @@
-import strutils, times, parseopt, os, tables, math
+import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 
 when not defined(emscripten):
@@ -1222,6 +1222,59 @@ when defined(emscripten):
     globalState.lastMouseY = y
     let event = InputEvent(kind: MouseMoveEvent, moveX: x, moveY: y, moveMods: {})
     discard userInput(globalState, event)
+  
+  proc emSetWaitingForGist() {.exportc.} =
+    ## Set flag to wait for gist content instead of loading index.md
+    gWaitingForGist = true
+    # Ensure storieCtx exists (will be properly initialized later)
+    if storieCtx.isNil:
+      storieCtx = StorieContext()
+  
+  proc emLoadMarkdownFromJS(markdownContent: cstring) {.exportc.} =
+    ## Load markdown content from JavaScript and reinitialize the storie context
+    try:
+      # Convert cstring to string safely
+      if markdownContent.isNil:
+        lastError = "markdownContent is nil"
+        return
+      
+      let content = $markdownContent
+      
+      # Ensure content is valid
+      if content.len == 0:
+        lastError = "content is empty"
+        return
+      
+      # Parse the markdown
+      let blocks = parseMarkdown(content)
+      
+      # Check if we got any blocks
+      if blocks.len == 0:
+        lastError = "no blocks parsed from " & $content.len & " bytes"
+        return
+      
+      # Update the storie context with new code blocks
+      if not storieCtx.isNil and not storieCtx.niminiContext.isNil:
+        gWaitingForGist = false
+        
+        # Replace the code blocks
+        storieCtx.codeBlocks = blocks
+        
+        # Clear all layer buffers
+        for layer in globalState.layers:
+          layer.buffer.clear()
+        
+        # Execute init blocks immediately
+        for codeBlock in blocks:
+          if codeBlock.lifecycle == "init":
+            discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
+        
+        # Execute render blocks immediately to show content
+        for codeBlock in blocks:
+          if codeBlock.lifecycle == "render":
+            discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
+    except Exception as e:
+      discard # Silently fail in WASM
 
 proc showHelp() =
   echo "storie v" & version

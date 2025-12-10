@@ -24,6 +24,10 @@
             height: 100vh;
         }
         
+        body.custom-font {
+            font-family: var(--custom-font-family), 'FiraCode', 'Consolas', 'Monaco', monospace;
+        }
+        
         #container {
             width: 100%;
             height: 100%;
@@ -41,6 +45,11 @@
             font-smooth: never;
             -webkit-font-smoothing: none;
             -moz-osx-font-smoothing: grayscale;
+            font-family: 'FiraCode', 'Consolas', 'Monaco', monospace;
+        }
+        
+        #terminal.custom-font {
+            font-family: var(--custom-font-family), 'FiraCode', 'Consolas', 'Monaco', monospace;
         }
         
         #loading {
@@ -81,13 +90,112 @@
         const progress = document.getElementById('progress');
         const container = document.getElementById('container');
         
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const gistId = urlParams.get('gist');
+        const fontUrl = urlParams.get('font');
+        
+        // Gist loading state
+        let gistMarkdown = null;
+        let moduleReady = false;
+        let gistReady = false;
+        
+        if (gistId) {
+            console.log('Gist parameter detected:', gistId);
+        }
+        
+        // Load custom font if specified
+        if (fontUrl) {
+            console.log('Custom font parameter detected:', fontUrl);
+            try {
+                let actualUrl = fontUrl;
+                let fontFamily = '';
+                
+                // Check if it's a full URL or just a font name
+                if (fontUrl.startsWith('http://') || fontUrl.startsWith('https://')) {
+                    // It's a full URL
+                    const fontMatch = fontUrl.match(/family=([^:&]+)/);
+                    if (fontMatch) {
+                        fontFamily = fontMatch[1].replace(/\+/g, ' ');
+                    }
+                } else {
+                    // It's just a font name, construct Google Fonts URL
+                    fontFamily = fontUrl.replace(/-/g, ' ');
+                    actualUrl = 'https://fonts.googleapis.com/css2?family=' + fontUrl.replace(/\s+/g, '+') + '&display=swap';
+                }
+                
+                console.log('Loading font from:', actualUrl);
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = actualUrl;
+                document.head.appendChild(link);
+                
+                if (fontFamily) {
+                    document.documentElement.style.setProperty('--custom-font-family', fontFamily);
+                    document.body.classList.add('custom-font');
+                    canvas.classList.add('custom-font');
+                    // Store font family for TStorieTerminal to use
+                    const fullFontFamily = "'" + fontFamily + "', 'FiraCode', 'Consolas', 'Monaco', monospace";
+                    if (typeof Module !== 'undefined') {
+                        Module.customFontFamily = fullFontFamily;
+                    } else {
+                        // Module not defined yet, we'll set it when defining Module
+                        window.customFontFamily = fullFontFamily;
+                    }
+                    console.log('Applied custom font:', fontFamily);
+                }
+            } catch (e) {
+                console.error('Error loading custom font:', e);
+            }
+        }
+        
+        function tryLoadGist() {
+            // Only load if both module and gist are ready
+            console.log('tryLoadGist called - moduleReady:', moduleReady, 'gistReady:', gistReady, 'hasMarkdown:', !!gistMarkdown);
+            if (moduleReady && gistReady && gistMarkdown) {
+                console.log('=== Loading markdown from gist (' + gistMarkdown.length + ' bytes) ===');
+                try {
+                    if (typeof Module.ccall === 'function') {
+                        Module.ccall(
+                            'emLoadMarkdownFromJS',
+                            null,
+                            ['string'],
+                            [gistMarkdown],
+                            { async: false }
+                        );
+                        console.log('=== Successfully loaded gist content via ccall ===');
+                        Module.setStatus('');
+                    } else if (typeof Module._emLoadMarkdownFromJS === 'function') {
+                        // Fallback: manually allocate string in WASM memory
+                        console.log('Using manual string allocation');
+                        var len = Module.lengthBytesUTF8(gistMarkdown) + 1;
+                        var strPtr = Module._malloc(len);
+                        Module.stringToUTF8(gistMarkdown, strPtr, len);
+                        Module._emLoadMarkdownFromJS(strPtr);
+                        Module._free(strPtr);
+                        console.log('=== Successfully loaded gist content via manual allocation ===');
+                        Module.setStatus('');
+                    } else {
+                        console.error('Module.ccall and Module._emLoadMarkdownFromJS not available');
+                        progress.textContent = 'Error: Gist load function not available';
+                    }
+                } catch (e) {
+                    console.error('Error loading gist markdown:', e);
+                    progress.textContent = 'Error loading gist: ' + e.message;
+                }
+            }
+        }
+        
         var Module = {
+            waitingForGist: gistId ? true : false,
+            customFontFamily: window.customFontFamily || null,
             canvas: canvas,
             print: function(text) {
                 console.log(text);
             },
             printErr: function(text) {
                 console.error(text);
+                progress.textContent = 'Error: ' + text;
             },
             setStatus: function(text) {
                 if (text) {
@@ -96,14 +204,81 @@
                     loading.classList.add('hidden');
                 }
             },
-            onRuntimeInitialized: function() {
+            onRuntimeInitialized: async function() {
+                moduleReady = true;
+                
+                // Set waiting flag if gist is present (must be done before init)
+                if (gistId) {
+                    console.log('Setting wait flag for gist before initialization');
+                    try {
+                        if (typeof Module._emSetWaitingForGist === 'function') {
+                            Module._emSetWaitingForGist();
+                        } else if (typeof Module.ccall === 'function') {
+                            Module.ccall('emSetWaitingForGist', null, [], []);
+                        }
+                    } catch (e) {
+                        console.error('Error calling emSetWaitingForGist:', e);
+                    }
+                }
+                
+                // Initialize tstorie (wait for it to complete)
                 if (typeof inittstorie === 'function') {
-                    inittstorie();
+                    await inittstorie();
                 } else {
                     console.error('inittstorie function not found. Make sure tstorie.js is loaded.');
                 }
+                
+                // Try loading gist if it's ready
+                if (gistId) {
+                    tryLoadGist();
+                } else {
+                    Module.setStatus('');
+                }
             }
         };
+        
+        // Fetch gist if specified
+        if (gistId) {
+            progress.textContent = 'Loading gist ' + gistId + '...';
+            
+            fetch('https://api.github.com/gists/' + gistId)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Gist not found (HTTP ' + response.status + ')');
+                    }
+                    return response.json();
+                })
+                .then(function(gist) {
+                    // Find first .md file in gist
+                    var mdFile = null;
+                    for (var filename in gist.files) {
+                        if (filename.endsWith('.md')) {
+                            mdFile = gist.files[filename];
+                            break;
+                        }
+                    }
+                    
+                    if (mdFile) {
+                        console.log('Found markdown file in gist:', mdFile.filename, '(' + mdFile.content.length + ' bytes)');
+                        gistMarkdown = mdFile.content;
+                        gistReady = true;
+                        progress.textContent = 'Loaded ' + mdFile.filename + ', starting...';
+                        
+                        // Try loading gist if module is ready
+                        tryLoadGist();
+                    } else {
+                        throw new Error('No .md file found in gist');
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error loading gist:', error);
+                    progress.textContent = 'Error: ' + error.message;
+                    gistMarkdown = null;
+                });
+        }
+        
+        console.log('Load from gist with URL parameter: ?gist=YOUR_GIST_ID');
+        console.log('Use custom font with: ?font=Font+Name or ?font=FULL_GOOGLE_FONTS_URL');
     </script>
     
     <!-- Load our terminal interface first -->

@@ -17,14 +17,14 @@ Arguments:
 Options:
   -h, --help            Show this help message
   -v, --version         Show version information
-  -r, --release         Compile in release mode (optimized)
+  -d, --debug           Compile in debug mode (default is release with size optimization)
   -s, --serve           Start a local web server after compilation
   -o, --output DIR      Output directory (default: web)
 
 Examples:
   ./build-web.sh                          # Compile index.nim to WASM
   ./build-web.sh example_boxes            # Compile example_boxes.nim to WASM
-  ./build-web.sh -r example_boxes         # Compile optimized
+  ./build-web.sh -d example_boxes         # Compile in debug mode
   ./build-web.sh -s                       # Compile and serve
   ./build-web.sh -o docs                  # Output to docs/ (for GitHub Pages)
   ./build-web.sh -o .                     # Output to root directory
@@ -45,7 +45,7 @@ Setup Emscripten:
 EOF
 }
 
-RELEASE_MODE=""
+RELEASE_MODE="-d:release --opt:size"
 SERVE=false
 USER_FILE=""
 OUTPUT_DIR="docs"
@@ -61,8 +61,8 @@ while [[ $# -gt 0 ]]; do
             echo "tstorie WASM compiler version $VERSION"
             exit 0
             ;;
-        -r|--release)
-            RELEASE_MODE="-d:release"
+        -d|--debug)
+            RELEASE_MODE=""
             shift
             ;;
         -s|--serve)
@@ -141,6 +141,7 @@ echo ""
 
 # Nim compiler options for Emscripten
 NIM_OPTS="c
+  --path:nimini-dev/src
   --cpu:wasm32
   --os:linux
   --cc:clang
@@ -160,8 +161,8 @@ NIM_OPTS="c
 
 # Emscripten flags
 export EMCC_CFLAGS="-s ALLOW_MEMORY_GROWTH=1 \
-  -s EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseMove'] \
-  -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','allocateUTF8','UTF8ToString'] \
+  -s EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseMove','_emSetWaitingForGist','_emLoadMarkdownFromJS'] \
+  -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','allocateUTF8','UTF8ToString','lengthBytesUTF8','stringToUTF8'] \
   -s MODULARIZE=0 \
   -s EXPORT_NAME='Module' \
   -s ENVIRONMENT=web \

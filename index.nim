@@ -3,7 +3,7 @@
 # Don't need markdown parsing? Keep imports you want, overwrite the rest.
 # Don't need scripting? Just remove `import nimini`
 
-import strutils, tables, os
+import strutils, tables, os, random
 import nimini
 
 # Helper to convert Value to int (handles both int and float values)
@@ -204,9 +204,34 @@ proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     gFgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
   return valNil()
 
+# Random number functions
+proc randInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Generate random integer: randInt(max) returns 0..max-1, randInt(min, max) returns min..max-1
+  if args.len == 0:
+    return valInt(0)
+  elif args.len == 1:
+    let max = valueToInt(args[0])
+    return valInt(rand(max - 1))
+  else:
+    let min = valueToInt(args[0])
+    let max = valueToInt(args[1])
+    return valInt(rand(max - min - 1) + min)
+
+proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Generate random float: randFloat() returns 0.0..1.0, randFloat(max) returns 0.0..max
+  if args.len == 0:
+    return valFloat(rand(1.0))
+  else:
+    let max = case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 1.0
+    return valFloat(rand(max))
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
+  initStdlib()  # Register standard library functions (add, len, etc.)
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)
@@ -217,7 +242,8 @@ proc createNiminiContext(state: AppState): NiminiContext =
   exportNiminiProcs(
     print,
     bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect,
-    fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect
+    fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect,
+    randInt, randFloat
   )
   
   let ctx = NiminiContext(env: runtimeEnv)
@@ -270,10 +296,16 @@ type
     fgLayer: Layer
     
 var storieCtx: StorieContext
+var gWaitingForGist: bool = false  # Global flag set before context initialization
 
 proc loadAndParseMarkdown(): seq[CodeBlock] =
   ## Load index.md and parse it for code blocks
   when defined(emscripten):
+    # Check if we're waiting for gist content
+    if gWaitingForGist:
+      # Return empty blocks - gist content will be loaded via JavaScript
+      return @[]
+    
     # In WASM, embed the markdown at compile time
     # Use staticRead with the markdown content
     const mdContent = staticRead("index.md")
@@ -320,10 +352,12 @@ proc loadAndParseMarkdown(): seq[CodeBlock] =
 
 proc initStorieContext(state: AppState) =
   ## Initialize the Storie context, parse Markdown, and set up layers
-  storieCtx = StorieContext()
+  if storieCtx.isNil:
+    storieCtx = StorieContext()
+  
   storieCtx.codeBlocks = loadAndParseMarkdown()
   when defined(emscripten):
-    if storieCtx.codeBlocks.len == 0 and lastError.len == 0:
+    if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:
       lastError = "No code blocks parsed"
   
   # Create default layers that code blocks can use

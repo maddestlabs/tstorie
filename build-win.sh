@@ -27,7 +27,7 @@ echo ""
 # Compile for Windows (cross-compile if on Linux/WSL)
 if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
     # Native Windows
-    nim c -d:release -d:userFile="$USERFILE" --out:tstorie.exe tstorie.nim
+    nim c -d:release --opt:size -d:userFile="$USERFILE" --out:tstorie.exe tstorie.nim
 else
     # Cross-compile from Linux/Mac using MinGW
     echo "Cross-compiling for Windows..."
@@ -42,7 +42,7 @@ else
     nim c --os:windows --cpu:amd64 \
         --gcc.exe:x86_64-w64-mingw32-gcc \
         --gcc.linkerexe:x86_64-w64-mingw32-gcc \
-        -d:release -d:userFile="$USERFILE" \
+        -d:release --opt:size -d:userFile="$USERFILE" \
         --out:tstorie.exe tstorie.nim
 fi
 

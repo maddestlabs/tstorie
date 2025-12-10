@@ -9,12 +9,13 @@ The engine is built around GitHub features. No need to actually install Nim, or 
 ## Features
 
 Core engine features:
-- **Cross-Platform** - Runs natively in terminals and in web browsers via WebAssembly
+- **Cross-Platform** - Runs natively in terminals and in web browsers via WebAssembly.
 - **Minimal Filesize** - Compiled games/apps average from maybe 400KB to 2MB.
-- **Input Handling** - Comprehensive keyboard, mouse, and special key support
-- **Color Support** - True color (24-bit), 256-color, and 8-color terminal support
-- **Layer System** - Z-ordered layers with transparency support
-- **Terminal Resizing** - All layers automatically resize when terminal or browser window changes size
+- **Input Handling** - Comprehensive keyboard, mouse, and special key support.
+- **Optimized Rendering** - Double-buffered rendering of only recent changes for optimal FPS.
+- **Color Support** - True color (24-bit), 256-color, and 8-color terminal support.
+- **Layer System** - Z-ordered layers with transparency support.
+- **Terminal Resizing** - All layers automatically resize when terminal or browser window changes size.
 
 Higher level features:
 - **Literate programming** - Write with familiar markdown features, separating prose from code.

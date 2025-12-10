@@ -921,6 +921,8 @@ async function createWasm() {
   
   var allocateUTF8 = (...args) => stringToNewUTF8(...args);
 
+
+
 // End JS library code
 
 // include: postlibrary.js
@@ -951,6 +953,8 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
   Module['ccall'] = ccall;
   Module['cwrap'] = cwrap;
   Module['UTF8ToString'] = UTF8ToString;
+  Module['stringToUTF8'] = stringToUTF8;
+  Module['lengthBytesUTF8'] = lengthBytesUTF8;
   Module['allocateUTF8'] = allocateUTF8;
   // End runtime exports
   // Begin JS library exports
@@ -977,6 +981,8 @@ var _emInit,
   _emHandleTextInput,
   _emHandleMouseClick,
   _emHandleMouseMove,
+  _emSetWaitingForGist,
+  _emLoadMarkdownFromJS,
   _emscripten_builtin_memalign,
   _malloc,
   _free,
@@ -1006,6 +1012,8 @@ function assignWasmExports(wasmExports) {
   _emHandleTextInput = Module['_emHandleTextInput'] = wasmExports['emHandleTextInput'];
   _emHandleMouseClick = Module['_emHandleMouseClick'] = wasmExports['emHandleMouseClick'];
   _emHandleMouseMove = Module['_emHandleMouseMove'] = wasmExports['emHandleMouseMove'];
+  _emSetWaitingForGist = Module['_emSetWaitingForGist'] = wasmExports['emSetWaitingForGist'];
+  _emLoadMarkdownFromJS = Module['_emLoadMarkdownFromJS'] = wasmExports['emLoadMarkdownFromJS'];
   _emscripten_builtin_memalign = wasmExports['emscripten_builtin_memalign'];
   _malloc = Module['_malloc'] = wasmExports['malloc'];
   _free = Module['_free'] = wasmExports['free'];

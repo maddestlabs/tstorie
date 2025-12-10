@@ -1,0 +1,308 @@
+From 1d0e2bb5a4f8915dc05dc1670754889296ece932 Mon Sep 17 00:00:00 2001
+From: R3V1Z3 <ugotsta@gmail.com>
+Date: Tue, 9 Dec 2025 22:10:38 +0000
+Subject: [PATCH] Add map literals, array concatenation, and string indexing to
+ Nimini
+
+Core Features:
+- Map/dictionary literals with {} syntax
+- Map indexing for reading and writing
+- Array concatenation with + operator
+- String indexing with [] (returns single-char string)
+- Automatic stdlib registration (add, len, newSeq, etc.)
+
+AST/Parser/Codegen:
+- Added ekMap variant and map literal parsing
+- Keys can be identifiers or string literals
+- Supports empty maps and trailing commas
+- Added ekMap case handler for Nim backend
+
+Runtime Enhancements:
+- Map evaluation and indexed operations (read/write)
+- Array concatenation in + operator
+- String indexing support (str[index] returns char as string)
+- Returns nil for missing map keys (safe access)
+
+Standard Library:
+- Created initStdlib() to register seqops functions
+- Exports add, len, newSeq, setLen, delete, insert
+
+Examples:
+  var config = {"width": 800, "height": 600}
+  var items = [1, 2] + [3, 4]
+  var ch = "Hello"[0]  # "H"
+  config["width"] = 1024
+---
+ src/nimini.nim         | 10 +++++++
+ src/nimini/ast.nim     |  6 +++++
+ src/nimini/codegen.nim | 11 ++++++++
+ src/nimini/parser.nim  | 29 +++++++++++++++++++++
+ src/nimini/runtime.nim | 59 +++++++++++++++++++++++++++++++++---------
+ test_map_literals.nim  | 33 +++++++++++++++++++++++
+ 6 files changed, 136 insertions(+), 12 deletions(-)
+ create mode 100644 test_map_literals.nim
+
+diff --git a/src/nimini.nim b/src/nimini.nim
+index 307b18e..7e3be81 100644
+--- a/src/nimini.nim
++++ b/src/nimini.nim
+@@ -58,6 +58,16 @@ export codegen
+ export nim_extensions  # Nim-specific language extensions (autopragma features)
+ export seqops
+ 
++# Initialize standard library - must be called after initRuntime()
++proc initStdlib*() =
++  ## Register standard library functions with the runtime
++  registerNative("add", niminiAdd)
++  registerNative("len", niminiLen)
++  registerNative("newSeq", niminiNewSeq)
++  registerNative("setLen", niminiSetLen)
++  registerNative("delete", niminiDelete)
++  registerNative("insert", niminiInsert)
++
+ export backend
+ export nim_backend
+ # Uncomment to export Python backend:
+diff --git a/src/nimini/ast.nim b/src/nimini/ast.nim
+index dd4b9b3..0f3afd8 100644
+--- a/src/nimini/ast.nim
++++ b/src/nimini/ast.nim
+@@ -35,6 +35,7 @@ type
+     ekBinOp, ekUnaryOp,
+     ekCall,
+     ekArray,
++    ekMap,         # Map literal {key: value, ...}
+     ekIndex,
+     ekCast,        # cast[Type](expr)
+     ekAddr,        # addr expr
+@@ -66,6 +67,8 @@ type
+       args*: seq[Expr]
+     of ekArray:
+       elements*: seq[Expr]
++    of ekMap:
++      mapPairs*: seq[tuple[key: string, value: Expr]]
+     of ekIndex:
+       indexTarget*: Expr
+       indexExpr*: Expr
+@@ -203,6 +206,9 @@ proc newCall*(name: string; args: seq[Expr]; line=0; col=0): Expr =
+ proc newArray*(elements: seq[Expr]; line=0; col=0): Expr =
+   Expr(kind: ekArray, elements: elements, line: line, col: col)
+ 
++proc newMap*(pairs: seq[tuple[key: string, value: Expr]]; line=0; col=0): Expr =
++  Expr(kind: ekMap, mapPairs: pairs, line: line, col: col)
++
+ proc newIndex*(target: Expr; index: Expr; line=0; col=0): Expr =
+   Expr(kind: ekIndex, indexTarget: target, indexExpr: index, line: line, col: col)
+ 
+diff --git a/src/nimini/codegen.nim b/src/nimini/codegen.nim
+index eccbb7d..606fc69 100644
+--- a/src/nimini/codegen.nim
++++ b/src/nimini/codegen.nim
+@@ -170,6 +170,17 @@ proc genExpr*(e: Expr; ctx: CodegenContext): string =
+       elemStrs.add(genExpr(elem, ctx))
+     result = ctx.backend.generateArray(elemStrs)
+ 
++  of ekMap:
++    # Generate map literal as Nim table
++    result = "{" 
++    var pairs: seq[string] = @[]
++    for pair in e.mapPairs:
++      let key = ctx.backend.generateString(pair.key)
++      let value = genExpr(pair.value, ctx)
++      pairs.add(key & ": " & value)
++    result &= pairs.join(", ")
++    result &= "}.toTable"
++
+   of ekIndex:
+     # Generate array indexing
+     let target = genExpr(e.indexTarget, ctx)
+diff --git a/src/nimini/parser.nim b/src/nimini/parser.nim
+index c520701..99f1fe2 100644
+--- a/src/nimini/parser.nim
++++ b/src/nimini/parser.nim
+@@ -164,6 +164,35 @@ proc parsePrefix(p: var Parser): Expr =
+     discard expect(p, tkRBracket, "Expected ']'")
+     newArray(elements, t.line, t.col)
+ 
++  of tkLBrace:
++    # Parse map literal {key: value, key2: value2, ...}
++    discard p.advance()
++    var pairs: seq[tuple[key: string, value: Expr]] = @[]
++    if p.cur().kind != tkRBrace:
++      # Parse first key-value pair
++      if p.cur().kind != tkIdent and p.cur().kind != tkString:
++        quit "Map literal keys must be identifiers or strings at line " & $t.line
++      let key = p.cur().lexeme
++      discard p.advance()
++      discard expect(p, tkColon, "Expected ':' after map key")
++      let value = parseExpr(p)
++      pairs.add((key, value))
++      
++      # Parse remaining pairs
++      while match(p, tkComma):
++        if p.cur().kind == tkRBrace:
++          break  # Allow trailing comma
++        if p.cur().kind != tkIdent and p.cur().kind != tkString:
++          quit "Map literal keys must be identifiers or strings at line " & $p.cur().line
++        let pairKey = p.cur().lexeme
++        discard p.advance()
++        discard expect(p, tkColon, "Expected ':' after map key")
++        let pairValue = parseExpr(p)
++        pairs.add((pairKey, pairValue))
++    
++    discard expect(p, tkRBrace, "Expected '}'")
++    newMap(pairs, t.line, t.col)
++
+   else:
+     quit "Unexpected token in expression at line " & $t.line
+ 
+diff --git a/src/nimini/runtime.nim b/src/nimini/runtime.nim
+index 84c7933..1ba4b33 100644
+--- a/src/nimini/runtime.nim
++++ b/src/nimini/runtime.nim
+@@ -354,16 +354,25 @@ proc evalExpr(e: Expr; env: ref Env): Value =
+     of "&":
+       # String concatenation - handle first to avoid converting to float
+       valString($l & $r)
+-    of "+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=":
++    of "+":
++      # Handle different types for + operator
++      if l.kind == vkArray and r.kind == vkArray:
++        # Array concatenation
++        var result = l.arr
++        result.add(r.arr)
++        Value(kind: vkArray, arr: result)
++      elif l.kind == vkInt and r.kind == vkInt:
++        valInt(l.i + r.i)
++      else:
++        # Numeric addition
++        valFloat(toFloat(l) + toFloat(r))
++    of "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=":
+       # Arithmetic and comparison operators need numeric conversion
+       let bothInts = (l.kind == vkInt and r.kind == vkInt)
+       let lf = toFloat(l)
+       let rf = toFloat(r)
+ 
+       case e.op
+-      of "+":
+-        if bothInts: valInt(l.i + r.i)
+-        else: valFloat(lf + rf)
+       of "-":
+         if bothInts: valInt(l.i - r.i)
+         else: valFloat(lf - rf)
+@@ -410,15 +419,36 @@ proc evalExpr(e: Expr; env: ref Env): Value =
+       elements.add(evalExpr(elem, env))
+     Value(kind: vkArray, arr: elements)
+ 
++  of ekMap:
++    var mapTable = initTable[string, Value]()
++    for pair in e.mapPairs:
++      mapTable[pair.key] = evalExpr(pair.value, env)
++    Value(kind: vkMap, map: mapTable)
++
+   of ekIndex:
+     let target = evalExpr(e.indexTarget, env)
+     let index = evalExpr(e.indexExpr, env)
+-    if target.kind != vkArray:
+-      quit "Cannot index non-array value"
+-    let idx = toInt(index)
+-    if idx < 0 or idx >= target.arr.len:
+-      quit "Index out of bounds: " & $idx & " (array length: " & $target.arr.len & ")"
+-    target.arr[idx]
++    
++    case target.kind
++    of vkArray:
++      let idx = toInt(index)
++      if idx < 0 or idx >= target.arr.len:
++        quit "Index out of bounds: " & $idx & " (array length: " & $target.arr.len & ")"
++      target.arr[idx]
++    of vkMap:
++      if index.kind != vkString:
++        quit "Map keys must be strings, got: " & $index.kind
++      if index.s in target.map:
++        target.map[index.s]
++      else:
++        valNil()  # Return nil for missing keys
++    of vkString:
++      let idx = toInt(index)
++      if idx < 0 or idx >= target.s.len:
++        quit "String index out of bounds: " & $idx & " (string length: " & $target.s.len & ")"
++      valString($target.s[idx])
++    else:
++      quit "Cannot index value of type: " & $target.kind
+ 
+   of ekCast:
+     # Type casting - for runtime, we'll try to convert the value
+@@ -477,7 +507,7 @@ proc execStmt*(s: Stmt; env: ref Env): ExecResult =
+       # Simple variable assignment
+       setVar(env, s.assignTarget.ident, value)
+     of ekIndex:
+-      # Array/sequence index assignment
++      # Array/map index assignment
+       let target = evalExpr(s.assignTarget.indexTarget, env)
+       let indexVal = evalExpr(s.assignTarget.indexExpr, env)
+       case target.kind
+@@ -486,8 +516,12 @@ proc execStmt*(s: Stmt; env: ref Env): ExecResult =
+         if idx < 0 or idx >= target.arr.len:
+           quit "Index out of bounds: " & $idx
+         target.arr[idx] = value
++      of vkMap:
++        if indexVal.kind != vkString:
++          quit "Map keys must be strings"
++        target.map[indexVal.s] = value
+       else:
+-        quit "Cannot index into non-array value"
++        quit "Cannot index into non-array/map value"
+     else:
+       quit "Invalid assignment target"
+     noReturn()
+@@ -589,6 +623,7 @@ var runtimeEnv*: ref Env
+ proc initRuntime*() =
+   runtimeEnv = newEnv(nil)
+   # Note: Plugin system is initialized on-demand in plugin.nim
++  # Note: Standard library functions are registered separately via initStdlib()
+ 
+ proc execProgram*(prog: Program; env: ref Env) =
+   discard execBlock(prog.stmts, env)
+diff --git a/test_map_literals.nim b/test_map_literals.nim
+new file mode 100644
+index 0000000..10965d5
+--- /dev/null
++++ b/test_map_literals.nim
+@@ -0,0 +1,33 @@
++## Test script for map literal support in Nimini
++
++import nimini
++
++let code = """
++# Test basic map literal
++var person = {"name": "Alice", "age": 30}
++print(person["name"])
++print(person["age"])
++
++# Test empty map
++var empty = {}
++print(empty)
++
++# Test map with numeric values
++var config = {"width": 800, "height": 600, "fps": 60}
++print(config["width"])
++
++# Test nested structures
++var data = {"items": [1, 2, 3], "count": 3}
++print(data["items"])
++print(data["count"])
++
++# Test updating map values
++var settings = {"volume": 50}
++settings["volume"] = 75
++print(settings["volume"])
++"""
++
++initRuntime()
++let tokens = tokenizeDsl(code)
++let program = parseDsl(tokens)
++execProgram(program, runtimeEnv)
+-- 
+2.51.2
+

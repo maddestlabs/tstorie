@@ -2,7 +2,7 @@
 // Handles terminal rendering, input, and WASM module integration
 
 class TStorieTerminal {
-    constructor(canvasElement) {
+    constructor(canvasElement, fontFamily = null) {
         this.canvas = canvasElement;
         this.ctx = canvasElement.getContext('2d', { alpha: false });
         
@@ -16,7 +16,7 @@ class TStorieTerminal {
         
         // Font settings
         this.fontSize = 16;
-        this.fontFamily = "'FiraCode', 'Consolas', 'Monaco', monospace";
+        this.fontFamily = fontFamily || "'FiraCode', 'Consolas', 'Monaco', monospace";
         
         // Performance
         this.lastFrameTime = 0;
@@ -341,7 +341,11 @@ async function inittstorie() {
         }
         
         const canvas = document.getElementById('terminal');
-        terminal = new TStorieTerminal(canvas);
+        const customFont = Module.customFontFamily || null;
+        if (customFont) {
+            console.log('Using custom font:', customFont);
+        }
+        terminal = new TStorieTerminal(canvas, customFont);
         
         console.log('Terminal created:', terminal.cols, 'x', terminal.rows);
         

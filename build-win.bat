@@ -27,7 +27,7 @@ echo Target: Windows Console
 echo.
 
 REM Compile for Windows
-nim c -d:release -d:userFile=%USERFILE% --out:tstorie.exe tstorie.nim
+nim c -d:release --opt:size -d:userFile=%USERFILE% --out:tstorie.exe tstorie.nim
 
 if %ERRORLEVEL% EQU 0 (
     echo.
