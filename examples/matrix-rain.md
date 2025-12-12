@@ -10,39 +10,37 @@ var matrixChars = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ�
 # Initialize drops for each column with random starting positions
 var col = 0
 while col < termWidth:
-  var drop = {
-    "y": 0 - randInt(termHeight * 2),
-    "speed": randInt(1, 4),
-    "length": randInt(10, 30),
-    "lastUpdate": 0
-  }
+  # Calculate values first, then create map with literal values
+  # Spread drops across a much larger range for varied start times
+  var startY = 0 - randInt(termHeight * 10)
+  var dropSpeed = randInt(1, 5)
+  var dropLength = randInt(8, 25)
+  var drop = {"y": startY, "speed": dropSpeed, "length": dropLength, "lastUpdate": 0}
   drops = drops + [drop]
   col = col + 1
 ```
 
 ```nim on:update
-# Update each drop independently
+# Update each drop independently - each moves at its own speed
 var col = 0
 while col < termWidth:
   var drop = drops[col]
   var y = drop["y"]
   var speed = drop["speed"]
   var length = drop["length"]
-  var lastUpdate = drop["lastUpdate"]
   
-  # Move drop based on its individual speed
-  if frameCount - lastUpdate >= speed:
-    y = y + 1
-    lastUpdate = frameCount
-    
-    # Reset when completely off screen
-    if y - length > termHeight:
-      y = 0 - randInt(termHeight)
-      speed = randInt(2, 6)
-      length = randInt(10, 30)
+  # Move drop down by its speed (pixels per frame)
+  y = y + speed
   
-  # Update drop with new values
-  drops[col] = {"y": y, "speed": speed, "length": length, "lastUpdate": lastUpdate}
+  # Reset when the tail completely leaves the screen
+  if y - length > termHeight:
+    y = 0 - randInt(termHeight * 5)
+    speed = randInt(1, 5)
+    length = randInt(8, 25)
+  
+  # Update drop with new values (using literal values in map)
+  var updatedDrop = {"y": y, "speed": speed, "length": length, "lastUpdate": 0}
+  drops[col] = updatedDrop
   col = col + 1
 ```
 

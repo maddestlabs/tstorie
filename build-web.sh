@@ -45,7 +45,7 @@ Setup Emscripten:
 EOF
 }
 
-RELEASE_MODE="-d:release --opt:size"
+RELEASE_MODE="-d:release --opt:size -d:strip -d:useMalloc"
 SERVE=false
 USER_FILE=""
 OUTPUT_DIR="docs"
@@ -169,7 +169,10 @@ export EMCC_CFLAGS="-s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=33554432 \
   -s STACK_SIZE=5242880 \
   -s ASSERTIONS=0 \
-  -s STACK_OVERFLOW_CHECK=0"
+  -s STACK_OVERFLOW_CHECK=0 \
+  -Os \
+  -flto \
+  --closure 1"
 
 # Compile
 echo "Running Nim compiler..."

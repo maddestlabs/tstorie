@@ -3,8 +3,9 @@
 # Don't need markdown parsing? Keep imports you want, overwrite the rest.
 # Don't need scripting? Just remove `import nimini`
 
-import strutils, tables, os, random
+import strutils, tables, os, random, times
 import nimini
+import lib/drawing
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -135,19 +136,19 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 # Buffer drawing functions
 proc bgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.buffer.clear()
+  gBgLayer.bgClear()
   return valNil()
 
 proc bgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.buffer.clearTransparent()
+  gBgLayer.bgClearTransparent()
   return valNil()
 
 proc fgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.buffer.clear()
+  gFgLayer.fgClear()
   return valNil()
 
 proc fgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.buffer.clearTransparent()
+  gFgLayer.fgClearTransparent()
   return valNil()
 
 proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -156,7 +157,7 @@ proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let y = valueToInt(args[1])
     let ch = args[2].s
     let style = if args.len >= 4: gTextStyle else: gTextStyle  # TODO: support style arg
-    gBgLayer.buffer.write(x, y, ch, style)
+    gBgLayer.bgWrite(x, y, ch, style)
   return valNil()
 
 proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -165,7 +166,7 @@ proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let y = valueToInt(args[1])
     let ch = args[2].s
     let style = if args.len >= 4: gTextStyle else: gTextStyle
-    gFgLayer.buffer.write(x, y, ch, style)
+    gFgLayer.fgWrite(x, y, ch, style)
   return valNil()
 
 proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -173,7 +174,7 @@ proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let text = args[2].s
-    gBgLayer.buffer.writeText(x, y, text, gTextStyle)
+    gBgLayer.bgWriteText(x, y, text, gTextStyle)
   return valNil()
 
 proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -181,7 +182,7 @@ proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let text = args[2].s
-    gFgLayer.buffer.writeText(x, y, text, gTextStyle)
+    gFgLayer.fgWriteText(x, y, text, gTextStyle)
   return valNil()
 
 proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -191,7 +192,7 @@ proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let w = valueToInt(args[2])
     let h = valueToInt(args[3])
     let ch = args[4].s
-    gBgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
+    gBgLayer.bgFillRect(x, y, w, h, ch, gTextStyle)
   return valNil()
 
 proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -201,7 +202,7 @@ proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let w = valueToInt(args[2])
     let h = valueToInt(args[3])
     let ch = args[4].s
-    gFgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
+    gFgLayer.fgFillRect(x, y, w, h, ch, gTextStyle)
   return valNil()
 
 # Random number functions
@@ -228,6 +229,46 @@ proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
       else: 1.0
     return valFloat(rand(max))
 
+# Time functions - work across platforms including WASM
+proc getYear(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current year (e.g., 2025)
+  let now = now()
+  return valInt(now.year)
+
+proc getMonth(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current month (1-12)
+  let now = now()
+  return valInt(now.month.int)
+
+proc getDay(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current day of month (1-31)
+  let now = now()
+  return valInt(now.monthday)
+
+proc getHour(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current hour (0-23)
+  let now = now()
+  return valInt(now.hour)
+
+proc getMinute(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current minute (0-59)
+  let now = now()
+  return valInt(now.minute)
+
+proc getSecond(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current second (0-59)
+  let now = now()
+  return valInt(now.second)
+
+proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Draw a figlet digit at x, y position. Args: digit(0-9 or 10 for colon), x, y
+  if args.len >= 3:
+    let digit = valueToInt(args[0])
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    gFgLayer.drawFigletDigit(digit, x, y, gTextStyle)
+  return valNil()
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -243,7 +284,9 @@ proc createNiminiContext(state: AppState): NiminiContext =
     print,
     bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect,
     fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect,
-    randInt, randFloat
+    randInt, randFloat,
+    getYear, getMonth, getDay, getHour, getMinute, getSecond,
+    drawFigletDigit
   )
   
   let ctx = NiminiContext(env: runtimeEnv)
