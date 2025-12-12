@@ -5,7 +5,7 @@ Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with
 Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
 
 Examples on GitHub Gist:
-- [tstorie_clock.nim](?gist=3916b876cf87fc3db21171b76a512b65) | [Source Gist](https://gist.github.com/R3V1Z3/3916b876cf87fc3db21171b76a512b65)
+- [tstorie_clock.nim](https://maddestlabs.github.io/tstorie?gist=3916b876cf87fc3db21171b76a512b65) | [Source Gist](https://gist.github.com/R3V1Z3/3916b876cf87fc3db21171b76a512b65)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 
