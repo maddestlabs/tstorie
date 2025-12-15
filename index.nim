@@ -1,8 +1,11 @@
 # TStorie entry point
 
-import strutils, tables, os, random, times
+import strutils, tables, random, times
+when not defined(emscripten):
+  import os
 import nimini
 import lib/drawing
+import lib/storie_md
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -10,57 +13,6 @@ proc valueToInt(v: Value): int =
   of vkInt: return v.i
   of vkFloat: return int(v.f)
   else: return 0
-
-# ================================================================
-# MARKDOWN PARSER
-# ================================================================
-
-type
-  CodeBlock = object
-    code: string
-    lifecycle: string  # "render", "update", "init", "input", "shutdown"
-    language: string
-
-proc parseMarkdown(content: string): seq[CodeBlock] =
-  ## Parse Markdown content and extract Nim code blocks with lifecycle hooks
-  result = @[]
-  var lines = content.splitLines()
-  var i = 0
-  
-  while i < lines.len:
-    let line = lines[i].strip()
-    
-    # Look for code block start: ```nim or ``` nim
-    if line.startsWith("```") or line.startsWith("``` "):
-      var headerParts = line[3..^1].strip().split()
-      if headerParts.len > 0 and headerParts[0] == "nim":
-        var lifecycle = ""
-        var language = "nim"
-        
-        # Check for on:* attribute (e.g., on:render, on:update)
-        for part in headerParts:
-          if part.startsWith("on:"):
-            lifecycle = part[3..^1]
-            break
-        
-        # Extract code block content
-        var codeLines: seq[string] = @[]
-        inc i
-        while i < lines.len:
-          if lines[i].strip().startsWith("```"):
-            break
-          codeLines.add(lines[i])
-          inc i
-        
-        # Add the code block
-        let codeBlock = CodeBlock(
-          code: codeLines.join("\n"),
-          lifecycle: lifecycle,
-          language: language
-        )
-        result.add(codeBlock)
-    
-    inc i
 
 # ================================================================
 # NIMINI INTEGRATION
@@ -78,6 +30,7 @@ type
 var gBgLayer: Layer
 var gFgLayer: Layer
 var gTextStyle, gBorderStyle, gInfoStyle: Style
+var gAppState: AppState  # Global reference to app state for state accessors
 
 # Type conversion functions
 proc nimini_int(env: ref Env; args: seq[Value]): Value =
@@ -266,6 +219,44 @@ proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
     gFgLayer.drawFigletDigit(digit, x, y, gTextStyle)
   return valNil()
 
+# ================================================================
+# STATE ACCESSORS - Expose AppState to user scripts
+# ================================================================
+
+proc getTermWidth(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current terminal width
+  return valInt(gAppState.termWidth)
+
+proc getTermHeight(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current terminal height
+  return valInt(gAppState.termHeight)
+
+proc getTargetFps(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the target FPS
+  return valFloat(gAppState.targetFps)
+
+proc setTargetFps(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set the target FPS. Args: fps (number)
+  if args.len > 0:
+    let fps = case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 60.0
+    gAppState.setTargetFps(fps)
+  return valNil()
+
+proc getFps(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the current actual FPS
+  return valFloat(gAppState.fps)
+
+proc getFrameCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the total frame count
+  return valInt(gAppState.frameCount)
+
+proc getTotalTime(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the total elapsed time in seconds
+  return valFloat(gAppState.totalTime)
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -283,7 +274,9 @@ proc createNiminiContext(state: AppState): NiminiContext =
     fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect,
     randInt, randFloat,
     getYear, getMonth, getDay, getHour, getMinute, getSecond,
-    drawFigletDigit
+    drawFigletDigit,
+    getTermWidth, getTermHeight, getTargetFps, setTargetFps,
+    getFps, getFrameCount, getTotalTime
   )
   
   let ctx = NiminiContext(env: runtimeEnv)
@@ -331,6 +324,7 @@ type
   StorieContext = ref object
     codeBlocks: seq[CodeBlock]
     niminiContext: NiminiContext
+    frontMatter: FrontMatter  # Front matter from markdown
     # Pre-compiled layer references
     bgLayer: Layer
     fgLayer: Layer
@@ -338,13 +332,13 @@ type
 var storieCtx: StorieContext
 var gWaitingForGist: bool = false  # Global flag set before context initialization
 
-proc loadAndParseMarkdown(): seq[CodeBlock] =
-  ## Load index.md and parse it for code blocks
+proc loadAndParseMarkdown(): MarkdownDocument =
+  ## Load index.md and parse it for code blocks and front matter
   when defined(emscripten):
     # Check if we're waiting for gist content
     if gWaitingForGist:
-      # Return empty blocks - gist content will be loaded via JavaScript
-      return @[]
+      # Return empty document - gist content will be loaded via JavaScript
+      return MarkdownDocument()
     
     # In WASM, embed the markdown at compile time
     # Use staticRead with the markdown content
@@ -356,10 +350,10 @@ proc loadAndParseMarkdown(): seq[CodeBlock] =
     when defined(emscripten):
       lastError = "MD:" & $mdContent.len & "ch," & $mdLineCount & "ln"
       
-    let blocks = parseMarkdown(mdContent)
+    let doc = parseMarkdownDocument(mdContent)
     
     when defined(emscripten):
-      if blocks.len == 0:
+      if doc.codeBlocks.len == 0:
         lastError = lastError & "|0blocks"
         # Show first few lines of markdown to debug
         var preview = ""
@@ -370,21 +364,21 @@ proc loadAndParseMarkdown(): seq[CodeBlock] =
         lastError = lastError & "|" & preview
       else:
         lastError = "" # Success!
-    return blocks
+    return doc
   else:
     # In native builds, read from filesystem
     let mdPath = "index.md"
     
     if not fileExists(mdPath):
       echo "Warning: index.md not found, using default behavior"
-      return @[]
+      return MarkdownDocument()
     
     try:
       let content = readFile(mdPath)
-      return parseMarkdown(content)
+      return parseMarkdownDocument(content)
     except:
       echo "Error reading index.md: ", getCurrentExceptionMsg()
-      return @[]
+      return MarkdownDocument()
 
 # ================================================================
 # INITIALIZE CONTEXT AND LAYERS
@@ -395,10 +389,25 @@ proc initStorieContext(state: AppState) =
   if storieCtx.isNil:
     storieCtx = StorieContext()
   
-  storieCtx.codeBlocks = loadAndParseMarkdown()
+  # Load and parse markdown document (with front matter)
+  let doc = loadAndParseMarkdown()
+  storieCtx.codeBlocks = doc.codeBlocks
+  storieCtx.frontMatter = doc.frontMatter
+  
   when defined(emscripten):
     if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:
       lastError = "No code blocks parsed"
+  
+  # Apply front matter settings to state
+  if storieCtx.frontMatter.hasKey("targetFPS"):
+    try:
+      let fps = parseFloat(storieCtx.frontMatter["targetFPS"])
+      state.setTargetFps(fps)
+      when not defined(emscripten):
+        echo "Set target FPS from front matter: ", fps
+    except:
+      when not defined(emscripten):
+        echo "Warning: Invalid targetFPS value in front matter"
   
   # Create default layers that code blocks can use
   storieCtx.bgLayer = state.addLayer("background", 0)
@@ -421,11 +430,27 @@ proc initStorieContext(state: AppState) =
   gTextStyle = textStyle
   gBorderStyle = borderStyle
   gInfoStyle = infoStyle
+  gAppState = state  # Store state reference for accessors
   
   when not defined(emscripten):
     echo "Loaded ", storieCtx.codeBlocks.len, " code blocks from index.md"
+    if storieCtx.frontMatter.len > 0:
+      echo "Front matter keys: ", toSeq(storieCtx.frontMatter.keys).join(", ")
   
   storieCtx.niminiContext = createNiminiContext(state)
+  
+  # Expose front matter to user scripts as global variables
+  for key, value in storieCtx.frontMatter.pairs:
+    # Try to parse as number first, otherwise store as string
+    try:
+      let numVal = parseFloat(value)
+      if '.' in value:
+        setGlobal(key, valFloat(numVal))
+      else:
+        setGlobal(key, valInt(numVal.int))
+    except:
+      # Not a number, store as string
+      setGlobal(key, valString(value))
   
   # Execute init code blocks
   for codeBlock in storieCtx.codeBlocks:
