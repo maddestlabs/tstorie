@@ -285,6 +285,13 @@ proc createNiminiContext(state: AppState): NiminiContext =
 
 proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState): bool =
   ## Execute a code block using Nimini
+  ## 
+  ## Scoping rules:
+  ## - 'init' blocks execute in global scope (all vars become global)
+  ## - Other blocks execute in child scope:
+  ##   - 'var x = 5' creates local variable
+  ##   - 'x = 5' updates parent scope if exists, else creates local
+  ##   - Reading variables walks up scope chain automatically
   if codeBlock.code.strip().len == 0:
     return true
   
@@ -305,7 +312,16 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     
     let tokens = tokenizeDsl(scriptCode)
     let program = parseDsl(tokens)
-    execProgram(program, context.env)
+    
+    # Choose execution environment based on lifecycle
+    # 'init' blocks run in global scope to define persistent state
+    # Other blocks run in child scope for local variables
+    let execEnv = if codeBlock.lifecycle == "init":
+      context.env  # Global scope
+    else:
+      newEnv(context.env)  # Child scope with parent link
+    
+    execProgram(program, execEnv)
     
     return true
   except Exception as e:
