@@ -96,7 +96,7 @@ fi
 
 # Compile with userFile define
 echo "Compiling tstorie with ${FILE_BASE}.nim..."
-nim c --path:nimini-dev/src $RELEASE_MODE -d:userFile="$FILE_BASE" tstorie.nim || \
+nim c --path:nimini/src $RELEASE_MODE -d:userFile="$FILE_BASE" tstorie.nim || \
   (echo "Compilation failed. Make sure ${FILE_BASE}.nim is added to the include list in tstorie.nim" && exit 1)
 
 if [ $? -ne 0 ]; then

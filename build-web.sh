@@ -141,7 +141,7 @@ echo ""
 
 # Nim compiler options for Emscripten
 NIM_OPTS="c
-  --path:nimini-dev/src
+  --path:nimini/src
   --cpu:wasm32
   --os:linux
   --cc:clang

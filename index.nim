@@ -1,7 +1,4 @@
-# TStorie - Markdown-based Nim execution engine
-# Parses index.md for Nim code blocks and executes them using Nimini
-# Don't need markdown parsing? Keep imports you want, overwrite the rest.
-# Don't need scripting? Just remove `import nimini`
+# TStorie entry point
 
 import strutils, tables, os, random, times
 import nimini

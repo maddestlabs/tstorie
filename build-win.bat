@@ -27,7 +27,7 @@ echo Target: Windows Console
 echo.
 
 REM Compile for Windows
-nim c --path:nimini-dev/src -d:release --opt:size -d:strip -d:useMalloc --passC:-flto --passL:-flto --passL:-s -d:userFile=%USERFILE% --out:tstorie.exe tstorie.nim
+nim c --path:nimini/src -d:release --opt:size -d:strip -d:useMalloc --passC:-flto --passL:-flto --passL:-s -d:userFile=%USERFILE% --out:tstorie.exe tstorie.nim
 
 if %ERRORLEVEL% EQU 0 (
     echo.

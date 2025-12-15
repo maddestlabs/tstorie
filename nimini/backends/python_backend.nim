@@ -2,6 +2,7 @@
 # Generates Python code from Nimini AST
 
 import ../backend
+import ../ast
 import std/strutils
 
 type
@@ -52,6 +53,7 @@ method generateBinOp*(backend: PythonBackend; left, op, right: string): string =
     of "and": "and"
     of "or": "or"
     of "%": "%"  # Modulo is the same
+    of "&": "+"  # String concatenation
     else: op
   
   result = "(" & left & " " & pythonOp & " " & right & ")"
@@ -62,6 +64,8 @@ method generateUnaryOp*(backend: PythonBackend; op, operand: string): string =
     result = "-(" & operand & ")"
   of "not":
     result = "not (" & operand & ")"
+  of "$":
+    result = "str(" & operand & ")"
   else:
     result = op & "(" & operand & ")"
 
@@ -108,16 +112,36 @@ method generateForLoop*(backend: PythonBackend; varName, iterable: string; inden
 method generateWhileLoop*(backend: PythonBackend; condition: string; indent: string): string =
   result = indent & "while " & condition & ":"
 
+method generateBreak*(backend: PythonBackend; label: string; indent: string): string =
+  # Python doesn't support labeled breaks, so we ignore the label
+  if label.len > 0:
+    # Note: Python doesn't support break labels, label is ignored
+    result = indent & "break  # label '" & label & "' ignored in Python"
+  else:
+    result = indent & "break"
+
+method generateContinue*(backend: PythonBackend; label: string; indent: string): string =
+  # Python doesn't support labeled continues, so we ignore the label
+  if label.len > 0:
+    # Note: Python doesn't support continue labels, label is ignored
+    result = indent & "continue  # label '" & label & "' ignored in Python"
+  else:
+    result = indent & "continue"
+
 # ------------------------------------------------------------------------------
 # Function/Procedure Generation
 # ------------------------------------------------------------------------------
 
-method generateProcDecl*(backend: PythonBackend; name: string; params: seq[(string, string)]; indent: string): string =
+method generateProcDecl*(backend: PythonBackend; name: string; params: seq[ProcParam]; indent: string): string =
   var paramStrs: seq[string] = @[]
-  for (pname, ptype) in params:
+  for param in params:
     # Python doesn't require type annotations (though they can be added)
-    # For now, just use parameter names
-    paramStrs.add(pname)
+    # Python passes all objects by reference anyway, so var params are handled naturally
+    # We could add a comment for var params for clarity
+    if param.isVar:
+      paramStrs.add(param.name & "  # var param")
+    else:
+      paramStrs.add(param.name)
   
   let paramList = paramStrs.join(", ")
   result = indent & "def " & name & "(" & paramList & "):"
@@ -134,6 +158,20 @@ method generateImport*(backend: PythonBackend; module: string): string =
 
 method generateComment*(backend: PythonBackend; text: string; indent: string = ""): string =
   result = indent & "# " & text
+
+# ------------------------------------------------------------------------------
+# Type Generation
+# ------------------------------------------------------------------------------
+
+method generateEnumType*(backend: PythonBackend; name: string; values: seq[tuple[name: string, value: int]]; indent: string): string =
+  ## Generate Python enum type definition using Enum from enum module
+  result = indent & "class " & name & "(Enum):"
+  if values.len > 0:
+    for enumVal in values:
+      result &= "\n" & indent & "    " & enumVal.name & " = " & $enumVal.value
+  else:
+    # Empty enum - add pass statement
+    result &= "\n" & indent & "    pass"
 
 # ------------------------------------------------------------------------------
 # Program Structure
