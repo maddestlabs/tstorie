@@ -8,14 +8,45 @@ import strutils, tables
 type
   CodeBlock* = object
     code*: string
-    lifecycle*: string  ## Lifecycle hook: "render", "update", "init", "input", "shutdown"
+    lifecycle*: string  ## Lifecycle hook: "render", "update", "init", "input", "shutdown", "enter", "exit"
     language*: string
   
   FrontMatter* = Table[string, string]
   
+  MarkdownElement* = object
+    ## Represents inline markdown formatting (bold, italic, links)
+    text*: string
+    bold*: bool
+    italic*: bool
+    isLink*: bool
+    linkUrl*: string
+  
+  ContentBlockKind* = enum
+    TextBlock, CodeBlock_Content, HeadingBlock
+  
+  ContentBlock* = object
+    ## A block of content within a section (text, code, or heading)
+    case kind*: ContentBlockKind
+    of TextBlock:
+      text*: string
+      elements*: seq[MarkdownElement]
+    of CodeBlock_Content:
+      codeBlock*: CodeBlock
+    of HeadingBlock:
+      level*: int
+      title*: string
+  
+  Section* = object
+    ## A section represents a heading and all content until the next heading
+    id*: string          ## Generated from title or explicit anchor
+    title*: string       ## The heading text
+    level*: int          ## Heading level (1-6)
+    blocks*: seq[ContentBlock]  ## All content blocks in this section
+  
   MarkdownDocument* = object
     frontMatter*: FrontMatter
-    codeBlocks*: seq[CodeBlock]
+    codeBlocks*: seq[CodeBlock]  ## Flat list of all code blocks (for backward compatibility)
+    sections*: seq[Section]      ## Structured section-based view
 
 proc parseFrontMatter*(content: string): FrontMatter =
   ## Parse YAML-style front matter from the beginning of markdown content.
@@ -54,9 +85,136 @@ proc parseFrontMatter*(content: string): FrontMatter =
     
     inc i
 
+proc generateSectionId*(title: string): string =
+  ## Generate a URL-safe section ID from a title
+  result = ""
+  for c in title.toLowerAscii():
+    if c in {'a'..'z', '0'..'9'}:
+      result.add(c)
+    elif c == ' ' or c == '-' or c == '_':
+      if result.len > 0 and result[^1] != '_':
+        result.add('_')
+  # Remove trailing underscores
+  while result.len > 0 and result[^1] == '_':
+    result.setLen(result.len - 1)
+  if result.len == 0:
+    result = "section"
+
+proc parseMarkdownInline*(text: string): seq[MarkdownElement] =
+  ## Parse inline markdown formatting (bold, italic, links)
+  ## Returns a sequence of MarkdownElements with formatting applied
+  result = @[]
+  var i = 0
+  var currentText = ""
+  var isBold = false
+  var isItalic = false
+  
+  while i < text.len:
+    # Check for links: [text](url) or [text](#anchor)
+    if text[i] == '[':
+      # Flush current
+      if currentText.len > 0:
+        result.add(MarkdownElement(
+          text: currentText,
+          bold: isBold,
+          italic: isItalic,
+          isLink: false,
+          linkUrl: ""
+        ))
+        currentText = ""
+      
+      var linkText = ""
+      var linkUrl = ""
+      var j = i + 1
+      
+      # Extract link text
+      while j < text.len and text[j] != ']':
+        linkText.add(text[j])
+        inc j
+      
+      if j < text.len and j + 1 < text.len and text[j] == ']' and text[j + 1] == '(':
+        # Extract URL
+        j += 2
+        while j < text.len and text[j] != ')':
+          linkUrl.add(text[j])
+          inc j
+        
+        if j < text.len and text[j] == ')':
+          result.add(MarkdownElement(
+            text: linkText,
+            bold: isBold,
+            italic: isItalic,
+            isLink: true,
+            linkUrl: linkUrl
+          ))
+          i = j + 1
+          continue
+      
+    # Check for bold: **text**
+    if i + 1 < text.len and text[i] == '*' and text[i + 1] == '*':
+      # Flush current
+      if currentText.len > 0:
+        result.add(MarkdownElement(
+          text: currentText,
+          bold: isBold,
+          italic: isItalic,
+          isLink: false,
+          linkUrl: ""
+        ))
+        currentText = ""
+      
+      isBold = not isBold
+      i += 2
+      continue
+    
+    # Check for italic: *text* (but not if it's part of **)
+    if text[i] == '*' and not (i + 1 < text.len and text[i + 1] == '*') and not (i > 0 and text[i - 1] == '*'):
+      # Flush current
+      if currentText.len > 0:
+        result.add(MarkdownElement(
+          text: currentText,
+          bold: isBold,
+          italic: isItalic,
+          isLink: false,
+          linkUrl: ""
+        ))
+        currentText = ""
+      
+      isItalic = not isItalic
+      i += 1
+      continue
+    
+    # Regular character
+    currentText.add(text[i])
+    inc i
+  
+  # Final flush
+  if currentText.len > 0:
+    result.add(MarkdownElement(
+      text: currentText,
+      bold: isBold,
+      italic: isItalic,
+      isLink: false,
+      linkUrl: ""
+    ))
+  
+  # If no formatting was found, return single element
+  if result.len == 0:
+    result.add(MarkdownElement(
+      text: text,
+      bold: false,
+      italic: false,
+      isLink: false,
+      linkUrl: ""
+    ))
+
+
 proc parseMarkdownDocument*(content: string): MarkdownDocument =
-  ## Parse a complete Markdown document including front matter and code blocks.
+  ## Parse a complete Markdown document including front matter, sections, and code blocks.
   ## Front matter is optional YAML-style metadata at the start of the document.
+  ## 
+  ## The document is organized into sections based on headings. Each section contains
+  ## its heading and all content blocks until the next heading.
   ## 
   ## Example:
   ##   ---
@@ -64,11 +222,18 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
   ##   title: My App
   ##   ---
   ##   
+  ##   # Introduction
+  ##   Welcome to my app!
+  ##   
   ##   ```nim on:render
   ##   bgWriteText(0, 0, "Hello")
   ##   ```
+  ##   
+  ##   # Next Section
+  ##   More content here.
   result.frontMatter = parseFrontMatter(content)
   result.codeBlocks = @[]
+  result.sections = @[]
   
   var lines = content.splitLines()
   var i = 0
@@ -82,18 +247,120 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
         break
       inc i
   
-  # Parse code blocks
+  var currentSection: Section
+  var hasCurrentSection = false
+  var sectionCounter = 0
+  var textBuffer: seq[string] = @[]
+  
+  # Parse document line by line
   while i < lines.len:
-    let line = lines[i].strip()
+    let line = lines[i]
+    let trimmed = line.strip()
+    
+    # Check for headings (# Title, ## Title, etc.)
+    if trimmed.startsWith("#"):
+      # Flush text buffer
+      if textBuffer.len > 0:
+        let text = textBuffer.join("\n")
+        if text.strip().len > 0:
+          let elements = parseMarkdownInline(text)
+          let contentBlock = ContentBlock(
+            kind: TextBlock,
+            text: text,
+            elements: elements
+          )
+          if hasCurrentSection:
+            currentSection.blocks.add(contentBlock)
+          else:
+            # Create default intro section
+            inc sectionCounter
+            let sectionId = "section_" & $sectionCounter
+            currentSection = Section(
+              id: sectionId,
+              title: "",
+              level: 1,
+              blocks: @[]
+            )
+            currentSection.blocks.add(ContentBlock(
+              kind: HeadingBlock,
+              level: 1,
+              title: ""
+            ))
+            currentSection.blocks.add(contentBlock)
+            hasCurrentSection = true
+        textBuffer = @[]
+      
+      # Finish current section
+      if hasCurrentSection:
+        result.sections.add(currentSection)
+        hasCurrentSection = false
+      
+      # Start new section
+      var level = 0
+      var titleStart = 0
+      while titleStart < trimmed.len and trimmed[titleStart] == '#':
+        inc level
+        inc titleStart
+      if level <= 6:  # Valid heading levels
+        let title = trimmed[titleStart..^1].strip()
+        # Start new section
+        inc sectionCounter
+        let sectionId = if title.len > 0: generateSectionId(title) else: "section_" & $sectionCounter
+        currentSection = Section(
+          id: sectionId,
+          title: title,
+          level: level,
+          blocks: @[]
+        )
+        # Add heading block
+        currentSection.blocks.add(ContentBlock(
+          kind: HeadingBlock,
+          level: level,
+          title: title
+        ))
+        hasCurrentSection = true
+        inc i
+        continue
     
     # Look for code block start: ```nim or ``` nim
-    if line.startsWith("```") or line.startsWith("``` "):
-      var headerParts = line[3..^1].strip().split()
+    if trimmed.startsWith("```") or trimmed.startsWith("``` "):
+      # Flush text buffer
+      if textBuffer.len > 0:
+        let text = textBuffer.join("\n")
+        if text.strip().len > 0:
+          let elements = parseMarkdownInline(text)
+          let contentBlock = ContentBlock(
+            kind: TextBlock,
+            text: text,
+            elements: elements
+          )
+          if hasCurrentSection:
+            currentSection.blocks.add(contentBlock)
+          else:
+            # Create default intro section
+            inc sectionCounter
+            let sectionId = "section_" & $sectionCounter
+            currentSection = Section(
+              id: sectionId,
+              title: "",
+              level: 1,
+              blocks: @[]
+            )
+            currentSection.blocks.add(ContentBlock(
+              kind: HeadingBlock,
+              level: 1,
+              title: ""
+            ))
+            currentSection.blocks.add(contentBlock)
+            hasCurrentSection = true
+        textBuffer = @[]
+      
+      var headerParts = trimmed[3..^1].strip().split()
       if headerParts.len > 0 and headerParts[0] == "nim":
         var lifecycle = ""
         var language = "nim"
         
-        # Check for on:* attribute (e.g., on:render, on:update)
+        # Check for on:* attribute (e.g., on:render, on:update, on:enter, on:exit)
         for part in headerParts:
           if part.startsWith("on:"):
             lifecycle = part[3..^1]
@@ -108,15 +375,105 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           codeLines.add(lines[i])
           inc i
         
-        # Add the code block
+        # Create the code block
         let codeBlock = CodeBlock(
           code: codeLines.join("\n"),
           lifecycle: lifecycle,
           language: language
         )
+        
+        # Add to flat list for backward compatibility
         result.codeBlocks.add(codeBlock)
+        
+        # Add to current section
+        if hasCurrentSection:
+          currentSection.blocks.add(ContentBlock(
+            kind: CodeBlock_Content,
+            codeBlock: codeBlock
+          ))
+        else:
+          # Create default section if needed
+          inc sectionCounter
+          let sectionId = "section_" & $sectionCounter
+          currentSection = Section(
+            id: sectionId,
+            title: "",
+            level: 1,
+            blocks: @[]
+          )
+          currentSection.blocks.add(ContentBlock(
+            kind: HeadingBlock,
+            level: 1,
+            title: ""
+          ))
+          currentSection.blocks.add(ContentBlock(
+            kind: CodeBlock_Content,
+            codeBlock: codeBlock
+          ))
+          hasCurrentSection = true
+      else:
+        # Non-Nim code block, skip it
+        inc i
+        while i < lines.len:
+          if lines[i].strip().startsWith("```"):
+            break
+          inc i
+    else:
+      # Regular text line - add to buffer
+      textBuffer.add(line)
     
     inc i
+  
+  # Flush any remaining text
+  if textBuffer.len > 0:
+    let text = textBuffer.join("\n")
+    if text.strip().len > 0:
+      let elements = parseMarkdownInline(text)
+      let contentBlock = ContentBlock(
+        kind: TextBlock,
+        text: text,
+        elements: elements
+      )
+      if hasCurrentSection:
+        currentSection.blocks.add(contentBlock)
+      else:
+        # Create default intro section
+        inc sectionCounter
+        let sectionId = "section_" & $sectionCounter
+        currentSection = Section(
+          id: sectionId,
+          title: "",
+          level: 1,
+          blocks: @[]
+        )
+        currentSection.blocks.add(ContentBlock(
+          kind: HeadingBlock,
+          level: 1,
+          title: ""
+        ))
+        currentSection.blocks.add(contentBlock)
+        hasCurrentSection = true
+    textBuffer = @[]
+  
+  # Finish the last section
+  if hasCurrentSection:
+    result.sections.add(currentSection)
+  
+  # If no sections were created (no headings), create a single default section
+  if result.sections.len == 0 and result.codeBlocks.len > 0:
+    var defaultSection = Section(
+      id: "main",
+      title: "",
+      level: 1,
+      blocks: @[]
+    )
+    for cb in result.codeBlocks:
+      defaultSection.blocks.add(ContentBlock(
+        kind: CodeBlock_Content,
+        codeBlock: cb
+      ))
+    result.sections.add(defaultSection)
+
 
 proc parseMarkdown*(content: string): seq[CodeBlock] =
   ## Parse Markdown content and extract Nim code blocks with lifecycle hooks.

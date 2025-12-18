@@ -4,8 +4,34 @@ import strutils, tables, random, times
 when not defined(emscripten):
   import os
 import nimini
-import lib/drawing
 import lib/storie_md
+import lib/layout
+
+# Figlet font data for digital clock
+const figletDigits = [
+  # 0
+  ["+---+", "|   |", "|   |", "|   |", "+---+"],
+  # 1
+  ["    |", "    |", "    |", "    |", "    |"],
+  # 2
+  ["+---+", "    |", "+---+", "|    ", "+---+"],
+  # 3
+  ["+---+", "    |", "+---+", "    |", "+---+"],
+  # 4
+  ["|   |", "|   |", "+---+", "    |", "    |"],
+  # 5
+  ["+---+", "|    ", "+---+", "    |", "+---+"],
+  # 6
+  ["+---+", "|    ", "+---+", "|   |", "+---+"],
+  # 7
+  ["+---+", "    |", "    |", "    |", "    |"],
+  # 8
+  ["+---+", "|   |", "+---+", "|   |", "+---+"],
+  # 9
+  ["+---+", "|   |", "+---+", "    |", "+---+"]
+]
+
+const figletColon = [" ", "o", " ", "o", " "]
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -21,6 +47,20 @@ proc valueToInt(v: Value): int =
 type
   NiminiContext = ref object
     env: ref Env
+  
+  StorieContext = ref object
+    codeBlocks: seq[CodeBlock]
+    niminiContext: NiminiContext
+    frontMatter: FrontMatter  # Front matter from markdown
+    # Pre-compiled layer references
+    bgLayer: Layer
+    fgLayer: Layer
+    # Section management
+    sections: seq[Section]       # All sections from the document
+    currentSectionIndex: int     # Index of currently active section (default 0)
+    multiSectionMode: bool       # If true, render all sections; if false, render only current
+    scrollY: int                 # Scroll position for multi-section mode
+
 
 # ================================================================
 # NIMINI WRAPPERS - Bridge storie functions to Nimini
@@ -31,6 +71,145 @@ var gBgLayer: Layer
 var gFgLayer: Layer
 var gTextStyle, gBorderStyle, gInfoStyle: Style
 var gAppState: AppState  # Global reference to app state for state accessors
+
+# Forward declaration for functions that will be defined later
+var storieCtx: StorieContext
+
+# ================================================================
+# SECTION MANAGEMENT FUNCTIONS
+# ================================================================
+
+proc getCurrentSection*(): Section =
+  ## Get the currently active section
+  if storieCtx.isNil or storieCtx.sections.len == 0:
+    result = Section(id: "", title: "", level: 1, blocks: @[])
+  elif storieCtx.currentSectionIndex >= 0 and storieCtx.currentSectionIndex < storieCtx.sections.len:
+    result = storieCtx.sections[storieCtx.currentSectionIndex]
+  else:
+    result = storieCtx.sections[0]
+
+proc getAllSections*(): seq[Section] =
+  ## Get all sections in the document
+  if storieCtx.isNil:
+    return @[]
+  return storieCtx.sections
+
+proc getSectionById*(id: string): Section =
+  ## Get a section by its ID
+  if storieCtx.isNil:
+    return Section(id: "", title: "", level: 1, blocks: @[])
+  
+  for section in storieCtx.sections:
+    if section.id == id:
+      return section
+  
+  # Not found
+  return Section(id: "", title: "", level: 1, blocks: @[])
+
+proc getSectionByIndex*(index: int): Section =
+  ## Get a section by its index
+  if storieCtx.isNil or index < 0 or index >= storieCtx.sections.len:
+    return Section(id: "", title: "", level: 1, blocks: @[])
+  return storieCtx.sections[index]
+
+proc gotoSection*(target: int): bool =
+  ## Navigate to a section by index
+  if storieCtx.isNil or target < 0 or target >= storieCtx.sections.len:
+    return false
+  
+  let oldIndex = storieCtx.currentSectionIndex
+  storieCtx.currentSectionIndex = target
+  
+  # TODO: Execute on:exit for old section and on:enter for new section
+  # This would require finding code blocks with those lifecycle hooks in each section
+  
+  return true
+
+proc gotoSectionById*(id: string): bool =
+  ## Navigate to a section by ID
+  if storieCtx.isNil:
+    return false
+  
+  for i, section in storieCtx.sections:
+    if section.id == id:
+      return gotoSection(i)
+  
+  return false
+
+proc createSection*(id: string, title: string, level: int = 1): bool =
+  ## Create a new section and add it to the document
+  if storieCtx.isNil:
+    return false
+  
+  let newSection = Section(
+    id: id,
+    title: title,
+    level: level,
+    blocks: @[ContentBlock(kind: HeadingBlock, level: level, title: title)]
+  )
+  
+  storieCtx.sections.add(newSection)
+  return true
+
+proc deleteSection*(id: string): bool =
+  ## Delete a section by ID
+  if storieCtx.isNil:
+    return false
+  
+  var indexToDelete = -1
+  for i, section in storieCtx.sections:
+    if section.id == id:
+      indexToDelete = i
+      break
+  
+  if indexToDelete >= 0:
+    storieCtx.sections.delete(indexToDelete)
+    # Adjust current index if needed
+    if storieCtx.currentSectionIndex >= storieCtx.sections.len:
+      storieCtx.currentSectionIndex = max(0, storieCtx.sections.len - 1)
+    return true
+  
+  return false
+
+proc updateSectionTitle*(id: string, newTitle: string): bool =
+  ## Update a section's title
+  if storieCtx.isNil:
+    return false
+  
+  for section in storieCtx.sections.mitems:
+    if section.id == id:
+      section.title = newTitle
+      # Update the heading block if it exists
+      for blk in section.blocks.mitems:
+        if blk.kind == HeadingBlock:
+          blk.title = newTitle
+          break
+      return true
+  
+  return false
+
+proc setMultiSectionMode*(enabled: bool) =
+  ## Enable or disable multi-section rendering mode
+  if not storieCtx.isNil:
+    storieCtx.multiSectionMode = enabled
+
+proc getMultiSectionMode*(): bool =
+  ## Get current multi-section mode setting
+  if storieCtx.isNil:
+    return true
+  return storieCtx.multiSectionMode
+
+proc setScrollY*(y: int) =
+  ## Set scroll position for multi-section mode
+  if not storieCtx.isNil:
+    storieCtx.scrollY = y
+
+proc getScrollY*(): int =
+  ## Get current scroll position
+  if storieCtx.isNil:
+    return 0
+  return storieCtx.scrollY
+
 
 # Type conversion functions
 proc nimini_int(env: ref Env; args: seq[Value]): Value =
@@ -86,19 +265,19 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 # Buffer drawing functions
 proc bgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.bgClear()
+  gBgLayer.buffer.clear()
   return valNil()
 
 proc bgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.bgClearTransparent()
+  gBgLayer.buffer.clearTransparent()
   return valNil()
 
 proc fgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.fgClear()
+  gFgLayer.buffer.clear()
   return valNil()
 
 proc fgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.fgClearTransparent()
+  gFgLayer.buffer.clearTransparent()
   return valNil()
 
 proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -107,7 +286,7 @@ proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let y = valueToInt(args[1])
     let ch = args[2].s
     let style = if args.len >= 4: gTextStyle else: gTextStyle  # TODO: support style arg
-    gBgLayer.bgWrite(x, y, ch, style)
+    gBgLayer.buffer.write(x, y, ch, style)
   return valNil()
 
 proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -116,7 +295,7 @@ proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let y = valueToInt(args[1])
     let ch = args[2].s
     let style = if args.len >= 4: gTextStyle else: gTextStyle
-    gFgLayer.fgWrite(x, y, ch, style)
+    gFgLayer.buffer.write(x, y, ch, style)
   return valNil()
 
 proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -124,7 +303,7 @@ proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let text = args[2].s
-    gBgLayer.bgWriteText(x, y, text, gTextStyle)
+    gBgLayer.buffer.writeText(x, y, text, gTextStyle)
   return valNil()
 
 proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -132,7 +311,7 @@ proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let text = args[2].s
-    gFgLayer.fgWriteText(x, y, text, gTextStyle)
+    gFgLayer.buffer.writeText(x, y, text, gTextStyle)
   return valNil()
 
 proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -142,7 +321,7 @@ proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let w = valueToInt(args[2])
     let h = valueToInt(args[3])
     let ch = args[4].s
-    gBgLayer.bgFillRect(x, y, w, h, ch, gTextStyle)
+    gBgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
   return valNil()
 
 proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -152,7 +331,7 @@ proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let w = valueToInt(args[2])
     let h = valueToInt(args[3])
     let ch = args[4].s
-    gFgLayer.fgFillRect(x, y, w, h, ch, gTextStyle)
+    gFgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
   return valNil()
 
 # Random number functions
@@ -216,7 +395,14 @@ proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let digit = valueToInt(args[0])
     let x = valueToInt(args[1])
     let y = valueToInt(args[2])
-    gFgLayer.drawFigletDigit(digit, x, y, gTextStyle)
+    
+    if digit >= 0 and digit <= 9:
+      for line in 0..4:
+        gFgLayer.buffer.writeText(x, y + line, figletDigits[digit][line], gTextStyle)
+    elif digit == 10:  # Colon
+      for line in 0..4:
+        gFgLayer.buffer.writeText(x, y + line, figletColon[line], gTextStyle)
+  
   return valNil()
 
 # ================================================================
@@ -257,6 +443,219 @@ proc getTotalTime(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get the total elapsed time in seconds
   return valFloat(gAppState.totalTime)
 
+# ================================================================
+# SECTION MANAGEMENT WRAPPERS
+# ================================================================
+
+proc nimini_getCurrentSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the currently active section as a table
+  let section = getCurrentSection()
+  var table = initTable[string, Value]()
+  table["id"] = valString(section.id)
+  table["title"] = valString(section.title)
+  table["level"] = valInt(section.level)
+  table["blockCount"] = valInt(section.blocks.len)
+  return valMap(table)
+
+proc nimini_getAllSections(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get all sections as an array of tables
+  let sections = getAllSections()
+  var arr: seq[Value] = @[]
+  for section in sections:
+    var table = initTable[string, Value]()
+    table["id"] = valString(section.id)
+    table["title"] = valString(section.title)
+    table["level"] = valInt(section.level)
+    table["blockCount"] = valInt(section.blocks.len)
+    arr.add(valMap(table))
+  return valArray(arr)
+
+proc nimini_getSectionById(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get a section by ID. Args: id (string)
+  if args.len == 0:
+    return valNil()
+  let id = args[0].s
+  let section = getSectionById(id)
+  if section.id.len == 0:
+    return valNil()
+  var table = initTable[string, Value]()
+  table["id"] = valString(section.id)
+  table["title"] = valString(section.title)
+  table["level"] = valInt(section.level)
+  table["blockCount"] = valInt(section.blocks.len)
+  return valMap(table)
+
+proc nimini_gotoSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Navigate to a section. Args: target (int index or string ID)
+  if args.len == 0:
+    return valBool(false)
+  
+  let success = case args[0].kind
+    of vkInt:
+      gotoSection(args[0].i)
+    of vkString:
+      gotoSectionById(args[0].s)
+    else:
+      false
+  
+  return valBool(success)
+
+proc nimini_createSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a new section. Args: id (string), title (string), level (int, default 1)
+  if args.len < 2:
+    return valBool(false)
+  
+  let id = args[0].s
+  let title = args[1].s
+  let level = if args.len > 2: valueToInt(args[2]) else: 1
+  
+  return valBool(createSection(id, title, level))
+
+proc nimini_deleteSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Delete a section by ID. Args: id (string)
+  if args.len == 0:
+    return valBool(false)
+  
+  let id = args[0].s
+  return valBool(deleteSection(id))
+
+proc nimini_updateSectionTitle(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update a section's title. Args: id (string), newTitle (string)
+  if args.len < 2:
+    return valBool(false)
+  
+  let id = args[0].s
+  let newTitle = args[1].s
+  return valBool(updateSectionTitle(id, newTitle))
+
+proc nimini_setMultiSectionMode(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Enable or disable multi-section rendering. Args: enabled (bool)
+  if args.len > 0:
+    let enabled = args[0].b
+    setMultiSectionMode(enabled)
+  return valNil()
+
+proc nimini_getMultiSectionMode(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current multi-section mode setting
+  return valBool(getMultiSectionMode())
+
+proc nimini_setScrollY(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set scroll position. Args: y (int)
+  if args.len > 0:
+    setScrollY(valueToInt(args[0]))
+  return valNil()
+
+proc nimini_getScrollY(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current scroll position
+  return valInt(getScrollY())
+
+proc nimini_getSectionCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get total number of sections
+  return valInt(getAllSections().len)
+
+proc nimini_getCurrentSectionIndex(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the index of the current section
+  if storieCtx.isNil:
+    return valInt(0)
+  return valInt(storieCtx.currentSectionIndex)
+
+
+# ================================================================
+# LAYOUT MODULE WRAPPERS
+# ================================================================
+
+proc bgWriteTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Write text in a box with alignment and wrapping on background layer
+  ## Args: x, y, width, height, text, hAlign, vAlign, wrapMode, style
+  if args.len >= 5:
+    let x = valueToInt(args[0])
+    let y = valueToInt(args[1])
+    let width = valueToInt(args[2])
+    let height = valueToInt(args[3])
+    let text = args[4].s
+    
+    # Default alignment and wrap mode
+    var hAlign = AlignLeft
+    var vAlign = AlignTop
+    var wrapMode = WrapWord
+    
+    # Parse optional hAlign parameter (arg 5)
+    if args.len >= 6:
+      case args[5].s
+      of "AlignLeft": hAlign = AlignLeft
+      of "AlignCenter": hAlign = AlignCenter
+      of "AlignRight": hAlign = AlignRight
+      of "AlignJustify": hAlign = AlignJustify
+      else: discard
+    
+    # Parse optional vAlign parameter (arg 6)
+    if args.len >= 7:
+      case args[6].s
+      of "AlignTop": vAlign = AlignTop
+      of "AlignMiddle": vAlign = AlignMiddle
+      of "AlignBottom": vAlign = AlignBottom
+      else: discard
+    
+    # Parse optional wrapMode parameter (arg 7)
+    if args.len >= 8:
+      case args[7].s
+      of "WrapNone": wrapMode = WrapNone
+      of "WrapWord": wrapMode = WrapWord
+      of "WrapChar": wrapMode = WrapChar
+      of "WrapEllipsis": wrapMode = WrapEllipsis
+      of "WrapJustify": wrapMode = WrapJustify
+      else: discard
+    
+    discard writeTextBox(gBgLayer.buffer, x, y, width, height, text, 
+                         hAlign, vAlign, wrapMode, gTextStyle)
+  return valNil()
+
+proc fgWriteTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Write text in a box with alignment and wrapping on foreground layer
+  ## Args: x, y, width, height, text, hAlign, vAlign, wrapMode, style
+  if args.len >= 5:
+    let x = valueToInt(args[0])
+    let y = valueToInt(args[1])
+    let width = valueToInt(args[2])
+    let height = valueToInt(args[3])
+    let text = args[4].s
+    
+    # Default alignment and wrap mode
+    var hAlign = AlignLeft
+    var vAlign = AlignTop
+    var wrapMode = WrapWord
+    
+    # Parse optional hAlign parameter (arg 5)
+    if args.len >= 6:
+      case args[5].s
+      of "AlignLeft": hAlign = AlignLeft
+      of "AlignCenter": hAlign = AlignCenter
+      of "AlignRight": hAlign = AlignRight
+      of "AlignJustify": hAlign = AlignJustify
+      else: discard
+    
+    # Parse optional vAlign parameter (arg 6)
+    if args.len >= 7:
+      case args[6].s
+      of "AlignTop": vAlign = AlignTop
+      of "AlignMiddle": vAlign = AlignMiddle
+      of "AlignBottom": vAlign = AlignBottom
+      else: discard
+    
+    # Parse optional wrapMode parameter (arg 7)
+    if args.len >= 8:
+      case args[7].s
+      of "WrapNone": wrapMode = WrapNone
+      of "WrapWord": wrapMode = WrapWord
+      of "WrapChar": wrapMode = WrapChar
+      of "WrapEllipsis": wrapMode = WrapEllipsis
+      of "WrapJustify": wrapMode = WrapJustify
+      else: discard
+    
+    discard writeTextBox(gFgLayer.buffer, x, y, width, height, text, 
+                         hAlign, vAlign, wrapMode, gTextStyle)
+  return valNil()
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -270,13 +669,17 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Auto-register all {.nimini.} pragma functions
   exportNiminiProcs(
     print,
-    bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect,
-    fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect,
+    bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect, bgWriteTextBox,
+    fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect, fgWriteTextBox,
     randInt, randFloat,
     getYear, getMonth, getDay, getHour, getMinute, getSecond,
     drawFigletDigit,
     getTermWidth, getTermHeight, getTargetFps, setTargetFps,
-    getFps, getFrameCount, getTotalTime
+    getFps, getFrameCount, getTotalTime,
+    nimini_getCurrentSection, nimini_getAllSections, nimini_getSectionById,
+    nimini_gotoSection, nimini_createSection, nimini_deleteSection,
+    nimini_updateSectionTitle, nimini_setMultiSectionMode, nimini_getMultiSectionMode,
+    nimini_setScrollY, nimini_getScrollY, nimini_getSectionCount, nimini_getCurrentSectionIndex
   )
   
   let ctx = NiminiContext(env: runtimeEnv)
@@ -336,16 +739,6 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
 # LIFECYCLE MANAGEMENT
 # ================================================================
 
-type
-  StorieContext = ref object
-    codeBlocks: seq[CodeBlock]
-    niminiContext: NiminiContext
-    frontMatter: FrontMatter  # Front matter from markdown
-    # Pre-compiled layer references
-    bgLayer: Layer
-    fgLayer: Layer
-    
-var storieCtx: StorieContext
 var gWaitingForGist: bool = false  # Global flag set before context initialization
 
 proc loadAndParseMarkdown(): MarkdownDocument =
@@ -405,10 +798,14 @@ proc initStorieContext(state: AppState) =
   if storieCtx.isNil:
     storieCtx = StorieContext()
   
-  # Load and parse markdown document (with front matter)
+  # Load and parse markdown document (with front matter and sections)
   let doc = loadAndParseMarkdown()
   storieCtx.codeBlocks = doc.codeBlocks
   storieCtx.frontMatter = doc.frontMatter
+  storieCtx.sections = doc.sections
+  storieCtx.currentSectionIndex = 0
+  storieCtx.multiSectionMode = true  # Default to multi-section mode (render all)
+  storieCtx.scrollY = 0
   
   when defined(emscripten):
     if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:

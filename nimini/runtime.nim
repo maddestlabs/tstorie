@@ -493,7 +493,7 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       else:
         # Numeric addition
         valFloat(toFloat(l) + toFloat(r))
-    of "-", "*", "/", "%", "mod", "==", "!=", "<", "<=", ">", ">=":
+    of "-", "*", "/", "%", "mod", "div", "==", "!=", "<", "<=", ">", ">=":
       # Arithmetic and comparison operators need numeric conversion
       let bothInts = (l.kind == vkInt and r.kind == vkInt)
       
@@ -516,6 +516,9 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       of "/":
         if bothInts: valInt(l.i div r.i)
         else: valFloat(lf / rf)
+      of "div":
+        # Integer division always returns int
+        valInt(toInt(l) div toInt(r))
       of "%", "mod":
         if bothInts: valInt(l.i mod r.i)
         else: valFloat(lf mod rf)
