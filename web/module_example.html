@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>tstorie - Module Loading Example</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Courier New', monospace;
+    }
+    
+    #container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    #status {
+      padding: 10px;
+      margin-bottom: 20px;
+      background: #2d2d2d;
+      border-radius: 4px;
+    }
+    
+    #canvas {
+      display: block;
+      margin: 0 auto;
+      background: #000;
+      image-rendering: pixelated;
+    }
+    
+    .info {
+      margin-top: 20px;
+      padding: 10px;
+      background: #2d2d2d;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    .loading {
+      color: #4ec9b0;
+    }
+    
+    .success {
+      color: #6a9955;
+    }
+    
+    .error {
+      color: #f48771;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>tstorie - Module Loading Example</h1>
+    
+    <div id="status" class="loading">
+      Initializing...
+    </div>
+    
+    <canvas id="canvas" width="800" height="600"></canvas>
+    
+    <div class="info">
+      <h3>Module Loading</h3>
+      <p>This example demonstrates loading Nim modules from GitHub gists at runtime.</p>
+      <ul id="module-list">
+        <li>Preparing to load modules...</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Load the module loader first -->
+  <script src="module_loader.js"></script>
+  
+  <!-- Load the compiled WASM -->
+  <script src="tstorie.js"></script>
+  
+  <script>
+    const statusEl = document.getElementById('status');
+    const moduleListEl = document.getElementById('module-list');
+    
+    function updateStatus(message, className = 'loading') {
+      statusEl.textContent = message;
+      statusEl.className = className;
+    }
+    
+    function addModuleStatus(moduleName, status) {
+      const li = document.createElement('li');
+      li.textContent = `${moduleName}: ${status}`;
+      li.className = status.includes('loaded') ? 'success' : 
+                     status.includes('error') ? 'error' : 'loading';
+      moduleListEl.appendChild(li);
+    }
+    
+    async function initStory() {
+      try {
+        updateStatus('Loading modules from gists...');
+        
+        // Clear the initial loading message
+        moduleListEl.innerHTML = '';
+        
+        // Example modules to load
+        // Replace these with actual gist IDs
+        const modules = [
+          // 'gist:abc123def456/canvas.nim',
+          // 'gist:xyz789/utils.nim'
+          
+          // For demo, you can use local modules:
+          'examples/canvas.nim'
+        ];
+        
+        for (const mod of modules) {
+          try {
+            addModuleStatus(mod, 'loading...');
+            await tstorieModuleLoader.requireModule(mod);
+            addModuleStatus(mod, '✓ loaded');
+          } catch (error) {
+            addModuleStatus(mod, `✗ error: ${error.message}`);
+            throw error;
+          }
+        }
+        
+        updateStatus('Modules loaded, initializing tstorie...', 'success');
+        
+        // Now start the tstorie runtime
+        Module.onRuntimeInitialized = function() {
+          updateStatus('tstorie initialized!', 'success');
+          
+          // Initialize with canvas size
+          const width = 80;
+          const height = 24;
+          Module._emInit(width, height);
+          
+          // Set up rendering loop
+          let lastTime = performance.now();
+          function renderLoop() {
+            const now = performance.now();
+            const deltaMs = now - lastTime;
+            lastTime = now;
+            
+            Module._emUpdate(deltaMs);
+            requestAnimationFrame(renderLoop);
+          }
+          
+          requestAnimationFrame(renderLoop);
+        };
+        
+      } catch (error) {
+        updateStatus(`Error: ${error.message}`, 'error');
+        console.error('Initialization error:', error);
+      }
+    }
+    
+    // Start when page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initStory);
+    } else {
+      initStory();
+    }
+  </script>
+</body>
+</html>

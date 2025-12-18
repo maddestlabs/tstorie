@@ -42,6 +42,7 @@ type
     title*: string       ## The heading text
     level*: int          ## Heading level (1-6)
     blocks*: seq[ContentBlock]  ## All content blocks in this section
+    metadata*: Table[string, string]  ## Optional JSON metadata from heading
   
   MarkdownDocument* = object
     frontMatter*: FrontMatter
@@ -99,6 +100,69 @@ proc generateSectionId*(title: string): string =
     result.setLen(result.len - 1)
   if result.len == 0:
     result = "section"
+
+proc parseHeadingMetadata*(headingLine: string): tuple[title: string, metadata: Table[string, string]] =
+  ## Parse a heading line that may contain JSON metadata
+  ## Format: # title {"key": "value", "another": true}
+  ## Returns tuple of (cleaned title, metadata table)
+  result.title = headingLine
+  result.metadata = initTable[string, string]()
+  
+  # Look for JSON object at end of heading
+  let jsonStart = headingLine.find('{')
+  if jsonStart < 0:
+    return
+  
+  let jsonEnd = headingLine.rfind('}')
+  if jsonEnd < 0 or jsonEnd <= jsonStart:
+    return
+  
+  # Extract title (everything before JSON)
+  result.title = headingLine[0..<jsonStart].strip()
+  
+  # Parse simple JSON object (basic key-value pairs)
+  let jsonStr = headingLine[jsonStart..jsonEnd]
+  var i = 1  # Skip opening brace
+  
+  while i < jsonStr.len - 1:  # Skip closing brace
+    # Skip whitespace and commas
+    while i < jsonStr.len and jsonStr[i] in {' ', '\t', '\n', ','}:
+      inc i
+    
+    if i >= jsonStr.len - 1:
+      break
+    
+    # Parse key (expecting "key")
+    if jsonStr[i] != '"':
+      break
+    inc i
+    var key = ""
+    while i < jsonStr.len and jsonStr[i] != '"':
+      key.add(jsonStr[i])
+      inc i
+    inc i  # Skip closing quote
+    
+    # Skip whitespace and colon
+    while i < jsonStr.len and jsonStr[i] in {' ', '\t', '\n', ':'}:
+      inc i
+    
+    # Parse value (can be string, number, boolean)
+    var value = ""
+    if jsonStr[i] == '"':
+      # String value
+      inc i
+      while i < jsonStr.len and jsonStr[i] != '"':
+        value.add(jsonStr[i])
+        inc i
+      inc i  # Skip closing quote
+    else:
+      # Number or boolean
+      while i < jsonStr.len and jsonStr[i] notin {',', '}', ' ', '\t', '\n'}:
+        value.add(jsonStr[i])
+        inc i
+    
+    if key.len > 0:
+      result.metadata[key] = value
 
 proc parseMarkdownInline*(text: string): seq[MarkdownElement] =
   ## Parse inline markdown formatting (bold, italic, links)
@@ -279,7 +343,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
               id: sectionId,
               title: "",
               level: 1,
-              blocks: @[]
+              blocks: @[],
+              metadata: initTable[string, string]()
             )
             currentSection.blocks.add(ContentBlock(
               kind: HeadingBlock,
@@ -302,7 +367,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
         inc level
         inc titleStart
       if level <= 6:  # Valid heading levels
-        let title = trimmed[titleStart..^1].strip()
+        let headingText = trimmed[titleStart..^1].strip()
+        let (title, metadata) = parseHeadingMetadata(headingText)
         # Start new section
         inc sectionCounter
         let sectionId = if title.len > 0: generateSectionId(title) else: "section_" & $sectionCounter
@@ -310,7 +376,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           id: sectionId,
           title: title,
           level: level,
-          blocks: @[]
+          blocks: @[],
+          metadata: metadata
         )
         # Add heading block
         currentSection.blocks.add(ContentBlock(
@@ -344,7 +411,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
               id: sectionId,
               title: "",
               level: 1,
-              blocks: @[]
+              blocks: @[],
+              metadata: initTable[string, string]()
             )
             currentSection.blocks.add(ContentBlock(
               kind: HeadingBlock,
@@ -399,7 +467,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
             id: sectionId,
             title: "",
             level: 1,
-            blocks: @[]
+            blocks: @[],
+            metadata: initTable[string, string]()
           )
           currentSection.blocks.add(ContentBlock(
             kind: HeadingBlock,
@@ -444,7 +513,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           id: sectionId,
           title: "",
           level: 1,
-          blocks: @[]
+          blocks: @[],
+          metadata: initTable[string, string]()
         )
         currentSection.blocks.add(ContentBlock(
           kind: HeadingBlock,
@@ -465,7 +535,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
       id: "main",
       title: "",
       level: 1,
-      blocks: @[]
+      blocks: @[],
+      metadata: initTable[string, string]()
     )
     for cb in result.codeBlocks:
       defaultSection.blocks.add(ContentBlock(

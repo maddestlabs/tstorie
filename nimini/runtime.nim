@@ -534,7 +534,6 @@ proc evalExpr(e: Expr; env: ref Env): Value =
     of "..", "..<":
       # For runtime, we'll create a custom value type that represents a range
       # For simplicity, we'll store it as a map with "start" and "end" keys
-      let rangeMap = initTable[string, Value]()
       var rangeVal = valMap()
       rangeVal.map["start"] = valInt(toInt(l))
       rangeVal.map["end"] = valInt(toInt(r))

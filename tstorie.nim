@@ -1,5 +1,8 @@
 import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
+import nimini
+import lib/module_loader
+import lib/nimini_bridge
 
 when not defined(emscripten):
   import src/platform/terminal
@@ -599,6 +602,33 @@ type
 when not defined(emscripten):
   var globalRunning {.global.} = true
   var globalTerminalState: TerminalState
+
+# ================================================================
+# MODULE LOADING SYSTEM
+# ================================================================
+
+var globalRuntimeEnv*: ref Env = nil
+
+proc initGlobalRuntime*(state: AppState) =
+  ## Initialize the global nimini runtime environment with tstorie APIs
+  if globalRuntimeEnv == nil:
+    globalRuntimeEnv = newEnv()
+    registerTstorieApis(globalRuntimeEnv, cast[pointer](state))
+
+proc require*(moduleRef: string, state: AppState): ref Env =
+  ## Load a Nim module at runtime from a gist or local file
+  ## Usage: let canvas = require("gist:abc123/canvas.nim", state)
+  ##        let utils = require("lib/utils.nim", state)
+  
+  if globalRuntimeEnv == nil:
+    initGlobalRuntime(state)
+  
+  try:
+    return requireModule(moduleRef, globalRuntimeEnv)
+  except Exception:
+    let e = getCurrentException()
+    echo "Error loading module '", moduleRef, "': ", e.msg
+    raise e
 
 # ================================================================
 # COLOR UTILITIES
@@ -1230,6 +1260,47 @@ when defined(emscripten):
     if storieCtx.isNil:
       storieCtx = StorieContext()
   
+  proc emLoadGistCode(moduleRef: cstring, code: cstring) {.exportc.} =
+    ## Called by JavaScript after fetching a gist file
+    ## Stores the code for later compilation by requireModule
+    try:
+      if moduleRef.isNil or code.isNil:
+        lastError = "moduleRef or code is nil"
+        return
+      
+      let modRef = $moduleRef
+      let sourceCode = $code
+      loadGistCode(modRef, sourceCode)
+      
+    except Exception:
+      let e = getCurrentException()
+      lastError = "Failed to load gist code: " & e.msg
+  
+  proc emRequireModule(moduleRef: cstring): cstring {.exportc.} =
+    ## Load a module at runtime
+    ## Returns "loaded" if successful, "fetch_needed" if JS needs to fetch gist
+    ## Returns error message if compilation fails
+    try:
+      if moduleRef.isNil:
+        return "error: moduleRef is nil".cstring
+      
+      let modRef = $moduleRef
+      
+      # Try to load the module
+      discard require(modRef, globalState)
+      return "loaded".cstring
+      
+    except IOError:
+      let e = getCurrentException()
+      # Module not yet loaded - signal JS to fetch it
+      if "not yet loaded" in e.msg:
+        return "fetch_needed".cstring
+      else:
+        return ("error: " & e.msg).cstring
+    except Exception:
+      let e = getCurrentException()
+      return ("error: " & e.msg).cstring
+  
   proc emLoadMarkdownFromJS(markdownContent: cstring) {.exportc.} =
     ## Load markdown content from JavaScript and reinitialize the storie context
     try:
@@ -1277,30 +1348,32 @@ when defined(emscripten):
       discard # Silently fail in WASM
 
 proc showHelp() =
-  echo "storie v" & version
-  echo "Terminal engine with sophisticated input parsing"
+  echo "tstorie v" & version
+  echo "Terminal-based interactive fiction engine"
   echo ""
-  echo "Usage: Use the run.sh script (recommended)"
-  echo "       ./run.sh [OPTIONS] [FILE]"
+  echo "Usage:"
+  echo "  tstorie [OPTIONS] [FILE]"
   echo ""
-  echo "Or compile directly:"
-  echo "       nim c -r storie.nim [OPTIONS]"
+  echo "Arguments:"
+  echo "  FILE                  Markdown file to run (default: index.md)"
   echo ""
   echo "Options:"
   echo "  -h, --help            Show this help message"
   echo "  -v, --version         Show version information"
-  echo "  --fps <num>          Set target FPS (default 60; Windows non-WT default 30)"
-  echo "                       Can also use STORIE_TARGET_FPS env var"
+  echo "  --fps <num>           Set target FPS (default 60; Windows non-WT default 30)"
+  echo "                        Can also use STORIE_TARGET_FPS env var"
   echo ""
   echo "Examples:"
-  echo "  ./run.sh example_boxes              # Run example_boxes.nim"
-  echo "  ./run.sh                            # Run default index.nim"
+  echo "  tstorie                              # Run index.md"
+  echo "  tstorie depths.md                    # Run depths.md"
+  echo "  tstorie examples/canvas_demo.md      # Run a demo"
+  echo "  tstorie --fps 30 my_story.md         # Run with custom FPS"
   echo ""
-  echo "Note: To specify a file at compile time, add it to the include list in storie.nim"
 
 proc main() =
   var p = initOptParser()
   var cliFps: float = 0.0
+  var mdFile: string = ""
   
   for kind, key, val in p.getopt():
     case kind
@@ -1317,9 +1390,13 @@ proc main() =
         echo "Use --help for usage information"
         quit(1)
     of cmdArgument:
-      echo "Unexpected argument: " & key
-      echo "Note: To run a custom file, use: nim c -r -d:userFile=<file> storie.nim"
-      quit(1)
+      # First positional argument is the markdown file
+      if mdFile.len == 0:
+        mdFile = key
+      else:
+        echo "Only one markdown file can be specified"
+        echo "Use --help for usage information"
+        quit(1)
     else: discard
     # Handle long option with value (e.g., --fps 30 or --fps=30)
     if kind in {cmdLongOption, cmdShortOption}:
@@ -1338,6 +1415,10 @@ proc main() =
           echo "Invalid --fps value: " & val
           quit(1)
       else: discard
+  
+  # Set the markdown file if specified
+  if mdFile.len > 0:
+    gMarkdownFile = mdFile
   
   when not defined(emscripten):
     var state = new(AppState)

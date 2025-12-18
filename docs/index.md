@@ -6,7 +6,13 @@ author: Maddest Labs
 
 # TStorie Engine
 
-Welcome to TStorie! Edit this file to create your interactive terminal app.
+Welcome to TStorie! This is the default demo.
+
+**Note:** The Canvas Interactive Fiction system has been created but requires integration into the main codebase. 
+
+To see canvas examples, check out:
+- `examples/canvas_demo.md` - Simple demo
+- `depths_nim.md` - Complete adventure
 
 Front matter values are accessible as global variables in your code blocks!
 
@@ -30,4 +36,8 @@ fgWriteText(2, 1, info)
 
 # Show author from front matter
 fgWriteText(2, 2, "Author: " & author)
+
+# Note about canvas system
+var note = "Canvas system: See examples/canvas_demo.md and depths_nim.md"
+fgWriteText(2, getTermHeight() - 2, note)
 ```

@@ -1,11 +1,15 @@
 # TStorie entry point
 
-import strutils, tables, random, times
+import strutils, tables, random, times, algorithm
 when not defined(emscripten):
   import os
 import nimini
 import lib/storie_md
 import lib/layout
+
+# Include canvas modules so they have access to TermBuffer and Style types
+include lib/canvas
+include lib/canvas_bridge
 
 # Figlet font data for digital clock
 const figletDigits = [
@@ -48,6 +52,11 @@ type
   NiminiContext = ref object
     env: ref Env
   
+  GlobalHandler* = object
+    name*: string
+    callback*: Value  # Nimini function/closure
+    priority*: int    # Lower = executes first (default 0)
+  
   StorieContext = ref object
     codeBlocks: seq[CodeBlock]
     niminiContext: NiminiContext
@@ -60,6 +69,10 @@ type
     currentSectionIndex: int     # Index of currently active section (default 0)
     multiSectionMode: bool       # If true, render all sections; if false, render only current
     scrollY: int                 # Scroll position for multi-section mode
+    # Global event handlers
+    globalRenderHandlers*: seq[GlobalHandler]
+    globalUpdateHandlers*: seq[GlobalHandler]
+    globalInputHandlers*: seq[GlobalHandler]
 
 
 # ================================================================
@@ -455,18 +468,34 @@ proc nimini_getCurrentSection(env: ref Env; args: seq[Value]): Value {.nimini.} 
   table["title"] = valString(section.title)
   table["level"] = valInt(section.level)
   table["blockCount"] = valInt(section.blocks.len)
+  table["index"] = valInt(storieCtx.currentSectionIndex)
+  
+  # Add metadata as a nested table
+  var metadataTable = initTable[string, Value]()
+  for key, val in section.metadata:
+    metadataTable[key] = valString(val)
+  table["metadata"] = valMap(metadataTable)
+  
   return valMap(table)
 
 proc nimini_getAllSections(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get all sections as an array of tables
   let sections = getAllSections()
   var arr: seq[Value] = @[]
-  for section in sections:
+  for i, section in sections:
     var table = initTable[string, Value]()
     table["id"] = valString(section.id)
     table["title"] = valString(section.title)
     table["level"] = valInt(section.level)
     table["blockCount"] = valInt(section.blocks.len)
+    table["index"] = valInt(i)
+    
+    # Add metadata as a nested table
+    var metadataTable = initTable[string, Value]()
+    for key, val in section.metadata:
+      metadataTable[key] = valString(val)
+    table["metadata"] = valMap(metadataTable)
+    
     arr.add(valMap(table))
   return valArray(arr)
 
@@ -478,11 +507,27 @@ proc nimini_getSectionById(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let section = getSectionById(id)
   if section.id.len == 0:
     return valNil()
+  
+  # Find index
+  var sectionIndex = 0
+  for i, s in getAllSections():
+    if s.id == id:
+      sectionIndex = i
+      break
+  
   var table = initTable[string, Value]()
   table["id"] = valString(section.id)
   table["title"] = valString(section.title)
   table["level"] = valInt(section.level)
   table["blockCount"] = valInt(section.blocks.len)
+  table["index"] = valInt(sectionIndex)
+  
+  # Add metadata as a nested table
+  var metadataTable = initTable[string, Value]()
+  for key, val in section.metadata:
+    metadataTable[key] = valString(val)
+  table["metadata"] = valMap(metadataTable)
+  
   return valMap(table)
 
 proc nimini_gotoSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -559,6 +604,311 @@ proc nimini_getCurrentSectionIndex(env: ref Env; args: seq[Value]): Value {.nimi
     return valInt(0)
   return valInt(storieCtx.currentSectionIndex)
 
+
+# ================================================================
+# GLOBAL EVENT HANDLER MANAGEMENT
+# ================================================================
+
+proc registerGlobalRender*(name: string, callback: Value, priority: int = 0): bool =
+  ## Register a global render handler
+  if storieCtx.isNil:
+    return false
+  
+  # Check if handler with this name already exists
+  for i, handler in storieCtx.globalRenderHandlers:
+    if handler.name == name:
+      # Update existing handler
+      storieCtx.globalRenderHandlers[i] = GlobalHandler(name: name, callback: callback, priority: priority)
+      return true
+  
+  # Add new handler and sort by priority
+  storieCtx.globalRenderHandlers.add(GlobalHandler(name: name, callback: callback, priority: priority))
+  storieCtx.globalRenderHandlers.sort(proc(a, b: GlobalHandler): int = cmp(a.priority, b.priority))
+  return true
+
+proc registerGlobalUpdate*(name: string, callback: Value, priority: int = 0): bool =
+  ## Register a global update handler
+  if storieCtx.isNil:
+    return false
+  
+  for i, handler in storieCtx.globalUpdateHandlers:
+    if handler.name == name:
+      storieCtx.globalUpdateHandlers[i] = GlobalHandler(name: name, callback: callback, priority: priority)
+      return true
+  
+  storieCtx.globalUpdateHandlers.add(GlobalHandler(name: name, callback: callback, priority: priority))
+  storieCtx.globalUpdateHandlers.sort(proc(a, b: GlobalHandler): int = cmp(a.priority, b.priority))
+  return true
+
+proc registerGlobalInput*(name: string, callback: Value, priority: int = 0): bool =
+  ## Register a global input handler
+  if storieCtx.isNil:
+    return false
+  
+  for i, handler in storieCtx.globalInputHandlers:
+    if handler.name == name:
+      storieCtx.globalInputHandlers[i] = GlobalHandler(name: name, callback: callback, priority: priority)
+      return true
+  
+  storieCtx.globalInputHandlers.add(GlobalHandler(name: name, callback: callback, priority: priority))
+  storieCtx.globalInputHandlers.sort(proc(a, b: GlobalHandler): int = cmp(a.priority, b.priority))
+  return true
+
+proc unregisterGlobalHandler*(name: string): bool =
+  ## Unregister a global handler by name (searches all handler types)
+  if storieCtx.isNil:
+    return false
+  
+  var found = false
+  
+  # Remove from render handlers
+  for i in countdown(storieCtx.globalRenderHandlers.len - 1, 0):
+    if storieCtx.globalRenderHandlers[i].name == name:
+      storieCtx.globalRenderHandlers.delete(i)
+      found = true
+  
+  # Remove from update handlers
+  for i in countdown(storieCtx.globalUpdateHandlers.len - 1, 0):
+    if storieCtx.globalUpdateHandlers[i].name == name:
+      storieCtx.globalUpdateHandlers.delete(i)
+      found = true
+  
+  # Remove from input handlers
+  for i in countdown(storieCtx.globalInputHandlers.len - 1, 0):
+    if storieCtx.globalInputHandlers[i].name == name:
+      storieCtx.globalInputHandlers.delete(i)
+      found = true
+  
+  return found
+
+proc clearGlobalHandlers*() =
+  ## Clear all global handlers
+  if not storieCtx.isNil:
+    storieCtx.globalRenderHandlers = @[]
+    storieCtx.globalUpdateHandlers = @[]
+    storieCtx.globalInputHandlers = @[]
+
+# Nimini wrapper functions
+proc nimini_registerGlobalRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Register a global render handler. Args: name (string), callback (function), [priority (int)]
+  if args.len < 2:
+    return valBool(false)
+  let name = args[0].s
+  let callback = args[1]
+  let priority = if args.len >= 3 and args[2].kind == vkInt: args[2].i else: 0
+  return valBool(registerGlobalRender(name, callback, priority))
+
+proc nimini_registerGlobalUpdate(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Register a global update handler. Args: name (string), callback (function), [priority (int)]
+  if args.len < 2:
+    return valBool(false)
+  let name = args[0].s
+  let callback = args[1]
+  let priority = if args.len >= 3 and args[2].kind == vkInt: args[2].i else: 0
+  return valBool(registerGlobalUpdate(name, callback, priority))
+
+proc nimini_registerGlobalInput(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Register a global input handler. Args: name (string), callback (function), [priority (int)]
+  if args.len < 2:
+    return valBool(false)
+  let name = args[0].s
+  let callback = args[1]
+  let priority = if args.len >= 3 and args[2].kind == vkInt: args[2].i else: 0
+  return valBool(registerGlobalInput(name, callback, priority))
+
+proc nimini_unregisterGlobalHandler(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Unregister a global handler by name. Args: name (string)
+  if args.len == 0:
+    return valBool(false)
+  return valBool(unregisterGlobalHandler(args[0].s))
+
+proc nimini_clearGlobalHandlers(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Clear all global handlers
+  clearGlobalHandlers()
+  return valNil()
+
+# ================================================================
+# MOUSE HANDLING
+# ================================================================
+
+proc nimini_enableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Enable mouse input reporting
+  when not defined(emscripten):
+    enableMouseReporting()
+  return valNil()
+
+proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Disable mouse input reporting
+  when not defined(emscripten):
+    disableMouseReporting()
+  return valNil()
+
+# ================================================================
+# CANVAS SYSTEM WRAPPERS
+# ================================================================
+
+proc nimini_initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Initialize canvas system with all sections. Args: currentIdx (int, optional, default 0)
+  let currentIdx = if args.len > 0: valueToInt(args[0]) else: 0
+  let sections = getAllSections()
+  initCanvas(sections, currentIdx)
+  return valBool(true)
+
+proc nimini_hideSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Hide a section by reference. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  hideSection(args[0].s)
+  return valNil()
+
+proc nimini_removeSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Remove a section from display. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  removeSection(args[0].s)
+  return valNil()
+
+proc nimini_restoreSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Restore a removed section. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  restoreSection(args[0].s)
+  return valNil()
+
+proc nimini_isVisited(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if a section has been visited. Args: sectionRef (string)
+  if args.len == 0:
+    return valBool(false)
+  return valBool(isVisited(args[0].s))
+
+proc nimini_markVisited(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Manually mark a section as visited. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  markVisited(args[0].s)
+  return valNil()
+
+proc nimini_canvasRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Render the canvas system. No args needed (uses global buffers)
+  # Get the current buffer and dimensions from global state
+  if not gAppState.isNil:
+    canvasRender(gAppState.currentBuffer, gAppState.termWidth, gAppState.termHeight)
+  return valNil()
+
+proc nimini_canvasUpdate(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update canvas animations. Args: deltaTime (float)
+  let deltaTime = if args.len > 0:
+    (if args[0].kind == vkFloat: args[0].f else: float(args[0].i))
+  else:
+    0.016 # Default ~60fps
+  canvasUpdate(deltaTime)
+  return valNil()
+
+proc nimini_canvasHandleKey(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle keyboard input for canvas. Args: keyCode (int), mods (int, optional)
+  ## Returns: bool (true if handled)
+  if args.len == 0:
+    return valBool(false)
+  let keyCode = valueToInt(args[0])
+  let mods = if args.len > 1: valueToInt(args[1]) else: 0
+  # Convert int to set[uint8] - simplified for common cases
+  var modSet: set[uint8] = {}
+  if (mods and 1) != 0: modSet.incl(0'u8)  # Shift
+  if (mods and 2) != 0: modSet.incl(1'u8)  # Ctrl
+  if (mods and 4) != 0: modSet.incl(2'u8)  # Alt
+  return valBool(canvasHandleKey(keyCode, modSet))
+
+proc nimini_canvasHandleMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle mouse input for canvas. Args: x (int), y (int), button (int), isDown (bool)
+  ## Returns: bool (true if handled)
+  if args.len < 4:
+    return valBool(false)
+  let x = valueToInt(args[0])
+  let y = valueToInt(args[1])
+  let button = valueToInt(args[2])
+  let isDown = if args[3].kind == vkBool: args[3].b else: (valueToInt(args[3]) != 0)
+  return valBool(canvasHandleMouse(x, y, button, isDown))
+
+proc encodeInputEvent(event: InputEvent): Value =
+  ## Convert InputEvent to a Nimini Value table
+  var table = initTable[string, Value]()
+  
+  case event.kind
+  of KeyEvent:
+    table["type"] = valString("key")
+    table["keyCode"] = valInt(event.keyCode)
+    table["action"] = valString(case event.keyAction
+      of Press: "press"
+      of Release: "release"
+      of Repeat: "repeat")
+    
+    # Encode modifiers
+    var mods: seq[string] = @[]
+    if ModShift in event.keyMods: mods.add("shift")
+    if ModAlt in event.keyMods: mods.add("alt")
+    if ModCtrl in event.keyMods: mods.add("ctrl")
+    if ModSuper in event.keyMods: mods.add("super")
+    
+    var modsArray: seq[Value] = @[]
+    for m in mods:
+      modsArray.add(valString(m))
+    table["mods"] = valArray(modsArray)
+  
+  of TextEvent:
+    table["type"] = valString("text")
+    table["text"] = valString(event.text)
+  
+  of MouseEvent:
+    table["type"] = valString("mouse")
+    table["x"] = valInt(event.mouseX)
+    table["y"] = valInt(event.mouseY)
+    table["button"] = valString(case event.button
+      of Left: "left"
+      of Right: "right"
+      of Middle: "middle"
+      of ScrollUp: "scroll_up"
+      of ScrollDown: "scroll_down"
+      of Unknown: "unknown")
+    table["action"] = valString(case event.action
+      of Press: "press"
+      of Release: "release"
+      of Repeat: "repeat")
+    
+    # Encode modifiers
+    var mods: seq[string] = @[]
+    if ModShift in event.mods: mods.add("shift")
+    if ModAlt in event.mods: mods.add("alt")
+    if ModCtrl in event.mods: mods.add("ctrl")
+    if ModSuper in event.mods: mods.add("super")
+    
+    var modsArray: seq[Value] = @[]
+    for m in mods:
+      modsArray.add(valString(m))
+    table["mods"] = valArray(modsArray)
+  
+  of MouseMoveEvent:
+    table["type"] = valString("mouse_move")
+    table["x"] = valInt(event.moveX)
+    table["y"] = valInt(event.moveY)
+    
+    # Encode modifiers
+    var mods: seq[string] = @[]
+    if ModShift in event.moveMods: mods.add("shift")
+    if ModAlt in event.moveMods: mods.add("alt")
+    if ModCtrl in event.moveMods: mods.add("ctrl")
+    if ModSuper in event.moveMods: mods.add("super")
+    
+    var modsArray: seq[Value] = @[]
+    for m in mods:
+      modsArray.add(valString(m))
+    table["mods"] = valArray(modsArray)
+  
+  of ResizeEvent:
+    table["type"] = valString("resize")
+    table["width"] = valInt(event.newWidth)
+    table["height"] = valInt(event.newHeight)
+  
+  return valMap(table)
 
 # ================================================================
 # LAYOUT MODULE WRAPPERS
@@ -679,7 +1029,13 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_getCurrentSection, nimini_getAllSections, nimini_getSectionById,
     nimini_gotoSection, nimini_createSection, nimini_deleteSection,
     nimini_updateSectionTitle, nimini_setMultiSectionMode, nimini_getMultiSectionMode,
-    nimini_setScrollY, nimini_getScrollY, nimini_getSectionCount, nimini_getCurrentSectionIndex
+    nimini_setScrollY, nimini_getScrollY, nimini_getSectionCount, nimini_getCurrentSectionIndex,
+    nimini_registerGlobalRender, nimini_registerGlobalUpdate, nimini_registerGlobalInput,
+    nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
+    nimini_enableMouse, nimini_disableMouse,
+    nimini_initCanvas, nimini_hideSection, nimini_removeSection, nimini_restoreSection,
+    nimini_isVisited, nimini_markVisited, nimini_canvasRender, nimini_canvasUpdate,
+    nimini_canvasHandleKey, nimini_canvasHandleMouse
   )
   
   let ctx = NiminiContext(env: runtimeEnv)
@@ -740,9 +1096,10 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
 # ================================================================
 
 var gWaitingForGist: bool = false  # Global flag set before context initialization
+var gMarkdownFile: string = "index.md"  # Global markdown file path (can be set via CLI)
 
 proc loadAndParseMarkdown(): MarkdownDocument =
-  ## Load index.md and parse it for code blocks and front matter
+  ## Load markdown file and parse it for code blocks and front matter
   when defined(emscripten):
     # Check if we're waiting for gist content
     if gWaitingForGist:
@@ -776,17 +1133,17 @@ proc loadAndParseMarkdown(): MarkdownDocument =
     return doc
   else:
     # In native builds, read from filesystem
-    let mdPath = "index.md"
+    let mdPath = gMarkdownFile
     
     if not fileExists(mdPath):
-      echo "Warning: index.md not found, using default behavior"
+      echo "Warning: ", mdPath, " not found, using default behavior"
       return MarkdownDocument()
     
     try:
       let content = readFile(mdPath)
       return parseMarkdownDocument(content)
     except:
-      echo "Error reading index.md: ", getCurrentExceptionMsg()
+      echo "Error reading ", mdPath, ": ", getCurrentExceptionMsg()
       return MarkdownDocument()
 
 # ================================================================
@@ -846,7 +1203,7 @@ proc initStorieContext(state: AppState) =
   gAppState = state  # Store state reference for accessors
   
   when not defined(emscripten):
-    echo "Loaded ", storieCtx.codeBlocks.len, " code blocks from index.md"
+    echo "Loaded ", storieCtx.codeBlocks.len, " code blocks from ", gMarkdownFile
     if storieCtx.frontMatter.len > 0:
       echo "Front matter keys: ", toSeq(storieCtx.frontMatter.keys).join(", ")
   
@@ -884,7 +1241,17 @@ onUpdate = proc(state: AppState, dt: float) =
   if storieCtx.isNil:
     return
   
-  # Execute update code blocks
+  # 1. Execute global update handlers first (modules like canvas)
+  for handler in storieCtx.globalUpdateHandlers:
+    try:
+      if handler.callback.kind == vkFunction and handler.callback.fnVal.isNative:
+        let env = storieCtx.niminiContext.env
+        discard handler.callback.fnVal.native(env, @[valFloat(dt)])
+    except Exception as e:
+      when not defined(emscripten):
+        echo "Error in global update handler '", handler.name, "': ", e.msg
+  
+  # 2. Execute section-specific on:update blocks
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "update":
       discard executeCodeBlock(storieCtx.niminiContext, codeBlock, state)
@@ -899,13 +1266,23 @@ onRender = proc(state: AppState) =
       errStyle.bold = true
       state.currentBuffer.writeText(5, 5, "ERROR: storieCtx is nil!", errStyle)
     # Fallback rendering if no context
-    let msg = "No index.md found or parsing failed"
+    let msg = "No " & gMarkdownFile & " found or parsing failed"
     let x = (state.termWidth - msg.len) div 2
     let y = state.termHeight div 2
     var fallbackStyle = defaultStyle()
     fallbackStyle.fg = cyan()
     state.currentBuffer.writeText(x, y, msg, fallbackStyle)
     return
+  
+  # 1. Execute global render handlers first (modules like canvas)
+  for handler in storieCtx.globalRenderHandlers:
+    try:
+      if handler.callback.kind == vkFunction and handler.callback.fnVal.isNative:
+        let env = storieCtx.niminiContext.env
+        discard handler.callback.fnVal.native(env, @[])
+    except Exception as e:
+      when not defined(emscripten):
+        echo "Error in global render handler '", handler.name, "': ", e.msg
   
   # Check if we have any render blocks
   var hasRenderBlocks = false
@@ -915,14 +1292,14 @@ onRender = proc(state: AppState) =
       hasRenderBlocks = true
       renderBlockCount += 1
   
-  if not hasRenderBlocks:
+  if not hasRenderBlocks and storieCtx.globalRenderHandlers.len == 0:
     when defined(emscripten):
       lastRenderExecutedCount = 0
       if lastError.len == 0:
         lastError = "No on:render blocks"
     # Fallback if no render blocks found
     state.currentBuffer.clear()
-    let msg = "No render blocks found in index.md"
+    let msg = "No render blocks found in " & gMarkdownFile
     let x = (state.termWidth - msg.len) div 2
     let y = state.termHeight div 2
     var fallbackInfoStyle = defaultStyle()
@@ -940,7 +1317,7 @@ onRender = proc(state: AppState) =
         debugY += 1
     return
   
-  # Execute render code blocks
+  # 2. Execute section-specific on:render code blocks
   var executedCount = 0
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "render":
@@ -977,13 +1354,28 @@ onInput = proc(state: AppState, event: InputEvent): bool =
   if storieCtx.isNil:
     return false
   
+  # 1. Execute global input handlers first (allow modules to intercept)
+  for handler in storieCtx.globalInputHandlers:
+    try:
+      if handler.callback.kind == vkFunction and handler.callback.fnVal.isNative:
+        let env = storieCtx.niminiContext.env
+        # Encode input event as a Nimini Value
+        let eventValue = encodeInputEvent(event)
+        let result = handler.callback.fnVal.native(env, @[eventValue])
+        # If handler returns true, it consumed the event
+        if result.kind == vkBool and result.b:
+          return true
+    except Exception as e:
+      when not defined(emscripten):
+        echo "Error in global input handler '", handler.name, "': ", e.msg
+  
   # Default quit behavior (Q or ESC)
   if event.kind == KeyEvent and event.keyAction == Press:
     if event.keyCode == ord('q') or event.keyCode == ord('Q') or event.keyCode == INPUT_ESCAPE:
       state.running = false
       return true
   
-  # Execute input code blocks
+  # 2. Execute section-specific on:input blocks
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "input":
       if executeCodeBlock(storieCtx.niminiContext, codeBlock, state):
