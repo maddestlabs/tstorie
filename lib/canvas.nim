@@ -51,6 +51,8 @@ type
     removedSections*: HashSet[string]
     mouseEnabled*: bool
     lastRenderTime*: float
+    lastViewportWidth*: int
+    lastViewportHeight*: int
 
 # Global canvas state
 var canvasState*: CanvasState
@@ -370,7 +372,9 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0) =
     hiddenSections: initHashSet[string](),
     removedSections: initHashSet[string](),
     mouseEnabled: false,
-    lastRenderTime: 0.0
+    lastRenderTime: 0.0,
+    lastViewportWidth: 0,
+    lastViewportHeight: 0
   )
   
   # Initialize section visibility from metadata
@@ -461,13 +465,14 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
   return currentX - x
 
 proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
-                        buffer: var TermBuffer, isCurrent: bool): seq[Link] =
+                        buffer: var TermBuffer, isCurrent: bool, 
+                        startLinkIdx: int): seq[Link] =
   ## Render text with clickable links
   ## Returns list of rendered links
   result = @[]
   var currentX = x
   var pos = 0
-  var globalLinkIdx = 1
+  var globalLinkIdx = startLinkIdx
   
   while pos < text.len:
     # Find next link using simple string search
@@ -583,6 +588,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
   var contentY = screenY
   let contentX = screenX
   let maxContentWidth = layout.width
+  var currentLinkIdx = 0  # Track link index across all lines
   
   # Render each line
   for line in processedContent.splitLines():
@@ -602,8 +608,9 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     elif line.contains("[") and line.contains("]("):
       # Line with links
       let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
-                                     buffer, isCurrent)
+                                     buffer, isCurrent, currentLinkIdx)
       result.add(links)
+      currentLinkIdx += links.len  # Update index for next line with links
     elif "**" in line or "*" in line:
       # Line with markdown formatting
       discard renderInlineMarkdown(line, contentX, contentY, maxContentWidth,
@@ -626,18 +633,29 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int) =
   if canvasState.isNil:
     return
   
+  # Clear the entire buffer to ensure clean rendering during animations
+  buffer.clear()
+  
   # Copy parameters to local variables to avoid any potential shadowing issues
   let vw = viewportWidth
   let vh = viewportHeight
   
   setViewport(vw, vh)
   
-  # Center camera on current section on first render
-  if canvasState.camera.targetX == 0.0 and canvasState.camera.targetY == 0.0:
+  # Check if viewport size has changed
+  let viewportChanged = (canvasState.lastViewportWidth != vw or 
+                        canvasState.lastViewportHeight != vh)
+  
+  # Center camera on current section on first render or viewport resize
+  if (canvasState.camera.targetX == 0.0 and canvasState.camera.targetY == 0.0) or viewportChanged:
     centerOnSection(canvasState.currentSectionIdx, vw, vh)
     # Snap camera immediately on first render (no animation for initial position)
-    canvasState.camera.x = canvasState.camera.targetX
-    canvasState.camera.y = canvasState.camera.targetY
+    if canvasState.lastViewportWidth == 0:
+      canvasState.camera.x = canvasState.camera.targetX
+      canvasState.camera.y = canvasState.camera.targetY
+    # Store current viewport size
+    canvasState.lastViewportWidth = vw
+    canvasState.lastViewportHeight = vh
   
   # Update current section as visited
   if canvasState.currentSectionIdx >= 0 and 

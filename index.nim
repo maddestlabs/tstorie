@@ -1387,7 +1387,8 @@ onRender = proc(state: AppState) =
     fpsStyle.fg = yellow()
     storieCtx.fgLayer.buffer.writeText(2, 0, "Frame: " & $state.frameCount, fpsStyle)
 
-onInput = proc(state: AppState, event: InputEvent): bool =
+# Define input handler as a separate proc, then assign
+proc inputHandler(state: AppState, event: InputEvent): bool =
   if storieCtx.isNil:
     return false
   
@@ -1424,6 +1425,10 @@ onInput = proc(state: AppState, event: InputEvent): bool =
         return true
   
   return false
+
+# Don't assign here in WASM - it will be done in tstorie.nim after include
+when not defined(emscripten):
+  onInput = inputHandler
 
 onShutdown = proc(state: AppState) =
   if storieCtx.isNil:

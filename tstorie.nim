@@ -1226,11 +1226,13 @@ when defined(emscripten):
     if ctrl != 0: mods.incl ModCtrl
     
     let event = InputEvent(kind: KeyEvent, keyCode: keyCode, keyMods: mods, keyAction: Press)
-    discard userInput(globalState, event)
+    # Call inputHandler directly (defined in index.nim via include)
+    discard inputHandler(globalState, event)
   
   proc emHandleTextInput(text: cstring) {.exportc.} =
     let event = InputEvent(kind: TextEvent, text: $text)
-    discard userInput(globalState, event)
+    # Call inputHandler directly (defined in index.nim via include)
+    discard inputHandler(globalState, event)
   
   proc emHandleMouseClick(x, y, button, shift, alt, ctrl: int) {.exportc.} =
     var mods: set[uint8] = {}
@@ -1245,13 +1247,15 @@ when defined(emscripten):
       else: Unknown
     
     let event = InputEvent(kind: MouseEvent, button: mouseButton, mouseX: x, mouseY: y, mods: mods, action: Press)
-    discard userInput(globalState, event)
+    # Call inputHandler directly (defined in index.nim via include)
+    discard inputHandler(globalState, event)
   
   proc emHandleMouseMove(x, y: int) {.exportc.} =
     globalState.lastMouseX = x
     globalState.lastMouseY = y
     let event = InputEvent(kind: MouseMoveEvent, moveX: x, moveY: y, moveMods: {})
-    discard userInput(globalState, event)
+    # Call inputHandler directly (defined in index.nim via include)
+    discard inputHandler(globalState, event)
   
   proc emSetWaitingForGist() {.exportc.} =
     ## Set flag to wait for gist content instead of loading index.md

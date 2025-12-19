@@ -19,11 +19,6 @@ var visitedLibrary = false
 var knowsRiddle = false
 var torchQuality = "dim"
 
-# Debug tracking for events
-var lastEventType = "none"
-var lastEventDetails = ""
-var eventCount = 0
-
 print "State created"
 
 # Initialize canvas system with all sections
@@ -33,27 +28,18 @@ nimini_initCanvas(1)
 
 ```nim on:input
 # Handle keyboard and mouse input for canvas navigation
-eventCount = eventCount + 1
 
 if event.type == "key":
-  lastEventType = "key"
-  lastEventDetails = "code=" & event.keyCode & " action=" & event.action
-  
   if event.action == "press":
     # Pass key events to canvas system
     var handled = nimini_canvasHandleKey(event.keyCode, 0)
-    lastEventDetails = lastEventDetails & " result=" & handled
     if handled:
       return true
   return false
 
 elif event.type == "mouse":
-  lastEventType = "mouse"
-  lastEventDetails = "x=" & event.x & " y=" & event.y & " btn=" & event.button
-  
   # Pass mouse events to canvas system
   var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
-  lastEventDetails = lastEventDetails & " result=" & handled
   if handled:
     return true
   return false
@@ -66,14 +52,6 @@ bgClear()
 fgClear()
 
 nimini_canvasRender()
-
-# Debug overlay
-var debugY = 22
-fgWriteText(2, debugY, "Press Q to quit | Arrow keys to navigate")
-
-debugY = debugY + 1  
-var debugInfo = "Events: " & eventCount & " | Last: " & lastEventType & " | " & lastEventDetails
-fgWriteText(2, debugY, debugInfo)
 ```
 
 ```nim on:update

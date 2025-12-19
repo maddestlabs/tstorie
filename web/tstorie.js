@@ -126,7 +126,10 @@ class TStorieTerminal {
     }
     
     handleKeyDown(e) {
-        if (!Module._emHandleKeyPress) return;
+        if (!Module._emHandleKeyPress) {
+            console.warn('Module._emHandleKeyPress not available');
+            return;
+        }
         
         const shift = e.shiftKey ? 1 : 0;
         const alt = e.altKey ? 1 : 0;
@@ -184,6 +187,7 @@ class TStorieTerminal {
         }
         
         if (keyCode > 0) {
+            //console.log('Key event:', keyCode, 'shift:', shift, 'alt:', alt, 'ctrl:', ctrl);
             Module._emHandleKeyPress(keyCode, shift, alt, ctrl);
             
             // Also send text input for printable characters
@@ -196,7 +200,10 @@ class TStorieTerminal {
     }
     
     handleMouseClick(e) {
-        if (!Module._emHandleMouseClick) return;
+        if (!Module._emHandleMouseClick) {
+            console.warn('Module._emHandleMouseClick not available');
+            return;
+        }
         
         const rect = this.canvas.getBoundingClientRect();
         const x = Math.floor((e.clientX - rect.left) / this.charWidth);
@@ -206,6 +213,7 @@ class TStorieTerminal {
         const alt = e.altKey ? 1 : 0;
         const ctrl = e.ctrlKey ? 1 : 0;
         
+        //console.log('Mouse click:', x, y, 'button:', e.button);
         Module._emHandleMouseClick(x, y, e.button, shift, alt, ctrl);
     }
     
