@@ -1316,32 +1316,36 @@ when defined(emscripten):
         lastError = "content is empty"
         return
       
-      # Parse the markdown
-      let blocks = parseMarkdown(content)
+      # Parse the markdown document (includes sections)
+      let doc = parseMarkdownDocument(content)
       
       # Check if we got any blocks
-      if blocks.len == 0:
+      if doc.codeBlocks.len == 0:
         lastError = "no blocks parsed from " & $content.len & " bytes"
         return
       
-      # Update the storie context with new code blocks
+      # Update the storie context with new code blocks and sections
       if not storieCtx.isNil and not storieCtx.niminiContext.isNil:
         gWaitingForGist = false
         
-        # Replace the code blocks
-        storieCtx.codeBlocks = blocks
+        # Replace the code blocks and sections
+        storieCtx.codeBlocks = doc.codeBlocks
+        storieCtx.sections = doc.sections
+        storieCtx.frontMatter = doc.frontMatter
+        storieCtx.currentSectionIndex = 0
+        storieCtx.multiSectionMode = true
         
         # Clear all layer buffers
         for layer in globalState.layers:
           layer.buffer.clear()
         
         # Execute init blocks immediately
-        for codeBlock in blocks:
+        for codeBlock in doc.codeBlocks:
           if codeBlock.lifecycle == "init":
             discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
         
         # Execute render blocks immediately to show content
-        for codeBlock in blocks:
+        for codeBlock in doc.codeBlocks:
           if codeBlock.lifecycle == "render":
             discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
     except Exception as e:
