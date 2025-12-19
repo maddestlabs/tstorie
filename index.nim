@@ -3,13 +3,13 @@
 import strutils, tables, random, times, algorithm
 when not defined(emscripten):
   import os
+  import src/platform/terminal
 import nimini
 import lib/storie_md
 import lib/layout
 
-# Include canvas modules so they have access to TermBuffer and Style types
+# Include canvas module so it has access to TermBuffer and Style types
 include lib/canvas
-include lib/canvas_bridge
 
 # Figlet font data for digital clock
 const figletDigits = [
@@ -791,8 +791,9 @@ proc nimini_markVisited(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_canvasRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render the canvas system. No args needed (uses global buffers)
   # Get the current buffer and dimensions from global state
-  if not gAppState.isNil:
-    canvasRender(gAppState.currentBuffer, gAppState.termWidth, gAppState.termHeight)
+  # Canvas should render to the foreground layer buffer
+  if not gAppState.isNil and not gFgLayer.isNil:
+    canvasRender(gFgLayer.buffer, gAppState.termWidth, gAppState.termHeight)
   return valNil()
 
 proc nimini_canvasUpdate(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -1223,12 +1224,27 @@ proc initStorieContext(state: AppState) =
       setGlobal(key, valString(value))
   
   # Execute init code blocks
+  when not defined(emscripten):
+    echo "Found ", storieCtx.codeBlocks.len, " code blocks total"
+    var initCount = 0
+    for cb in storieCtx.codeBlocks:
+      if cb.lifecycle == "init":
+        initCount += 1
+    echo "Found ", initCount, " init blocks"
+  
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "init":
-      if not executeCodeBlock(storieCtx.niminiContext, codeBlock, state):
+      when not defined(emscripten):
+        echo "Executing init block..."
+      let success = executeCodeBlock(storieCtx.niminiContext, codeBlock, state)
+      when not defined(emscripten):
+        echo "Init block execution result: ", success
+      if not success:
         when defined(emscripten):
           if lastError.len == 0:
             lastError = "init block failed"
+        when not defined(emscripten):
+          echo "WARNING: Init block failed to execute"
 
 # ================================================================
 # CALLBACK IMPLEMENTATIONS
@@ -1325,6 +1341,16 @@ onRender = proc(state: AppState) =
       if success:
         executedCount += 1
   
+  # Debug: Show number of registered handlers (AFTER render blocks to avoid being cleared)
+  when not defined(emscripten):
+    var debugStyle = defaultStyle()
+    debugStyle.fg = yellow()
+    debugStyle.bold = true
+    let handlerInfo = "Handlers: R=" & $storieCtx.globalRenderHandlers.len & 
+                      " U=" & $storieCtx.globalUpdateHandlers.len & 
+                      " I=" & $storieCtx.globalInputHandlers.len
+    storieCtx.fgLayer.buffer.writeText(2, 0, handlerInfo, debugStyle)
+  
   # Debug: Show execution status in WASM
   # Write to foreground layer so user code renders, then we overlay debug on layers
   when defined(emscripten):
@@ -1373,6 +1399,11 @@ onInput = proc(state: AppState, event: InputEvent): bool =
   if event.kind == KeyEvent and event.keyAction == Press:
     if event.keyCode == ord('q') or event.keyCode == ord('Q') or event.keyCode == INPUT_ESCAPE:
       state.running = false
+      return true
+  
+  # Handle canvas input if canvas is initialized
+  if not canvasState.isNil and event.kind == KeyEvent and event.keyAction == Press:
+    if canvasHandleKey(event.keyCode, {}):
       return true
   
   # 2. Execute section-specific on:input blocks

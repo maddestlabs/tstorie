@@ -343,7 +343,10 @@ proc stripMarkdownFormatting*(text: string): string =
 # ================================================================
 
 proc initCanvas*(sections: seq[Section], currentIdx: int = 0) =
-  ## Initialize the canvas system
+  ## Initialize the canvas system (idempotent - only initializes if not already done)
+  if not canvasState.isNil:
+    return  # Already initialized
+  
   canvasState = CanvasState(
     camera: Camera(x: 0.0, y: 0.0, targetX: 0.0, targetY: 0.0),
     sections: calculateSectionPositions(sections),
@@ -391,3 +394,317 @@ export wrapText, formatHeading, stripMarkdownFormatting
 export initCanvas, enableMouse, disableMouse
 export Camera, Link, SectionLayout, CanvasState
 export canvasState
+
+# ================================================================
+# RENDERING
+# ================================================================
+
+# Helper to convert ANSI color codes to Color objects
+proc ansiToColor(code: int): Color =
+  ## Convert ANSI color code to RGB Color
+  case code
+  of 30, 0: return black()      # Black
+  of 31: return red()           # Red
+  of 32: return green()         # Green
+  of 33: return yellow()        # Yellow
+  of 34: return blue()          # Blue
+  of 35: return magenta()       # Magenta
+  of 36: return cyan()          # Cyan
+  of 37: return white()         # White/Gray
+  else: return gray(128)        # Default gray
+
+var
+  gViewportWidth: int
+  gViewportHeight: int
+
+proc setViewport*(width, height: int) =
+  ## Set viewport dimensions
+  gViewportWidth = width
+  gViewportHeight = height
+
+proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int, 
+                         buffer: var TermBuffer, baseColor: int, baseBold: bool): int =
+  ## Render text with inline markdown formatting (bold **, italic *)
+  ## Returns number of characters rendered
+  var currentX = x
+  var pos = 0
+  var isBold = baseBold
+  var isItalic = false
+  
+  while pos < text.len and currentX < x + maxWidth:
+    # Check for **bold**
+    if pos + 1 < text.len and text[pos..pos+1] == "**":
+      isBold = not isBold
+      pos += 2
+    # Check for *italic*
+    elif text[pos] == '*':
+      isItalic = not isItalic
+      pos += 1
+    else:
+      let ch = $text[pos]
+      var style = Style(fg: ansiToColor(baseColor), bg: black(), bold: isBold, 
+                       underline: false, italic: isItalic)
+      buffer.write(currentX, y, ch, style)
+      currentX += 1
+      pos += 1
+  
+  return currentX - x
+
+proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
+                        buffer: var TermBuffer, isCurrent: bool): seq[Link] =
+  ## Render text with clickable links
+  ## Returns list of rendered links
+  result = @[]
+  var currentX = x
+  var pos = 0
+  var globalLinkIdx = 1
+  
+  while pos < text.len:
+    # Find next link using simple string search
+    let linkStart = text.find("[", pos)
+    
+    if linkStart >= 0 and linkStart < text.len:
+      
+      # Render text before link
+      if linkStart > pos:
+        let beforeLink = text[pos..<linkStart]
+        let charsRendered = renderInlineMarkdown(beforeLink, currentX, y, 
+                                                maxWidth - (currentX - x), 
+                                                buffer, 37, false)
+        currentX += charsRendered
+      
+      # Extract link text and target
+      var linkText = ""
+      var target = ""
+      var i = linkStart + 1  # Skip '['
+      while i < text.len and text[i] != ']':
+        linkText.add(text[i])
+        i += 1
+      i += 2  # Skip ']('
+      while i < text.len and text[i] != ')':
+        target.add(text[i])
+        i += 1
+      
+      # Check if target section is removed
+      let targetSection = findSectionByReference(target)
+      let shouldRenderLink = targetSection.section.id == "" or 
+                            not isRemoved(targetSection.section.title)
+      
+      if shouldRenderLink and isCurrent:
+        # Render as active link
+        let isFocused = (globalLinkIdx == canvasState.focusedLinkIdx)
+        let linkColor = if isFocused: 33 else: 34  # Yellow or blue
+        let linkBold = isFocused
+        
+        result.add(Link(
+          text: linkText,
+          target: target,
+          screenX: currentX,
+          screenY: y,
+          width: linkText.len,
+          index: globalLinkIdx
+        ))
+        
+        # Render link text
+        for ch in linkText:
+          if currentX < x + maxWidth:
+            var style = Style(fg: ansiToColor(linkColor), bg: black(), bold: linkBold,
+                            underline: true, italic: false)
+            buffer.write(currentX, y, $ch, style)
+            currentX += 1
+        
+        globalLinkIdx += 1
+      else:
+        # Render as plain text (dimmed)
+        let charsRendered = renderInlineMarkdown(linkText, currentX, y,
+                                                maxWidth - (currentX - x),
+                                                buffer, 30, false)
+        currentX += charsRendered
+      
+      pos = i + 1
+    else:
+      # No more links, render remaining text
+      let remaining = text[pos..^1]
+      if remaining.len > 0:
+        discard renderInlineMarkdown(remaining, currentX, y,
+                                    maxWidth - (currentX - x),
+                                    buffer, 37, false)
+      break
+
+proc getSectionRawContent(section: Section): string =
+  ## Extract raw text content from a section's blocks
+  var lines: seq[string] = @[]
+  
+  for blk in section.blocks:
+    case blk.kind
+    of TextBlock:
+      lines.add(blk.text)
+    of HeadingBlock:
+      lines.add("#".repeat(blk.level) & " " & blk.title)
+    of CodeBlock_Content:
+      # Skip code blocks in content rendering
+      discard
+  
+  return lines.join("\n")
+
+proc renderSection(layout: SectionLayout, screenX, screenY: int,
+                  buffer: var TermBuffer, isCurrent: bool): seq[Link] =
+  ## Render a single section to the buffer
+  ## Returns list of links found in the section
+  result = @[]
+  
+  # Skip removed sections
+  if isRemoved(layout.section.title):
+    return
+  
+  # If hidden and not current, show placeholder
+  if isHidden(layout.section.title) and not isCurrent:
+    let placeholder = "???"
+    let centerX = screenX + (layout.width - placeholder.len) div 2
+    let centerY = screenY + layout.height div 2
+    var style = Style(fg: ansiToColor(30), bg: black(), bold: true, underline: false, italic: false)
+    buffer.write(centerX, centerY, placeholder, style)
+    return
+  
+  # Get raw content and preprocess to filter removed section links
+  let rawContent = getSectionRawContent(layout.section)
+  let processedContent = filterRemovedSectionLinks(rawContent)
+  
+  var contentY = screenY
+  let contentX = screenX
+  let maxContentWidth = layout.width
+  
+  # Render each line
+  for line in processedContent.splitLines():
+    if contentY >= screenY + layout.height:
+      break
+    
+    # Check line type
+    if line.startsWith("#"):
+      # Heading
+      let formatted = formatHeading(line)
+      let displayText = if formatted.len > maxContentWidth: 
+                          formatted[0..<maxContentWidth] 
+                        else: 
+                          formatted
+      var style = Style(fg: ansiToColor(33), bg: black(), bold: true, underline: false, italic: false)
+      buffer.write(contentX, contentY, displayText, style)
+    elif line.contains("[") and line.contains("]("):
+      # Line with links
+      let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
+                                     buffer, isCurrent)
+      result.add(links)
+    elif "**" in line or "*" in line:
+      # Line with markdown formatting
+      discard renderInlineMarkdown(line, contentX, contentY, maxContentWidth,
+                                  buffer, 37, false)
+    else:
+      # Plain text - wrap it
+      let wrapped = wrapText(line, maxContentWidth)
+      for wLine in wrapped:
+        if contentY >= screenY + layout.height:
+          break
+        var style = Style(fg: ansiToColor(37), bg: black(), bold: false, underline: false, italic: false)
+        buffer.write(contentX, contentY, wLine, style)
+        contentY += 1
+      contentY -= 1  # Adjust for the increment below
+    
+    contentY += 1
+
+proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int) =
+  ## Main canvas rendering function
+  if canvasState.isNil:
+    return
+  
+  # Copy parameters to local variables to avoid any potential shadowing issues
+  let vw = viewportWidth
+  let vh = viewportHeight
+  
+  setViewport(vw, vh)
+  
+  # Update current section as visited
+  if canvasState.currentSectionIdx >= 0 and 
+     canvasState.currentSectionIdx < canvasState.sections.len:
+    let currentSection = canvasState.sections[canvasState.currentSectionIdx]
+    markVisited(currentSection.section.title)
+  
+  # Clear links for current frame
+  canvasState.links = @[]
+  
+  # Get camera position
+  let cameraX = int(canvasState.camera.x)
+  let cameraY = int(canvasState.camera.y)
+  
+  var renderedCount = 0
+  var removedCount = 0
+  # Render all visible sections
+  for i, layout in canvasState.sections:
+    if isRemoved(layout.section.title):
+      removedCount += 1
+      continue
+    
+    let screenX = layout.x - cameraX
+    let screenY = layout.y - cameraY
+    
+    # TODO: Fix culling logic - temporarily disabled
+    # Cull offscreen sections  
+    #if screenX + layout.width < 0 or screenX >= vw or
+    #   screenY + layout.height < 0 or not (screenY < vh):
+    #  culledCount += 1
+    #  continue
+    
+    renderedCount += 1
+    let isCurrent = (layout.index == canvasState.currentSectionIdx)
+    let links = renderSection(layout, screenX, screenY, buffer, isCurrent)
+    
+    if isCurrent:
+      canvasState.links = links
+  
+  # Render status bar
+  let statusY = vh - 1
+  if statusY >= 0 and canvasState.currentSectionIdx >= 0 and
+     canvasState.currentSectionIdx < canvasState.sections.len:
+    let currentSection = canvasState.sections[canvasState.currentSectionIdx]
+    let linkInfo = if canvasState.links.len > 0:
+                     " | Arrows/Tab: cycle links (" & $canvasState.links.len & ") | Enter: follow"
+                   else:
+                     ""
+    var status = " " & currentSection.section.title & linkInfo & " | 1-9: jump | Q: quit "
+    if status.len > vw:
+      status = status[0..<vw]
+    
+    var style = Style(fg: ansiToColor(30), bg: black(), bold: false, underline: false, italic: false, dim: false)
+    buffer.write(0, statusY, status, style)
+
+proc canvasUpdate*(deltaTime: float) =
+  ## Update canvas animations
+  if canvasState.isNil:
+    return
+  
+  updateCamera(deltaTime, gViewportWidth, gViewportHeight)
+
+proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
+  ## Handle keyboard input
+  ## Returns true if event was consumed
+  if canvasState.isNil:
+    return false
+  
+  # For now, return false to let the normal system handle it
+  return false
+
+proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
+  ## Handle mouse input
+  ## Returns true if event was consumed
+  if canvasState.isNil:
+    return false
+  
+  return false
+
+proc getSectionCount*(): int =
+  ## Get the number of sections in the canvas
+  if canvasState.isNil:
+    return 0
+  return canvasState.sections.len
+
+# Export rendering functions
+export canvasRender, canvasUpdate, canvasHandleKey, canvasHandleMouse, getSectionCount

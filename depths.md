@@ -5,66 +5,56 @@ minWidth: 80
 minHeight: 24
 ---
 
-```nim global
+```nim on:init
 # Canvas-based Interactive Fiction using Nimini
 # The Depths of Khel-Daran - A dungeon adventure
 
-# Track player state
-type StoryState = ref object
-  hasTorch: bool
-  hasKey: bool
-  hasAmulet: bool
-  hasEssence: bool
-  hasWeapon: bool
-  visitedLibrary: bool
-  knowsRiddle: bool
-  torchQuality: string
+# Track player state with simple variables
+var hasTorch = false
+var hasKey = false
+var hasAmulet = false
+var hasEssence = false
+var hasWeapon = false
+var visitedLibrary = false
+var knowsRiddle = false
+var torchQuality = "dim"
 
-var storyState = StoryState(
-  hasTorch: false,
-  hasKey: false,
-  hasAmulet: false,
-  hasEssence: false,
-  hasWeapon: false,
-  visitedLibrary: false,
-  knowsRiddle: false,
-  torchQuality: "dim"
-)
+print "State created"
 
 # Initialize canvas system with all sections
 # Start at section 0 (entrance)
 nimini_initCanvas(0)
 
-print "The Depths of Khel-Daran initialized!"
-print "Use arrow keys to pan, Tab to cycle links, Enter to follow links"
+# Register canvas rendering
+proc canvasRenderHandler():
+  bgClear()
+  fgClear()
+  nimini_canvasRender()
+  fgWriteText(2, 22, "Press Q to quit | Arrow keys to navigate")
+
+nimini_registerGlobalRender("canvas", canvasRenderHandler, 0)
+
+# Register canvas update
+proc canvasUpdateHandler():
+  nimini_canvasUpdate()
+
+nimini_registerGlobalUpdate("canvas", canvasUpdateHandler, 0)
 ```
 
 ```nim on:render
-# Clear the screen
-fgClear()
 bgClear()
+fgClear()
 
-# Render the canvas system
+# Initialize canvas on first render if needed
+nimini_initCanvas(0)
+
 nimini_canvasRender()
+
+fgWriteText(2, 22, "Press Q to quit | Arrow keys to navigate")
 ```
 
 ```nim on:update
-# Update canvas animations (smooth camera movement)
-nimini_canvasUpdate(1.0 / 60.0)
-```
-
-```nim on:input
-# Handle keyboard input for canvas navigation
-var handled = false
-
-# Get input event details
-var eventType = inputEvent.get("type")
-if eventType == "key":
-  var keyCode = int(inputEvent.get("code"))
-  handled = nimini_canvasHandleKey(keyCode, 0)
-
-# Return whether we handled the input
-handled
+nimini_canvasUpdate()
 ```
 
 # entrance
