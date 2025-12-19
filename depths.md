@@ -19,41 +19,41 @@ var visitedLibrary = false
 var knowsRiddle = false
 var torchQuality = "dim"
 
+# Debug tracking for events
+var lastEventType = "none"
+var lastEventDetails = ""
+var eventCount = 0
+
 print "State created"
 
 # Initialize canvas system with all sections
-# Start at section 0 (entrance)
-nimini_initCanvas(0)
-
-# Register canvas rendering
-proc canvasRenderHandler():
-  bgClear()
-  fgClear()
-  nimini_canvasRender()
-  fgWriteText(2, 22, "Press Q to quit | Arrow keys to navigate")
-
-nimini_registerGlobalRender("canvas", canvasRenderHandler, 0)
-
-# Register canvas update
-proc canvasUpdateHandler():
-  nimini_canvasUpdate()
-
-nimini_registerGlobalUpdate("canvas", canvasUpdateHandler, 0)
+# Start at section 1 (entrance - section 0 is the code blocks)
+nimini_initCanvas(1)
 ```
 
 ```nim on:input
 # Handle keyboard and mouse input for canvas navigation
+eventCount = eventCount + 1
+
 if event.type == "key":
+  lastEventType = "key"
+  lastEventDetails = "code=" & event.keyCode & " action=" & event.action
+  
   if event.action == "press":
     # Pass key events to canvas system
     var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    lastEventDetails = lastEventDetails & " result=" & handled
     if handled:
       return true
   return false
 
 elif event.type == "mouse":
+  lastEventType = "mouse"
+  lastEventDetails = "x=" & event.x & " y=" & event.y & " btn=" & event.button
+  
   # Pass mouse events to canvas system
-  var handled = nimini_canvasHandleMouse(event.x, event.y, 0, true)
+  var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+  lastEventDetails = lastEventDetails & " result=" & handled
   if handled:
     return true
   return false
@@ -65,12 +65,15 @@ return false
 bgClear()
 fgClear()
 
-# Initialize canvas on first render if needed
-nimini_initCanvas(0)
-
 nimini_canvasRender()
 
-fgWriteText(2, 22, "Press Q to quit | Arrow keys to navigate")
+# Debug overlay
+var debugY = 22
+fgWriteText(2, debugY, "Press Q to quit | Arrow keys to navigate")
+
+debugY = debugY + 1  
+var debugInfo = "Events: " & eventCount & " | Last: " & lastEventType & " | " & lastEventDetails
+fgWriteText(2, debugY, debugInfo)
 ```
 
 ```nim on:update

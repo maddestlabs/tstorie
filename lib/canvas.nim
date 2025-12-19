@@ -55,9 +55,17 @@ type
 # Global canvas state
 var canvasState*: CanvasState
 
+# Global viewport dimensions
+var
+  gViewportWidth: int
+  gViewportHeight: int
+
 # ================================================================
 # SECTION STATE MANAGEMENT
 # ================================================================
+
+# Forward declarations
+proc centerOnSection*(sectionIdx: int, viewportWidth, viewportHeight: int)
 
 proc isVisited*(sectionTitle: string): bool =
   ## Check if a section has been visited
@@ -147,6 +155,10 @@ proc navigateToSection*(sectionIdx: int) =
   
   canvasState.currentSectionIdx = sectionIdx
   canvasState.focusedLinkIdx = 0
+  
+  # Center camera on new section with smooth easing (if viewport is initialized)
+  if gViewportWidth > 0 and gViewportHeight > 0:
+    centerOnSection(sectionIdx, gViewportWidth, gViewportHeight)
 
 # ================================================================
 # LINK PARSING AND FILTERING
@@ -226,7 +238,8 @@ proc updateCamera*(deltaTime: float, viewportWidth, viewportHeight: int) =
   if canvasState.isNil:
     return
   
-  let t = min(1.0, deltaTime * SMOOTH_SPEED)
+  let rawT = min(1.0, deltaTime * SMOOTH_SPEED)
+  let t = rawT * (2.0 - rawT)  # Ease-out quadratic for smoother motion
   canvasState.camera.x += (canvasState.camera.targetX - canvasState.camera.x) * t
   canvasState.camera.y += (canvasState.camera.targetY - canvasState.camera.y) * t
   
@@ -369,6 +382,7 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0) =
   # Mark starting section as visited
   if currentIdx >= 0 and currentIdx < sections.len:
     markVisited(sections[currentIdx].title)
+    # Note: Initial camera centering happens during first render when viewport is known
 
 proc enableMouse*() =
   ## Enable mouse input for the canvas
@@ -412,10 +426,6 @@ proc ansiToColor(code: int): Color =
   of 36: return cyan()          # Cyan
   of 37: return white()         # White/Gray
   else: return gray(128)        # Default gray
-
-var
-  gViewportWidth: int
-  gViewportHeight: int
 
 proc setViewport*(width, height: int) =
   ## Set viewport dimensions
@@ -622,6 +632,13 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int) =
   
   setViewport(vw, vh)
   
+  # Center camera on current section on first render
+  if canvasState.camera.targetX == 0.0 and canvasState.camera.targetY == 0.0:
+    centerOnSection(canvasState.currentSectionIdx, vw, vh)
+    # Snap camera immediately on first render (no animation for initial position)
+    canvasState.camera.x = canvasState.camera.targetX
+    canvasState.camera.y = canvasState.camera.targetY
+  
   # Update current section as visited
   if canvasState.currentSectionIdx >= 0 and 
      canvasState.currentSectionIdx < canvasState.sections.len:
@@ -739,6 +756,20 @@ proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
   ## Returns true if event was consumed
   if canvasState.isNil:
     return false
+  
+  # Only handle left mouse button clicks (mouse down events)
+  if button != 0 or not isDown:
+    return false
+  
+  # Check if mouse click is on any visible link
+  for link in canvasState.links:
+    if mouseX >= link.screenX and mouseX < link.screenX + link.width and
+       mouseY == link.screenY:
+      # Mouse clicked on this link - follow it
+      let targetSection = findSectionByReference(link.target)
+      if targetSection.section.id != "":
+        navigateToSection(targetSection.index)
+        return true
   
   return false
 
