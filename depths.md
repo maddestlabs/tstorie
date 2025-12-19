@@ -41,6 +41,26 @@ proc canvasUpdateHandler():
 nimini_registerGlobalUpdate("canvas", canvasUpdateHandler, 0)
 ```
 
+```nim on:input
+# Handle keyboard and mouse input for canvas navigation
+if event.type == "key":
+  if event.action == "press":
+    # Pass key events to canvas system
+    var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    if handled:
+      return true
+  return false
+
+elif event.type == "mouse":
+  # Pass mouse events to canvas system
+  var handled = nimini_canvasHandleMouse(event.x, event.y, 0, true)
+  if handled:
+    return true
+  return false
+
+return false
+```
+
 ```nim on:render
 bgClear()
 fgClear()
@@ -91,8 +111,8 @@ You take time to properly prepare your torch, wrapping it with oil-soaked cloth 
 - [Return to the entrance](entrance)
 
 ```nim on:enter
-storyState.hasTorch = true
-storyState.torchQuality = "bright"
+hasTorch = true
+torchQuality = "bright"
 ```
 
 # hall_of_statues {"hidden": true}
@@ -134,7 +154,7 @@ You reach down and pick up a small, tarnished **brass key**. It's surprisingly h
 [Return to the hall](hall_of_statues)
 
 ```nim on:enter
-storyState.hasKey = true
+hasKey = true
 ```
 
 # underground_river {"hidden": true}
@@ -192,7 +212,7 @@ You reach for the amulet. The moment your fingers touch the cold silver, the cry
 - [Return to crystal chamber](crystal_chamber)
 
 ```nim on:enter
-storyState.hasAmulet = true
+hasAmulet = true
 ```
 
 # library {"hidden": true}
@@ -208,8 +228,8 @@ You open the book. The pages are filled with riddles and wisdom of the ancients.
 - [Go back to the hall](hall_of_statues)
 
 ```nim on:enter
-storyState.visitedLibrary = true
-storyState.knowsRiddle = true
+visitedLibrary = true
+knowsRiddle = true
 ```
 
 # alchemist_lab {"hidden": true}
@@ -232,7 +252,7 @@ You carefully pocket the glowing essence. It feels warm through the glass.
 - [Return to the hall](hall_of_statues)
 
 ```nim on:enter
-storyState.hasEssence = true
+hasEssence = true
 ```
 
 # search_lab {"hidden": true, "removeAfterVisit": "true"}
@@ -306,8 +326,8 @@ The guardian steps aside, revealing a passage to the **Treasure Vault**.
 - [Enter the vault](treasure_vault)
 
 ```nim on:enter
-if storyState.knowsRiddle:
-  echo "Your knowledge from the library helped you understand!"
+if knowsRiddle:
+  print("Your knowledge from the library helped you understand!")
 ```
 
 # treasure_vault {"hidden": true}
@@ -349,5 +369,5 @@ You remove the iron sconce from the wall. It's heavier than it looks and has a w
 - [Go back](entrance_examine)
 
 ```nim on:enter
-storyState.hasWeapon = true
+hasWeapon = true
 ```

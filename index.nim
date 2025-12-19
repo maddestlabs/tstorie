@@ -1043,7 +1043,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   
   return ctx
 
-proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState): bool =
+proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState, event: InputEvent = InputEvent()): bool =
   ## Execute a code block using Nimini
   ## 
   ## Scoping rules:
@@ -1065,6 +1065,12 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     scriptCode.add("var termHeight = " & $state.termHeight & "\n")
     scriptCode.add("var fps = " & formatFloat(state.fps, ffDecimal, 2) & "\n")
     scriptCode.add("var frameCount = " & $state.frameCount & "\n")
+    
+    # For input blocks, we'll inject the event variable later
+    if codeBlock.lifecycle == "input":
+      # Add a placeholder - the actual event will be set in the environment
+      scriptCode.add("# event variable will be provided by runtime\n")
+    
     scriptCode.add("\n")
     
     # Add user code
@@ -1080,6 +1086,11 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
       context.env  # Global scope
     else:
       newEnv(context.env)  # Child scope with parent link
+    
+    # For input blocks, expose the event object
+    if codeBlock.lifecycle == "input":
+      let eventValue = encodeInputEvent(event)
+      defineVar(execEnv, "event", eventValue)
     
     execProgram(program, execEnv)
     
@@ -1409,7 +1420,7 @@ onInput = proc(state: AppState, event: InputEvent): bool =
   # 2. Execute section-specific on:input blocks
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "input":
-      if executeCodeBlock(storieCtx.niminiContext, codeBlock, state):
+      if executeCodeBlock(storieCtx.niminiContext, codeBlock, state, event):
         return true
   
   return false

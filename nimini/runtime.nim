@@ -493,7 +493,37 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       else:
         # Numeric addition
         valFloat(toFloat(l) + toFloat(r))
-    of "-", "*", "/", "%", "mod", "div", "==", "!=", "<", "<=", ">", ">=":
+    of "==", "!=":
+      # Equality operators - handle strings and other types
+      if l.kind == vkString and r.kind == vkString:
+        # String comparison
+        case e.op
+        of "==": valBool(l.s == r.s)
+        of "!=": valBool(l.s != r.s)
+        else: valNil()
+      elif l.kind == vkBool and r.kind == vkBool:
+        # Boolean comparison
+        case e.op
+        of "==": valBool(l.b == r.b)
+        of "!=": valBool(l.b != r.b)
+        else: valNil()
+      elif l.kind == vkNil or r.kind == vkNil:
+        # Nil comparison
+        case e.op
+        of "==": valBool(l.kind == vkNil and r.kind == vkNil)
+        of "!=": valBool(not (l.kind == vkNil and r.kind == vkNil))
+        else: valNil()
+      else:
+        # Numeric comparison
+        let bothInts = (l.kind == vkInt and r.kind == vkInt)
+        let lf = toFloat(l)
+        let rf = toFloat(r)
+        case e.op
+        of "==": valBool(lf == rf)
+        of "!=": valBool(lf != rf)
+        else: valNil()
+    
+    of "-", "*", "/", "%", "mod", "div", "<", "<=", ">", ">=":
       # Arithmetic and comparison operators need numeric conversion
       let bothInts = (l.kind == vkInt and r.kind == vkInt)
       
@@ -522,8 +552,6 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       of "%", "mod":
         if bothInts: valInt(l.i mod r.i)
         else: valFloat(lf mod rf)
-      of "==": valBool(lf == rf)
-      of "!=": valBool(lf != rf)
       of "<":  valBool(lf <  rf)
       of "<=": valBool(lf <= rf)
       of ">":  valBool(lf >  rf)

@@ -399,7 +399,7 @@ export canvasState
 # RENDERING
 # ================================================================
 
-# Helper to convert ANSI color codes to Color objects
+# Helper to convert ANSI color codes to Color objects  
 proc ansiToColor(code: int): Color =
   ## Convert ANSI color code to RGB Color
   case code
@@ -689,7 +689,49 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
   if canvasState.isNil:
     return false
   
-  # For now, return false to let the normal system handle it
+  # Arrow keys and Tab for link navigation
+  const INPUT_UP = 1000
+  const INPUT_DOWN = 1001
+  const INPUT_LEFT = 1002
+  const INPUT_RIGHT = 1003
+  const INPUT_TAB = 9
+  const INPUT_ENTER = 13
+  
+  case keyCode
+  of INPUT_TAB, INPUT_RIGHT, INPUT_DOWN:
+    # Cycle to next link
+    if canvasState.links.len > 0:
+      canvasState.focusedLinkIdx = (canvasState.focusedLinkIdx + 1) mod canvasState.links.len
+      return true
+  
+  of INPUT_LEFT, INPUT_UP:
+    # Cycle to previous link
+    if canvasState.links.len > 0:
+      canvasState.focusedLinkIdx = (canvasState.focusedLinkIdx - 1 + canvasState.links.len) mod canvasState.links.len
+      return true
+  
+  of INPUT_ENTER:
+    # Follow focused link
+    if canvasState.links.len > 0 and canvasState.focusedLinkIdx < canvasState.links.len:
+      let link = canvasState.links[canvasState.focusedLinkIdx]
+      let targetSection = findSectionByReference(link.target)
+      if targetSection.section.id != "":
+        navigateToSection(targetSection.index)
+        return true
+  
+  of ord('1')..ord('9'):
+    # Quick jump to link by number
+    let linkNum = keyCode - ord('1')
+    if linkNum < canvasState.links.len:
+      let link = canvasState.links[linkNum]
+      let targetSection = findSectionByReference(link.target)
+      if targetSection.section.id != "":
+        navigateToSection(targetSection.index)
+        return true
+  
+  else:
+    discard
+  
   return false
 
 proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
