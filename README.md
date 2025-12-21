@@ -24,6 +24,7 @@ Core engine features:
 Higher level features:
 - **Nim-based scripting** - Code with executable code blocks. Powered by [Nimini](https://github.com/maddestlabs/nimini).
 - **Reusable Libraries** - Helper modules for advanced events, animations, and UI components
+- **Transition System** - Smooth visual transitions between states (fade, slide, wipe, dissolve, etc.)
 
 ## Getting Started
 

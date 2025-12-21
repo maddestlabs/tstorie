@@ -21,6 +21,7 @@ include lib/animation         # Animation helpers and easing
 include lib/drawing           # Drawing utilities for layers
 include lib/ui_components     # Reusable UI components
 include lib/canvas            # Canvas navigation system
+include lib/transitions       # Transition effects system
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -122,7 +123,17 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
   echo output
   return valNil()
 
-# Buffer drawing functions
+# ================================================================
+# DOCUMENT-SPECIFIC DRAWING HELPERS
+# ================================================================
+# These are convenience wrappers for THIS document's background and foreground layers.
+# For general layer-aware drawing, use the core APIs from tstorie.nim:
+#   write(layerId, x, y, ch)
+#   writeText(layerId, x, y, text)
+#   fillRect(layerId, x, y, w, h, ch)
+#   clearLayer(layerId)
+#   clearLayerTransparent(layerId)
+
 proc bgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
   gBgLayer.buffer.clear()
   return valNil()
@@ -132,7 +143,7 @@ proc bgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 proc fgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.buffer.clear()
+  gBgLayer.buffer.clear()
   return valNil()
 
 proc fgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -217,37 +228,6 @@ proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
       else: 1.0
     return valFloat(rand(max))
 
-# Time functions - work across platforms including WASM
-proc getYear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current year (e.g., 2025)
-  let now = now()
-  return valInt(now.year)
-
-proc getMonth(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current month (1-12)
-  let now = now()
-  return valInt(now.month.int)
-
-proc getDay(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current day of month (1-31)
-  let now = now()
-  return valInt(now.monthday)
-
-proc getHour(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current hour (0-23)
-  let now = now()
-  return valInt(now.hour)
-
-proc getMinute(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current minute (0-59)
-  let now = now()
-  return valInt(now.minute)
-
-proc getSecond(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current second (0-59)
-  let now = now()
-  return valInt(now.second)
-
 proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Draw a figlet digit at x, y position. Args: digit(0-9 or 10 for colon), x, y
   if args.len >= 3:
@@ -265,46 +245,10 @@ proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # ================================================================
-# STATE ACCESSORS - Expose AppState to user scripts
-# ================================================================
-
-proc getTermWidth(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current terminal width
-  return valInt(gAppState.termWidth)
-
-proc getTermHeight(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current terminal height
-  return valInt(gAppState.termHeight)
-
-proc getTargetFps(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the target FPS
-  return valFloat(gAppState.targetFps)
-
-proc setTargetFps(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set the target FPS. Args: fps (number)
-  if args.len > 0:
-    let fps = case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 60.0
-    gAppState.setTargetFps(fps)
-  return valNil()
-
-proc getFps(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the current actual FPS
-  return valFloat(gAppState.fps)
-
-proc getFrameCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the total frame count
-  return valInt(gAppState.frameCount)
-
-proc getTotalTime(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the total elapsed time in seconds
-  return valFloat(gAppState.totalTime)
-
-# ================================================================
 # GLOBAL EVENT HANDLER MANAGEMENT
 # ================================================================
+# Note: State accessors (getTermWidth, getFps, etc.) are in tstorie.nim's
+# registerTstorieApis() and are automatically available to all nimini code.
 
 proc registerGlobalRender*(name: string, callback: Value, priority: int = 0): bool =
   ## Register a global render handler
@@ -452,82 +396,6 @@ proc nimini_initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let sections = storieCtx.sectionMgr.getAllSections()
   initCanvas(sections, currentIdx)
   return valBool(true)
-
-proc nimini_hideSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Hide a section by reference. Args: sectionRef (string)
-  if args.len == 0:
-    return valNil()
-  hideSection(args[0].s)
-  return valNil()
-
-proc nimini_removeSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Remove a section from display. Args: sectionRef (string)
-  if args.len == 0:
-    return valNil()
-  removeSection(args[0].s)
-  return valNil()
-
-proc nimini_restoreSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Restore a removed section. Args: sectionRef (string)
-  if args.len == 0:
-    return valNil()
-  restoreSection(args[0].s)
-  return valNil()
-
-proc nimini_isVisited(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Check if a section has been visited. Args: sectionRef (string)
-  if args.len == 0:
-    return valBool(false)
-  return valBool(isVisited(args[0].s))
-
-proc nimini_markVisited(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Manually mark a section as visited. Args: sectionRef (string)
-  if args.len == 0:
-    return valNil()
-  markVisited(args[0].s)
-  return valNil()
-
-proc nimini_canvasRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Render the canvas system. No args needed (uses global buffers)
-  # Get the current buffer and dimensions from global state
-  # Canvas should render to the foreground layer buffer
-  if not gAppState.isNil and not gFgLayer.isNil:
-    canvasRender(gFgLayer.buffer, gAppState.termWidth, gAppState.termHeight)
-  return valNil()
-
-proc nimini_canvasUpdate(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update canvas animations. Args: deltaTime (float)
-  let deltaTime = if args.len > 0:
-    (if args[0].kind == vkFloat: args[0].f else: float(args[0].i))
-  else:
-    0.016 # Default ~60fps
-  canvasUpdate(deltaTime)
-  return valNil()
-
-proc nimini_canvasHandleKey(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Handle keyboard input for canvas. Args: keyCode (int), mods (int, optional)
-  ## Returns: bool (true if handled)
-  if args.len == 0:
-    return valBool(false)
-  let keyCode = valueToInt(args[0])
-  let mods = if args.len > 1: valueToInt(args[1]) else: 0
-  # Convert int to set[uint8] - simplified for common cases
-  var modSet: set[uint8] = {}
-  if (mods and 1) != 0: modSet.incl(0'u8)  # Shift
-  if (mods and 2) != 0: modSet.incl(1'u8)  # Ctrl
-  if (mods and 4) != 0: modSet.incl(2'u8)  # Alt
-  return valBool(canvasHandleKey(keyCode, modSet))
-
-proc nimini_canvasHandleMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Handle mouse input for canvas. Args: x (int), y (int), button (int), isDown (bool)
-  ## Returns: bool (true if handled)
-  if args.len < 4:
-    return valBool(false)
-  let x = valueToInt(args[0])
-  let y = valueToInt(args[1])
-  let button = valueToInt(args[2])
-  let isDown = if args[3].kind == vkBool: args[3].b else: (valueToInt(args[3]) != 0)
-  return valBool(canvasHandleMouse(x, y, button, isDown))
 
 proc encodeInputEvent(event: InputEvent): Value =
   ## Convert InputEvent to a Nimini Value table
@@ -706,43 +574,442 @@ proc fgWriteTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
                          hAlign, vAlign, wrapMode, gTextStyle)
   return valNil()
 
+# ================================================================
+# ANIMATION HELPERS (Nimini wrappers)
+# ================================================================
+
+proc nimini_newTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a transition state tracker: newTransition(duration, easingId)
+  if args.len < 1:
+    return valNil()
+  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let easingId = if args.len > 1: valueToInt(args[1]) else: 0
+  
+  let easing = case easingId
+    of 0: easeLinear
+    of 1: easeInQuad
+    of 2: easeOutQuad
+    of 3: easeInOutQuad
+    of 4: easeInCubic
+    of 5: easeOutCubic
+    of 6: easeInOutCubic
+    of 7: easeInSine
+    of 8: easeOutSine
+    of 9: easeInOutSine
+    else: easeLinear
+  
+  # Allocate on heap so it persists
+  let trans = create(TransitionState)
+  trans[] = newTransition(duration, easing)
+  return valInt(cast[int](trans))
+
+proc nimini_updateTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update transition: updateTransition(transId, deltaTime)
+  if args.len < 2:
+    return valNil()
+  var transPtr = cast[ptr TransitionState](valueToInt(args[0]))
+  let dt = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
+  transPtr[].update(dt)
+  return valNil()
+
+proc nimini_transitionProgress(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get linear progress: transitionProgress(transId) -> 0.0 to 1.0
+  if args.len < 1:
+    return valFloat(0.0)
+  let transPtr = cast[ptr TransitionState](valueToInt(args[0]))
+  return valFloat(transPtr[].progress())
+
+proc nimini_transitionEasedProgress(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get eased progress: transitionEasedProgress(transId) -> 0.0 to 1.0
+  if args.len < 1:
+    return valFloat(0.0)
+  let transPtr = cast[ptr TransitionState](valueToInt(args[0]))
+  return valFloat(transPtr[].easedProgress())
+
+proc nimini_transitionIsActive(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if transition is active: transitionIsActive(transId) -> bool
+  if args.len < 1:
+    return valBool(false)
+  let transPtr = cast[ptr TransitionState](valueToInt(args[0]))
+  return valBool(transPtr[].isActive())
+
+proc nimini_resetTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Reset transition: resetTransition(transId)
+  if args.len < 1:
+    return valNil()
+  var transPtr = cast[ptr TransitionState](valueToInt(args[0]))
+  transPtr[].reset()
+  return valNil()
+
+proc nimini_lerp(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Linear interpolation: lerp(a, b, t)
+  if args.len < 3:
+    return valFloat(0.0)
+  let a = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let b = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
+  let t = if args[2].kind == vkFloat: args[2].f else: float(args[2].i)
+  return valFloat(lerp(a, b, t))
+
+proc nimini_lerpInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Integer interpolation: lerpInt(a, b, t)
+  if args.len < 3:
+    return valInt(0)
+  let a = valueToInt(args[0])
+  let b = valueToInt(args[1])
+  let t = if args[2].kind == vkFloat: args[2].f else: float(args[2].i)
+  return valInt(lerpInt(a, b, t))
+
+proc nimini_smoothstep(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Smooth interpolation: smoothstep(t)
+  if args.len < 1:
+    return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(smoothstep(t))
+
+proc nimini_easeLinear(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeLinear(t))
+
+proc nimini_easeInQuad(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeInQuad(t))
+
+proc nimini_easeOutQuad(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeOutQuad(t))
+
+proc nimini_easeInOutQuad(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeInOutQuad(t))
+
+proc nimini_easeInCubic(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeInCubic(t))
+
+proc nimini_easeOutCubic(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeOutCubic(t))
+
+proc nimini_easeInOutCubic(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeInOutCubic(t))
+
+proc nimini_easeInSine(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeInSine(t))
+
+proc nimini_easeOutSine(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeOutSine(t))
+
+proc nimini_easeInOutSine(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  if args.len < 1: return valFloat(0.0)
+  let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  return valFloat(easeInOutSine(t))
+
+# ================================================================
+# TRANSITIONS API (Nimini wrappers)
+# ================================================================
+
+proc nimini_newTransitionEngine(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a new transition engine
+  let engine = newTransitionEngine()
+  # Store as opaque reference - Nimini will treat it as an int/pointer
+  return valInt(cast[int](engine))
+
+proc nimini_fadeEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a fade effect: fadeEffect(duration, easingFunc)
+  if args.len < 2:
+    return valNil()
+  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let easingFuncId = valueToInt(args[1])
+  # Map easing function IDs to actual functions
+  let easing = case easingFuncId
+    of 0: easeLinear
+    of 1: easeInQuad
+    of 2: easeOutQuad
+    of 3: easeInOutQuad
+    of 4: easeInCubic
+    of 5: easeOutCubic
+    of 6: easeInOutCubic
+    else: easeLinear
+  # Allocate effect on heap so it persists
+  let effect = create(TransitionEffect)
+  effect[] = fadeEffect(duration, easing)
+  return valInt(cast[int](effect))
+
+proc nimini_slideEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a slide effect: slideEffect(duration, direction, easingFunc)
+  if args.len < 3:
+    return valNil()
+  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let dirId = valueToInt(args[1])
+  let easingFuncId = valueToInt(args[2])
+  let direction = case dirId
+    of 0: tdLeft
+    of 1: tdRight
+    of 2: tdUp
+    of 3: tdDown
+    else: tdLeft
+  let easing = case easingFuncId
+    of 0: easeLinear
+    of 1: easeInQuad
+    of 2: easeOutQuad
+    of 3: easeInOutQuad
+    of 4: easeInCubic
+    of 5: easeOutCubic
+    of 6: easeInOutCubic
+    else: easeLinear
+  # Allocate effect on heap so it persists
+  let effect = create(TransitionEffect)
+  effect[] = slideEffect(duration, direction, easing)
+  return valInt(cast[int](effect))
+
+proc nimini_wipeEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a wipe effect: wipeEffect(duration, direction, easingFunc)
+  if args.len < 3:
+    return valNil()
+  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let dirId = valueToInt(args[1])
+  let easingFuncId = valueToInt(args[2])
+  let direction = case dirId
+    of 0: tdLeft
+    of 1: tdRight
+    of 2: tdUp
+    of 3: tdDown
+    of 4: tdCenter
+    else: tdLeft
+  let easing = case easingFuncId
+    of 0: easeLinear
+    of 1: easeInQuad
+    of 2: easeOutQuad
+    of 3: easeInOutQuad
+    of 4: easeInCubic
+    of 5: easeOutCubic
+    of 6: easeInOutCubic
+    else: easeLinear
+  # Allocate effect on heap so it persists
+  let effect = create(TransitionEffect)
+  effect[] = wipeEffect(duration, direction, easing)
+  return valInt(cast[int](effect))
+
+proc nimini_dissolveEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a dissolve effect: dissolveEffect(duration, blockSize, easingFunc)
+  if args.len < 3:
+    return valNil()
+  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let blockSize = valueToInt(args[1])
+  let easingFuncId = valueToInt(args[2])
+  let easing = case easingFuncId
+    of 0: easeLinear
+    of 1: easeInQuad
+    of 2: easeOutQuad
+    of 3: easeInOutQuad
+    of 4: easeInCubic
+    of 5: easeOutCubic
+    of 6: easeInOutCubic
+    else: easeLinear
+  # Allocate effect on heap so it persists
+  let effect = create(TransitionEffect)
+  effect[] = dissolveEffect(duration, blockSize, easing)
+  return valInt(cast[int](effect))
+
+proc nimini_pushEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a push effect: pushEffect(duration, direction, easingFunc)
+  if args.len < 3:
+    return valNil()
+  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
+  let dirId = valueToInt(args[1])
+  let easingFuncId = valueToInt(args[2])
+  let direction = case dirId
+    of 0: tdLeft
+    of 1: tdRight
+    of 2: tdUp
+    of 3: tdDown
+    else: tdLeft
+  let easing = case easingFuncId
+    of 0: easeLinear
+    of 1: easeInQuad
+    of 2: easeOutQuad
+    of 3: easeInOutQuad
+    of 4: easeInCubic
+    of 5: easeOutCubic
+    of 6: easeInOutCubic
+    else: easeLinear
+  # Allocate effect on heap so it persists
+  let effect = create(TransitionEffect)
+  effect[] = pushEffect(duration, direction, easing)
+  return valInt(cast[int](effect))
+
+proc nimini_newBufferSnapshot(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a new buffer snapshot: newBufferSnapshot(width, height)
+  if args.len < 2:
+    return valNil()
+  let width = valueToInt(args[0])
+  let height = valueToInt(args[1])
+  let buffer = newBufferSnapshot(width, height)
+  return valInt(cast[int](buffer))
+
+proc nimini_bufferSetCell(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set a cell in a buffer: bufferSetCell(buffer, x, y, ch, style)
+  if args.len < 5:
+    return valNil()
+  var bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let ch = if args[3].kind == vkString: args[3].s else: " "
+  let stylePtr = cast[ptr Style](valueToInt(args[4]))
+  bufferPtr.setCell(x, y, ch, stylePtr[])
+  return valNil()
+
+proc nimini_startTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Start a transition: startTransition(engine, fromBuffer, toBuffer, effect)
+  if args.len < 4:
+    return valNil()
+  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
+  let fromPtr = cast[BufferSnapshot](valueToInt(args[1]))
+  let toPtr = cast[BufferSnapshot](valueToInt(args[2]))
+  let effectPtr = cast[ptr TransitionEffect](valueToInt(args[3]))
+  discard enginePtr.startTransition(fromPtr, toPtr, effectPtr[])
+  return valNil()
+
+proc nimini_updateTransitions(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update transitions: updateTransitions(engine, deltaTime)
+  if args.len < 2:
+    return valNil()
+  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
+  let dt = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
+  enginePtr.update(dt)
+  return valNil()
+
+proc nimini_hasActiveTransitions(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if there are active transitions: hasActiveTransitions(engine)
+  if args.len < 1:
+    return valBool(false)
+  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
+  return valBool(enginePtr.hasActiveTransitions())
+
+proc nimini_getTransitionBuffer(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the current transition buffer: getTransitionBuffer(engine)
+  if args.len < 1:
+    return valNil()
+  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
+  let buffer = enginePtr.getTransitionBuffer()
+  return valInt(cast[int](buffer))
+
+proc nimini_bufferGetCell(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get a cell from buffer: bufferGetCell(buffer, x, y) - returns [ch, stylePtr]
+  if args.len < 3:
+    return valNil()
+  let bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let cell = bufferPtr.getCell(x, y)
+  # Return as a simple string for now (ch only)
+  return valString(cell.ch)
+
+proc nimini_bufferWidth(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get buffer width: bufferWidth(buffer)
+  if args.len < 1:
+    return valInt(0)
+  let bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
+  return valInt(bufferPtr.width)
+
+proc nimini_bufferHeight(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get buffer height: bufferHeight(buffer)
+  if args.len < 1:
+    return valInt(0)
+  let bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
+  return valInt(bufferPtr.height)
+
+# Easing function constants
+const
+  EASE_LINEAR* = 0
+  EASE_IN_QUAD* = 1
+  EASE_OUT_QUAD* = 2
+  EASE_IN_OUT_QUAD* = 3
+  EASE_IN_CUBIC* = 4
+  EASE_OUT_CUBIC* = 5
+  EASE_IN_OUT_CUBIC* = 6
+
+# Direction constants
+const
+  DIR_LEFT* = 0
+  DIR_RIGHT* = 1
+  DIR_UP* = 2
+  DIR_DOWN* = 3
+  DIR_CENTER* = 4
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
   initStdlib()  # Register standard library functions (add, len, etc.)
+  
+  # Register core framework APIs (state accessors, colors, etc.) from tstorie.nim
+  registerTstorieApis(runtimeEnv, cast[pointer](state))
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)
   registerNative("float", nimini_float)
   registerNative("str", nimini_str)
   
-  # Auto-register all {.nimini.} pragma functions
+  # Auto-register all {.nimini.} pragma functions from index.nim
   exportNiminiProcs(
     print,
     bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect, bgWriteTextBox,
     fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect, fgWriteTextBox,
     randInt, randFloat,
-    getYear, getMonth, getDay, getHour, getMinute, getSecond,
     drawFigletDigit,
-    getTermWidth, getTermHeight, getTargetFps, setTargetFps,
-    getFps, getFrameCount, getTotalTime,
-    nimini_getCurrentSection, nimini_getAllSections, nimini_getSectionById,
-    nimini_gotoSection, nimini_createSection, nimini_deleteSection,
-    nimini_updateSectionTitle, nimini_setMultiSectionMode, nimini_getMultiSectionMode,
-    nimini_setScrollY, nimini_getScrollY, nimini_getSectionCount, nimini_getCurrentSectionIndex,
     nimini_registerGlobalRender, nimini_registerGlobalUpdate, nimini_registerGlobalInput,
     nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
     nimini_enableMouse, nimini_disableMouse,
-    nimini_initCanvas, nimini_hideSection, nimini_removeSection, nimini_restoreSection,
-    nimini_isVisited, nimini_markVisited, nimini_canvasRender, nimini_canvasUpdate,
-    nimini_canvasHandleKey, nimini_canvasHandleMouse
+    nimini_initCanvas,
+    # Animation/transition helpers (simple, safe)
+    nimini_newTransition, nimini_updateTransition, nimini_transitionProgress,
+    nimini_transitionEasedProgress, nimini_transitionIsActive, nimini_resetTransition,
+    nimini_lerp, nimini_lerpInt, nimini_smoothstep,
+    nimini_easeLinear, nimini_easeInQuad, nimini_easeOutQuad, nimini_easeInOutQuad,
+    nimini_easeInCubic, nimini_easeOutCubic, nimini_easeInOutCubic,
+    nimini_easeInSine, nimini_easeOutSine, nimini_easeInOutSine,
+    # Complex transition engine (advanced, pointer-based)
+    nimini_newTransitionEngine, nimini_fadeEffect, nimini_slideEffect, nimini_wipeEffect,
+    nimini_dissolveEffect, nimini_pushEffect, nimini_newBufferSnapshot,
+    nimini_bufferSetCell, nimini_startTransition, nimini_updateTransitions,
+    nimini_hasActiveTransitions, nimini_getTransitionBuffer, nimini_bufferGetCell,
+    nimini_bufferWidth, nimini_bufferHeight
   )
+  
+  # Register transition constants
+  defineVar(runtimeEnv, "EASE_LINEAR", valInt(EASE_LINEAR))
+  defineVar(runtimeEnv, "EASE_IN_QUAD", valInt(EASE_IN_QUAD))
+  defineVar(runtimeEnv, "EASE_OUT_QUAD", valInt(EASE_OUT_QUAD))
+  defineVar(runtimeEnv, "EASE_IN_OUT_QUAD", valInt(EASE_IN_OUT_QUAD))
+  defineVar(runtimeEnv, "EASE_IN_CUBIC", valInt(EASE_IN_CUBIC))
+  defineVar(runtimeEnv, "EASE_OUT_CUBIC", valInt(EASE_OUT_CUBIC))
+  defineVar(runtimeEnv, "EASE_IN_OUT_CUBIC", valInt(EASE_IN_OUT_CUBIC))
+  defineVar(runtimeEnv, "EASE_IN_SINE", valInt(7))
+  defineVar(runtimeEnv, "EASE_OUT_SINE", valInt(8))
+  defineVar(runtimeEnv, "EASE_IN_OUT_SINE", valInt(9))
+  defineVar(runtimeEnv, "DIR_LEFT", valInt(DIR_LEFT))
+  defineVar(runtimeEnv, "DIR_RIGHT", valInt(DIR_RIGHT))
+  defineVar(runtimeEnv, "DIR_UP", valInt(DIR_UP))
+  defineVar(runtimeEnv, "DIR_DOWN", valInt(DIR_DOWN))
+  defineVar(runtimeEnv, "DIR_CENTER", valInt(DIR_CENTER))
   
   let ctx = NiminiContext(env: runtimeEnv)
   
   return ctx
 
-proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState, event: InputEvent = InputEvent()): bool =
+proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState, event: InputEvent = InputEvent(), deltaTime: float = 0.0): bool =
   ## Execute a code block using Nimini
   ## 
   ## Scoping rules:
@@ -764,6 +1031,7 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     scriptCode.add("var termHeight = " & $state.termHeight & "\n")
     scriptCode.add("var fps = " & formatFloat(state.fps, ffDecimal, 2) & "\n")
     scriptCode.add("var frameCount = " & $state.frameCount & "\n")
+    scriptCode.add("var deltaTime = " & formatFloat(deltaTime, ffDecimal, 6) & "\n")
     
     # For input blocks, we'll inject the event variable later
     if codeBlock.lifecycle == "input":
@@ -909,15 +1177,17 @@ proc initStorieContext(state: AppState) =
   gInfoStyle = infoStyle
   gAppState = state  # Store state reference for accessors
   
-  # Register section manager for nimini bindings
-  registerSectionManagerBindings(addr storieCtx.sectionMgr)
-  
   when not defined(emscripten):
     echo "Loaded ", storieCtx.codeBlocks.len, " code blocks from ", gMarkdownFile
     if storieCtx.frontMatter.len > 0:
       echo "Front matter keys: ", toSeq(storieCtx.frontMatter.keys).join(", ")
   
+  # Create nimini context first (initializes runtime)
   storieCtx.niminiContext = createNiminiContext(state)
+  
+  # Now register module bindings (must be after runtime init)
+  registerSectionManagerBindings(addr storieCtx.sectionMgr)
+  registerCanvasBindings(addr gFgLayer.buffer, addr gAppState)
   
   # Expose front matter to user scripts as global variables
   for key, value in storieCtx.frontMatter.pairs:
@@ -979,7 +1249,7 @@ onUpdate = proc(state: AppState, dt: float) =
   # 2. Execute section-specific on:update blocks
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "update":
-      discard executeCodeBlock(storieCtx.niminiContext, codeBlock, state)
+      discard executeCodeBlock(storieCtx.niminiContext, codeBlock, state, InputEvent(), dt)
 
 onRender = proc(state: AppState) =
   if storieCtx.isNil:

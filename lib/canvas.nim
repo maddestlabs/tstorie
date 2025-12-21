@@ -797,5 +797,111 @@ proc getSectionCount*(): int =
     return 0
   return canvasState.sections.len
 
+# ================================================================
+# NIMINI BINDINGS
+# ================================================================
+
+# Global references needed by nimini wrappers (set by registerCanvasBindings)
+var gCanvasBuffer: ptr TermBuffer
+var gCanvasAppState: ptr AppState
+
+# Helper to convert Value to int (handles both int and float values)
+# This may be duplicated in including contexts but that's okay for private helpers
+proc canvasValueToInt(v: Value): int =
+  case v.kind
+  of vkInt: return v.i
+  of vkFloat: return int(v.f)
+  else: return 0
+
+# Note: nimini_initCanvas is defined in index.nim since it needs access to storieCtx
+
+proc nimini_hideSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Hide a section by reference. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  hideSection(args[0].s)
+  return valNil()
+
+proc nimini_removeSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Remove a section from display. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  removeSection(args[0].s)
+  return valNil()
+
+proc nimini_restoreSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Restore a removed section. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  restoreSection(args[0].s)
+  return valNil()
+
+proc nimini_isVisited*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if a section has been visited. Args: sectionRef (string)
+  if args.len == 0:
+    return valBool(false)
+  return valBool(isVisited(args[0].s))
+
+proc nimini_markVisited*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Manually mark a section as visited. Args: sectionRef (string)
+  if args.len == 0:
+    return valNil()
+  markVisited(args[0].s)
+  return valNil()
+
+proc nimini_canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Render the canvas system. No args needed (uses global buffers)
+  if not gCanvasAppState.isNil and not gCanvasBuffer.isNil:
+    canvasRender(gCanvasBuffer[], gCanvasAppState.termWidth, gCanvasAppState.termHeight)
+  return valNil()
+
+proc nimini_canvasUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update canvas animations. Args: deltaTime (float)
+  let deltaTime = if args.len > 0:
+    (if args[0].kind == vkFloat: args[0].f else: float(args[0].i))
+  else:
+    0.016 # Default ~60fps
+  canvasUpdate(deltaTime)
+  return valNil()
+
+proc nimini_canvasHandleKey*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle keyboard input for canvas. Args: keyCode (int), mods (int, optional)
+  ## Returns: bool (true if handled)
+  if args.len == 0:
+    return valBool(false)
+  let keyCode = canvasValueToInt(args[0])
+  let mods = if args.len > 1: canvasValueToInt(args[1]) else: 0
+  # Convert int to set[uint8] - simplified for common cases
+  var modSet: set[uint8] = {}
+  if (mods and 1) != 0: modSet.incl(0'u8)  # Shift
+  if (mods and 2) != 0: modSet.incl(1'u8)  # Ctrl
+  if (mods and 4) != 0: modSet.incl(2'u8)  # Alt
+  return valBool(canvasHandleKey(keyCode, modSet))
+
+proc nimini_canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle mouse input for canvas. Args: x (int), y (int), button (int), isDown (bool)
+  ## Returns: bool (true if handled)
+  if args.len < 4:
+    return valBool(false)
+  let x = canvasValueToInt(args[0])
+  let y = canvasValueToInt(args[1])
+  let button = canvasValueToInt(args[2])
+  let isDown = if args[3].kind == vkBool: args[3].b else: (canvasValueToInt(args[3]) != 0)
+  return valBool(canvasHandleMouse(x, y, button, isDown))
+
+proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState) =
+  ## Register canvas bindings with the nimini runtime
+  ## Call this during initialization after creating the nimini context
+  gCanvasBuffer = buffer
+  gCanvasAppState = appState
+  
+  # Export all nimini wrapper functions
+  exportNiminiProcs(
+    nimini_hideSection, nimini_removeSection, nimini_restoreSection,
+    nimini_isVisited, nimini_markVisited, nimini_canvasRender, 
+    nimini_canvasUpdate, nimini_canvasHandleKey, nimini_canvasHandleMouse
+  )
+
 # Export rendering functions
 export canvasRender, canvasUpdate, canvasHandleKey, canvasHandleMouse, getSectionCount
+export registerCanvasBindings

@@ -723,6 +723,86 @@ proc listCachedModules*(): seq[string] =
 # NIMINI BRIDGE - API Registration
 # ================================================================
 
+# Forward declarations for layer management (defined later in file)
+proc addLayer*(state: AppState, id: string, z: int): Layer
+proc getLayer*(state: AppState, id: string): Layer
+
+# TermBuffer operations - defined here so templates can bind to them
+proc write*(tb: var TermBuffer, x, y: int, ch: string, style: Style) =
+  let screenX = x + tb.offsetX
+  let screenY = y + tb.offsetY
+  
+  if screenX < tb.clipX or screenX >= tb.clipX + tb.clipW:
+    return
+  if screenY < tb.clipY or screenY >= tb.clipY + tb.clipH:
+    return
+  
+  if screenX >= 0 and screenX < tb.width and screenY >= 0 and screenY < tb.height:
+    let idx = screenY * tb.width + screenX
+    tb.cells[idx] = Cell(ch: ch, style: style)
+
+proc writeText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
+  var currentX = x
+  var i = 0
+  while i < text.len:
+    let b = text[i].ord
+    var charLen = 1
+    var ch = ""
+    
+    if (b and 0x80) == 0:
+      ch = $text[i]
+    elif (b and 0xE0) == 0xC0 and i + 1 < text.len:
+      ch = text[i..i+1]
+      charLen = 2
+    elif (b and 0xF0) == 0xE0 and i + 2 < text.len:
+      ch = text[i..i+2]
+      charLen = 3
+    elif (b and 0xF8) == 0xF0 and i + 3 < text.len:
+      ch = text[i..i+3]
+      charLen = 4
+    else:
+      ch = "?"
+    
+    tb.write(currentX, y, ch, style)
+    currentX += 1
+    i += charLen
+
+proc fillRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =
+  for dy in 0 ..< h:
+    for dx in 0 ..< w:
+      tb.write(x + dx, y + dy, ch, style)
+
+proc clear*(tb: var TermBuffer) =
+  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
+  for i in 0 ..< tb.cells.len:
+    tb.cells[i] = Cell(ch: " ", style: defaultStyle)
+
+proc clearTransparent*(tb: var TermBuffer) =
+  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
+  for i in 0 ..< tb.cells.len:
+    tb.cells[i] = Cell(ch: "", style: defaultStyle)
+
+# Helper templates to avoid symbol resolution conflicts with File.write
+template tbWrite(layer: Layer, x, y: int, ch: string, style: Style) =
+  bind write
+  layer.buffer.write(x, y, ch, style)
+
+template tbWriteText(layer: Layer, x, y: int, text: string, style: Style) =
+  bind writeText
+  layer.buffer.writeText(x, y, text, style)
+
+template tbFillRect(layer: Layer, x, y, w, h: int, ch: string, style: Style) =
+  bind fillRect
+  layer.buffer.fillRect(x, y, w, h, ch, style)
+
+template tbClear(layer: Layer) =
+  bind clear
+  layer.buffer.clear()
+
+template tbClearTransparent(layer: Layer) =
+  bind clearTransparent
+  layer.buffer.clearTransparent()
+
 # Store the global state ref here to avoid circular imports
 var globalAppStateRef: pointer = nil
 
@@ -738,63 +818,104 @@ proc registerTstorieApis*(env: ref Env, state: pointer) =
   # Store state for later use
   setGlobalAppState(state)
   
+  # Cast AppState once at the beginning (it's a ref object, so we cast directly from pointer)
+  let appState = cast[AppState](state)
+  let defaultStyle = defaultStyle() # Default style for drawing
+  
   # ============================================================================
   # Drawing APIs
   # ============================================================================
   
-  # Note: These will call back into tstorie via proc pointers
-  # For now, provide placeholder implementations
   env.vars["write"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## write(x: int, y: int, text: string)
-    if args.len < 3:
-      raise newException(ValueError, "write() requires at least 3 arguments: x, y, text")
+    ## write(layerId: string, x: int, y: int, ch: string)
+    if args.len < 4:
+      raise newException(ValueError, "write() requires 4 arguments: layerId, x, y, ch")
     
-    echo "write(", args[0].i, ", ", args[1].i, ", ", args[2].s, ")"
+    let layerId = args[0].s
+    let x = args[1].i
+    let y = args[2].i
+    let ch = args[3].s
+    
+    var layer = getLayer(appState, layerId)
+    if not layer.isNil:
+      tbWrite(layer, x, y, ch, defaultStyle)
     return valNil()
   
   env.vars["writeText"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## writeText(x: int, y: int, text: string)
-    if args.len < 3:
-      raise newException(ValueError, "writeText() requires at least 3 arguments")
+    ## writeText(layerId: string, x: int, y: int, text: string)
+    if args.len < 4:
+      raise newException(ValueError, "writeText() requires 4 arguments: layerId, x, y, text")
     
-    echo "writeText(", args[0].i, ", ", args[1].i, ", ", args[2].s, ")"
+    let layerId = args[0].s
+    let x = args[1].i
+    let y = args[2].i
+    let text = args[3].s
+    
+    var layer = getLayer(appState, layerId)
+    if not layer.isNil:
+      tbWriteText(layer, x, y, text, defaultStyle)
     return valNil()
   
   env.vars["fillRect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## fillRect(x: int, y: int, w: int, h: int, ch: string)
-    if args.len < 5:
-      raise newException(ValueError, "fillRect() requires at least 5 arguments")
+    ## fillRect(layerId: string, x: int, y: int, w: int, h: int, ch: string)
+    if args.len < 6:
+      raise newException(ValueError, "fillRect() requires 6 arguments: layerId, x, y, w, h, ch")
     
-    echo "fillRect(", args[0].i, ", ", args[1].i, ", ", args[2].i, ", ", args[3].i, ", ", args[4].s, ")"
+    let layerId = args[0].s
+    let x = args[1].i
+    let y = args[2].i
+    let w = args[3].i
+    let h = args[4].i
+    let ch = args[5].s
+    
+    var layer = getLayer(appState, layerId)
+    if not layer.isNil:
+      tbFillRect(layer, x, y, w, h, ch, defaultStyle)
+    return valNil()
+  
+  env.vars["clearLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## clearLayer(layerId: string)
+    if args.len < 1:
+      raise newException(ValueError, "clearLayer() requires 1 argument: layerId")
+    
+    let layerId = args[0].s
+    var layer = getLayer(appState, layerId)
+    if not layer.isNil:
+      tbClear(layer)
+    return valNil()
+  
+  env.vars["clearLayerTransparent"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## clearLayerTransparent(layerId: string)
+    if args.len < 1:
+      raise newException(ValueError, "clearLayerTransparent() requires 1 argument: layerId")
+    
+    let layerId = args[0].s
+    var layer = getLayer(appState, layerId)
+    if not layer.isNil:
+      tbClearTransparent(layer)
     return valNil()
   
   # ============================================================================
   # Layer Management
   # ============================================================================
   
-  env.vars["createLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## createLayer(id: string, z: int)
+  env.vars["addLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## addLayer(id: string, z: int) - Create and add a new layer
     if args.len < 2:
-      raise newException(ValueError, "createLayer() requires 2 arguments: id, z")
+      raise newException(ValueError, "addLayer() requires 2 arguments: id, z")
     
-    echo "createLayer(", args[0].s, ", ", args[1].i, ")"
+    let id = args[0].s
+    let z = args[1].i
+    discard addLayer(appState, id, z)
     return valNil()
   
-  env.vars["getLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getLayer(id: string) -> map with layer info
+  env.vars["layerExists"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## layerExists(id: string) -> bool
     if args.len < 1:
-      raise newException(ValueError, "getLayer() requires 1 argument: id")
+      raise newException(ValueError, "layerExists() requires 1 argument: id")
     
-    # Return nil for now - will be implemented with real tstorie integration
-    return valNil()
-  
-  env.vars["removeLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## removeLayer(id: string)
-    if args.len < 1:
-      raise newException(ValueError, "removeLayer() requires 1 argument: id")
-    
-    echo "removeLayer(", args[0].s, ")"
-    return valNil()
+    let layer = getLayer(appState, args[0].s)
+    return valBool(not layer.isNil)
   
   # ============================================================================
   # Color Utilities
@@ -846,17 +967,69 @@ proc registerTstorieApis*(env: ref Env, state: pointer) =
   # State Access
   # ============================================================================
   
+  env.vars["getTermWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get current terminal width
+    return valInt(appState.termWidth)
+  
+  env.vars["getTermHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get current terminal height
+    return valInt(appState.termHeight)
+  
   env.vars["getWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getWidth() -> int
-    return valInt(80)  # Default size
+    ## getWidth() -> int (alias for getTermWidth)
+    return valInt(appState.termWidth)
   
   env.vars["getHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getHeight() -> int
-    return valInt(24)  # Default size
+    ## getHeight() -> int (alias for getTermHeight)
+    return valInt(appState.termHeight)
+  
+  env.vars["getTargetFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the target FPS
+    return valFloat(appState.targetFps)
+  
+  env.vars["setTargetFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Set the target FPS. Args: fps (number)
+    if args.len > 0:
+      let fps = case args[0].kind
+        of vkFloat: args[0].f
+        of vkInt: args[0].i.float
+        else: 60.0
+      appState.targetFps = fps
+    return valNil()
+  
+  env.vars["getFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the current actual FPS
+    return valFloat(appState.fps)
+  
+  env.vars["getFrameCount"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the total frame count
+    return valInt(appState.frameCount)
+  
+  env.vars["getTotalTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the total elapsed time in seconds
+    return valFloat(appState.totalTime)
   
   env.vars["getDeltaTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getDeltaTime() -> float
-    return valFloat(0.016)  # ~60 FPS
+    ## getDeltaTime() -> float (alias for getting frame delta)
+    return valFloat(1.0 / appState.targetFps)
+  
+  # ============================================================================
+  # Time Functions
+  # ============================================================================
+  
+  env.vars["now"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## now() -> map with datetime properties (year, month, day, hour, minute, second, weekday, yearday)
+    let dt = now()
+    let timeMap = valMap()
+    timeMap.map["year"] = valInt(dt.year)
+    timeMap.map["month"] = valInt(dt.month.int)  # 1-12
+    timeMap.map["day"] = valInt(dt.monthday)     # 1-31
+    timeMap.map["hour"] = valInt(dt.hour)        # 0-23
+    timeMap.map["minute"] = valInt(dt.minute)    # 0-59
+    timeMap.map["second"] = valInt(dt.second)    # 0-59
+    timeMap.map["weekday"] = valInt(dt.weekday.int)  # 0=Monday, 6=Sunday
+    timeMap.map["yearday"] = valInt(dt.yearday)  # 1-366
+    return timeMap
   
   # ============================================================================
   # Utility Functions
@@ -987,60 +1160,6 @@ proc clearClip*(tb: var TermBuffer) =
 proc setOffset*(tb: var TermBuffer, x, y: int) =
   tb.offsetX = x
   tb.offsetY = y
-
-proc write*(tb: var TermBuffer, x, y: int, ch: string, style: Style) =
-  let screenX = x + tb.offsetX
-  let screenY = y + tb.offsetY
-  
-  if screenX < tb.clipX or screenX >= tb.clipX + tb.clipW:
-    return
-  if screenY < tb.clipY or screenY >= tb.clipY + tb.clipH:
-    return
-  
-  if screenX >= 0 and screenX < tb.width and screenY >= 0 and screenY < tb.height:
-    let idx = screenY * tb.width + screenX
-    tb.cells[idx] = Cell(ch: ch, style: style)
-
-proc writeText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
-  var currentX = x
-  var i = 0
-  while i < text.len:
-    let b = text[i].ord
-    var charLen = 1
-    var ch = ""
-    
-    if (b and 0x80) == 0:
-      ch = $text[i]
-    elif (b and 0xE0) == 0xC0 and i + 1 < text.len:
-      ch = text[i..i+1]
-      charLen = 2
-    elif (b and 0xF0) == 0xE0 and i + 2 < text.len:
-      ch = text[i..i+2]
-      charLen = 3
-    elif (b and 0xF8) == 0xF0 and i + 3 < text.len:
-      ch = text[i..i+3]
-      charLen = 4
-    else:
-      ch = "?"
-    
-    tb.write(currentX, y, ch, style)
-    currentX += 1
-    i += charLen
-
-proc fillRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =
-  for dy in 0 ..< h:
-    for dx in 0 ..< w:
-      tb.write(x + dx, y + dy, ch, style)
-
-proc clear*(tb: var TermBuffer) =
-  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
-  for i in 0 ..< tb.cells.len:
-    tb.cells[i] = Cell(ch: " ", style: defaultStyle)
-
-proc clearTransparent*(tb: var TermBuffer) =
-  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
-  for i in 0 ..< tb.cells.len:
-    tb.cells[i] = Cell(ch: "", style: defaultStyle)
 
 proc compositeBufferOnto*(dest: var TermBuffer, src: TermBuffer) =
   let w = min(dest.width, src.width)
