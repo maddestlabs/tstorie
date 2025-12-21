@@ -21,7 +21,6 @@ include lib/animation         # Animation helpers and easing
 include lib/drawing           # Drawing utilities for layers
 include lib/ui_components     # Reusable UI components
 include lib/canvas            # Canvas navigation system
-include lib/transitions       # Transition effects system
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -716,221 +715,6 @@ proc nimini_easeInOutSine(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let t = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
   return valFloat(easeInOutSine(t))
 
-# ================================================================
-# TRANSITIONS API (Nimini wrappers)
-# ================================================================
-
-proc nimini_newTransitionEngine(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a new transition engine
-  let engine = newTransitionEngine()
-  # Store as opaque reference - Nimini will treat it as an int/pointer
-  return valInt(cast[int](engine))
-
-proc nimini_fadeEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a fade effect: fadeEffect(duration, easingFunc)
-  if args.len < 2:
-    return valNil()
-  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
-  let easingFuncId = valueToInt(args[1])
-  # Map easing function IDs to actual functions
-  let easing = case easingFuncId
-    of 0: easeLinear
-    of 1: easeInQuad
-    of 2: easeOutQuad
-    of 3: easeInOutQuad
-    of 4: easeInCubic
-    of 5: easeOutCubic
-    of 6: easeInOutCubic
-    else: easeLinear
-  # Allocate effect on heap so it persists
-  let effect = create(TransitionEffect)
-  effect[] = fadeEffect(duration, easing)
-  return valInt(cast[int](effect))
-
-proc nimini_slideEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a slide effect: slideEffect(duration, direction, easingFunc)
-  if args.len < 3:
-    return valNil()
-  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
-  let dirId = valueToInt(args[1])
-  let easingFuncId = valueToInt(args[2])
-  let direction = case dirId
-    of 0: tdLeft
-    of 1: tdRight
-    of 2: tdUp
-    of 3: tdDown
-    else: tdLeft
-  let easing = case easingFuncId
-    of 0: easeLinear
-    of 1: easeInQuad
-    of 2: easeOutQuad
-    of 3: easeInOutQuad
-    of 4: easeInCubic
-    of 5: easeOutCubic
-    of 6: easeInOutCubic
-    else: easeLinear
-  # Allocate effect on heap so it persists
-  let effect = create(TransitionEffect)
-  effect[] = slideEffect(duration, direction, easing)
-  return valInt(cast[int](effect))
-
-proc nimini_wipeEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a wipe effect: wipeEffect(duration, direction, easingFunc)
-  if args.len < 3:
-    return valNil()
-  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
-  let dirId = valueToInt(args[1])
-  let easingFuncId = valueToInt(args[2])
-  let direction = case dirId
-    of 0: tdLeft
-    of 1: tdRight
-    of 2: tdUp
-    of 3: tdDown
-    of 4: tdCenter
-    else: tdLeft
-  let easing = case easingFuncId
-    of 0: easeLinear
-    of 1: easeInQuad
-    of 2: easeOutQuad
-    of 3: easeInOutQuad
-    of 4: easeInCubic
-    of 5: easeOutCubic
-    of 6: easeInOutCubic
-    else: easeLinear
-  # Allocate effect on heap so it persists
-  let effect = create(TransitionEffect)
-  effect[] = wipeEffect(duration, direction, easing)
-  return valInt(cast[int](effect))
-
-proc nimini_dissolveEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a dissolve effect: dissolveEffect(duration, blockSize, easingFunc)
-  if args.len < 3:
-    return valNil()
-  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
-  let blockSize = valueToInt(args[1])
-  let easingFuncId = valueToInt(args[2])
-  let easing = case easingFuncId
-    of 0: easeLinear
-    of 1: easeInQuad
-    of 2: easeOutQuad
-    of 3: easeInOutQuad
-    of 4: easeInCubic
-    of 5: easeOutCubic
-    of 6: easeInOutCubic
-    else: easeLinear
-  # Allocate effect on heap so it persists
-  let effect = create(TransitionEffect)
-  effect[] = dissolveEffect(duration, blockSize, easing)
-  return valInt(cast[int](effect))
-
-proc nimini_pushEffect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a push effect: pushEffect(duration, direction, easingFunc)
-  if args.len < 3:
-    return valNil()
-  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
-  let dirId = valueToInt(args[1])
-  let easingFuncId = valueToInt(args[2])
-  let direction = case dirId
-    of 0: tdLeft
-    of 1: tdRight
-    of 2: tdUp
-    of 3: tdDown
-    else: tdLeft
-  let easing = case easingFuncId
-    of 0: easeLinear
-    of 1: easeInQuad
-    of 2: easeOutQuad
-    of 3: easeInOutQuad
-    of 4: easeInCubic
-    of 5: easeOutCubic
-    of 6: easeInOutCubic
-    else: easeLinear
-  # Allocate effect on heap so it persists
-  let effect = create(TransitionEffect)
-  effect[] = pushEffect(duration, direction, easing)
-  return valInt(cast[int](effect))
-
-proc nimini_newBufferSnapshot(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a new buffer snapshot: newBufferSnapshot(width, height)
-  if args.len < 2:
-    return valNil()
-  let width = valueToInt(args[0])
-  let height = valueToInt(args[1])
-  let buffer = newBufferSnapshot(width, height)
-  return valInt(cast[int](buffer))
-
-proc nimini_bufferSetCell(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set a cell in a buffer: bufferSetCell(buffer, x, y, ch, style)
-  if args.len < 5:
-    return valNil()
-  var bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let ch = if args[3].kind == vkString: args[3].s else: " "
-  let stylePtr = cast[ptr Style](valueToInt(args[4]))
-  bufferPtr.setCell(x, y, ch, stylePtr[])
-  return valNil()
-
-proc nimini_startTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Start a transition: startTransition(engine, fromBuffer, toBuffer, effect)
-  if args.len < 4:
-    return valNil()
-  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
-  let fromPtr = cast[BufferSnapshot](valueToInt(args[1]))
-  let toPtr = cast[BufferSnapshot](valueToInt(args[2]))
-  let effectPtr = cast[ptr TransitionEffect](valueToInt(args[3]))
-  discard enginePtr.startTransition(fromPtr, toPtr, effectPtr[])
-  return valNil()
-
-proc nimini_updateTransitions(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update transitions: updateTransitions(engine, deltaTime)
-  if args.len < 2:
-    return valNil()
-  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
-  let dt = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
-  enginePtr.update(dt)
-  return valNil()
-
-proc nimini_hasActiveTransitions(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Check if there are active transitions: hasActiveTransitions(engine)
-  if args.len < 1:
-    return valBool(false)
-  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
-  return valBool(enginePtr.hasActiveTransitions())
-
-proc nimini_getTransitionBuffer(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the current transition buffer: getTransitionBuffer(engine)
-  if args.len < 1:
-    return valNil()
-  let enginePtr = cast[TransitionEngine](valueToInt(args[0]))
-  let buffer = enginePtr.getTransitionBuffer()
-  return valInt(cast[int](buffer))
-
-proc nimini_bufferGetCell(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get a cell from buffer: bufferGetCell(buffer, x, y) - returns [ch, stylePtr]
-  if args.len < 3:
-    return valNil()
-  let bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let cell = bufferPtr.getCell(x, y)
-  # Return as a simple string for now (ch only)
-  return valString(cell.ch)
-
-proc nimini_bufferWidth(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get buffer width: bufferWidth(buffer)
-  if args.len < 1:
-    return valInt(0)
-  let bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
-  return valInt(bufferPtr.width)
-
-proc nimini_bufferHeight(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get buffer height: bufferHeight(buffer)
-  if args.len < 1:
-    return valInt(0)
-  let bufferPtr = cast[BufferSnapshot](valueToInt(args[0]))
-  return valInt(bufferPtr.height)
-
 # Easing function constants
 const
   EASE_LINEAR* = 0
@@ -979,13 +763,13 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_lerp, nimini_lerpInt, nimini_smoothstep,
     nimini_easeLinear, nimini_easeInQuad, nimini_easeOutQuad, nimini_easeInOutQuad,
     nimini_easeInCubic, nimini_easeOutCubic, nimini_easeInOutCubic,
-    nimini_easeInSine, nimini_easeOutSine, nimini_easeInOutSine,
-    # Complex transition engine (advanced, pointer-based)
-    nimini_newTransitionEngine, nimini_fadeEffect, nimini_slideEffect, nimini_wipeEffect,
-    nimini_dissolveEffect, nimini_pushEffect, nimini_newBufferSnapshot,
-    nimini_bufferSetCell, nimini_startTransition, nimini_updateTransitions,
-    nimini_hasActiveTransitions, nimini_getTransitionBuffer, nimini_bufferGetCell,
-    nimini_bufferWidth, nimini_bufferHeight
+    nimini_easeInSine, nimini_easeOutSine, nimini_easeInOutSine
+    # Complex transition engine disabled - use BufferSnapshot helpers instead
+    # nimini_newTransitionEngine, nimini_fadeEffect, nimini_slideEffect, nimini_wipeEffect,
+    # nimini_dissolveEffect, nimini_pushEffect, nimini_newBufferSnapshot,
+    # nimini_bufferSetCell, nimini_startTransition, nimini_updateTransitions,
+    # nimini_hasActiveTransitions, nimini_getTransitionBuffer, nimini_bufferGetCell,
+    # nimini_bufferWidth, nimini_bufferHeight
   )
   
   # Register transition constants

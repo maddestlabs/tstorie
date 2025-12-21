@@ -782,6 +782,17 @@ proc clearTransparent*(tb: var TermBuffer) =
   for i in 0 ..< tb.cells.len:
     tb.cells[i] = Cell(ch: "", style: defaultStyle)
 
+proc getCell*(tb: TermBuffer, x, y: int): tuple[ch: string, style: Style] =
+  ## Get a cell from the buffer (returns default style if out of bounds)
+  if x < 0 or x >= tb.width or y < 0 or y >= tb.height:
+    let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
+    return (" ", defStyle)
+  let idx = y * tb.width + x
+  if idx >= 0 and idx < tb.cells.len:
+    return (tb.cells[idx].ch, tb.cells[idx].style)
+  let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
+  return (" ", defStyle)
+
 # Helper templates to avoid symbol resolution conflicts with File.write
 template tbWrite(layer: Layer, x, y: int, ch: string, style: Style) =
   bind write

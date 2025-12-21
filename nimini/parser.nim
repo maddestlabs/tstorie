@@ -375,8 +375,25 @@ proc parsePrefix(p: var Parser; allowDoNotation=true): Expr =
         else:
           # Parse as regular function call
           args.add(parseExpr(p))
+          
+          # Skip trailing whitespace after argument
+          while p.cur().kind in {tkNewline, tkIndent, tkDedent}:
+            discard p.advance()
+          
           while match(p, tkComma):
+            # Skip newlines/indents after comma
+            while p.cur().kind in {tkNewline, tkIndent}:
+              discard p.advance()
+            # Check for closing paren (trailing comma case)
+            if p.cur().kind in {tkRParen, tkDedent}:
+              # Skip any dedents before the closing paren
+              while p.cur().kind == tkDedent:
+                discard p.advance()
+              break
             args.add(parseExpr(p))
+            # Skip trailing whitespace after argument
+            while p.cur().kind in {tkNewline, tkIndent, tkDedent}:
+              discard p.advance()
       
       # Skip newlines/dedents before closing paren
       while p.cur().kind in {tkNewline, tkDedent}:

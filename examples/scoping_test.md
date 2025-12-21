@@ -41,40 +41,23 @@ bgClear()
 fgClear()
 
 # Can read global variables
-var style = defaultStyle()
-style.fg = colors[0]
-style.bold rgb(255, 0, 0)
-style.bold = true
-
-bgWriteText(5, 3, "Global Counter: " & $counter, style)
-
-# Change color
-style.fg = rgb(0, 255, 0)
-bgWriteText(5, 5, message, style)
+bgWriteText(5, 3, "Global Counter: " & $counter)
+bgWriteText(5, 5, message)
 
 # Local variables in render
 var localX = 5
 var localY = 7
 
-# Show different colors
-var style1 = defaultStyle()
-style1.fg = rgb(255, 0, 0)
-bgWriteText(localX, localY, "Color 0 (red)", style1)
+# Display some test text
+bgWriteText(localX, localY, "Testing local variables")
+bgWriteText(localX, localY + 1, "localX = " & $localX)
+bgWriteText(localX, localY + 2, "localY = " & $localY)
 
-var style2 = defaultStyle()
-style2.fg = rgb(0, 255, 0)
-bgWriteText(localX, localY + 1, "Color 1 (green)", style2)
-
-var style3 = defaultStyle()
-style3.fg = rgb(0, 0, 255)
-bgWriteText(localX, localY + 2, "Color 2 (blue)", style3
 # Show scope info
-var infoStyle = defaultStyle()
-infoStyle.fg = cyan()
-bgWriteText(5, 12, "Scoping Rules:", infoStyle)
-bgWriteText(5, 13, "- 'var x' in init = global", infoStyle)
-bgWriteText(5, 14, "- 'var x' in update/render = local", infoStyle)
-bgWriteText(5, 15, "- 'x = value' updates global if exists", infoStyle)
+bgWriteText(5, 12, "Scoping Rules:")
+bgWriteText(5, 13, "- 'var x' in init = global")
+bgWriteText(5, 14, "- 'var x' in update/render = local")
+bgWriteText(5, 15, "- 'x = value' updates global if exists")
 
-# Variables like localX, localY, style don't persist to next frame
+# Variables like localX, localY don't persist to next frame
 ```
