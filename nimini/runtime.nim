@@ -706,16 +706,6 @@ proc evalExpr(e: Expr; env: ref Env): Value =
     else:
       # Regular field access - treat target as a map
       if target.kind == vkMap:
-        # Debug: check if this is a color field access
-        if e.dotField in ["r", "g", "b", "a"]:
-          echo "DEBUG: Accessing color field '", e.dotField, "'"
-          var keys: seq[string] = @[]
-          for k in target.map.keys:
-            keys.add(k)
-          echo "  Available keys: ", keys
-          if e.dotField notin target.map:
-            echo "  ERROR: Key '", e.dotField, "' not found!"
-        
         if e.dotField in target.map:
           return target.map[e.dotField]
         # Field not found - print debug info

@@ -19,6 +19,32 @@ const
   SMOOTH_SPEED = 8.0
 
 # ================================================================
+# STYLE CONVERSION HELPERS
+# ================================================================
+
+proc toStyle*(config: StyleConfig): Style =
+  ## Convert StyleConfig to Style
+  Style(
+    fg: rgb(config.fg.r, config.fg.g, config.fg.b),
+    bg: rgb(config.bg.r, config.bg.g, config.bg.b),
+    bold: config.bold,
+    italic: config.italic,
+    underline: config.underline,
+    dim: config.dim
+  )
+
+proc getDefaultStyleConfig*(): StyleConfig =
+  ## Get default style configuration
+  StyleConfig(
+    fg: (255'u8, 255'u8, 255'u8),
+    bg: (0'u8, 0'u8, 0'u8),
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+
+# ================================================================
 # TYPE DEFINITIONS
 # ================================================================
 
@@ -437,13 +463,13 @@ proc setViewport*(width, height: int) =
   gViewportHeight = height
 
 proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int, 
-                         buffer: var TermBuffer, baseColor: int, baseBold: bool): int =
+                         buffer: var TermBuffer, baseStyle: Style): int =
   ## Render text with inline markdown formatting (bold **, italic *)
   ## Returns number of characters rendered
   var currentX = x
   var pos = 0
-  var isBold = baseBold
-  var isItalic = false
+  var isBold = baseStyle.bold
+  var isItalic = baseStyle.italic
   
   while pos < text.len and currentX < x + maxWidth:
     # Check for **bold**
@@ -456,8 +482,8 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
       pos += 1
     else:
       let ch = $text[pos]
-      var style = Style(fg: ansiToColor(baseColor), bg: black(), bold: isBold, 
-                       underline: false, italic: isItalic)
+      var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
+                       underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
       buffer.write(currentX, y, ch, style)
       currentX += 1
       pos += 1
@@ -466,10 +492,24 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
 
 proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
                         buffer: var TermBuffer, isCurrent: bool, 
-                        startLinkIdx: int): seq[Link] =
+                        startLinkIdx: int,
+                        styleSheet: StyleSheet = initTable[string, StyleConfig](),
+                        bodyStyle: Style): seq[Link] =
   ## Render text with clickable links
   ## Returns list of rendered links
   result = @[]
+  
+  # Get link styles from stylesheet or use defaults
+  let linkStyle = if styleSheet.hasKey("link"):
+                    toStyle(styleSheet["link"])
+                  else:
+                    Style(fg: ansiToColor(34), bg: black(), bold: false, underline: true, italic: false, dim: false)
+  
+  let linkFocusedStyle = if styleSheet.hasKey("link_focused"):
+                           toStyle(styleSheet["link_focused"])
+                         else:
+                           Style(fg: ansiToColor(33), bg: black(), bold: true, underline: true, italic: false, dim: false)
+  
   var currentX = x
   var pos = 0
   var globalLinkIdx = startLinkIdx
@@ -485,7 +525,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
         let beforeLink = text[pos..<linkStart]
         let charsRendered = renderInlineMarkdown(beforeLink, currentX, y, 
                                                 maxWidth - (currentX - x), 
-                                                buffer, 37, false)
+                                                buffer, bodyStyle)
         currentX += charsRendered
       
       # Extract link text and target
@@ -508,8 +548,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
       if shouldRenderLink and isCurrent:
         # Render as active link
         let isFocused = (globalLinkIdx == canvasState.focusedLinkIdx)
-        let linkColor = if isFocused: 33 else: 34  # Yellow or blue
-        let linkBold = isFocused
+        let styleToUse = if isFocused: linkFocusedStyle else: linkStyle
         
         result.add(Link(
           text: linkText,
@@ -523,17 +562,17 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
         # Render link text
         for ch in linkText:
           if currentX < x + maxWidth:
-            var style = Style(fg: ansiToColor(linkColor), bg: black(), bold: linkBold,
-                            underline: true, italic: false)
-            buffer.write(currentX, y, $ch, style)
+            buffer.write(currentX, y, $ch, styleToUse)
             currentX += 1
         
         globalLinkIdx += 1
       else:
         # Render as plain text (dimmed)
+        var dimStyle = bodyStyle
+        dimStyle.dim = true
         let charsRendered = renderInlineMarkdown(linkText, currentX, y,
                                                 maxWidth - (currentX - x),
-                                                buffer, 30, false)
+                                                buffer, dimStyle)
         currentX += charsRendered
       
       pos = i + 1
@@ -543,7 +582,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
       if remaining.len > 0:
         discard renderInlineMarkdown(remaining, currentX, y,
                                     maxWidth - (currentX - x),
-                                    buffer, 37, false)
+                                    buffer, bodyStyle)
       break
 
 proc getSectionRawContent(section: Section): string =
@@ -563,7 +602,8 @@ proc getSectionRawContent(section: Section): string =
   return lines.join("\n")
 
 proc renderSection(layout: SectionLayout, screenX, screenY: int,
-                  buffer: var TermBuffer, isCurrent: bool): seq[Link] =
+                  buffer: var TermBuffer, isCurrent: bool,
+                  styleSheet: StyleSheet = initTable[string, StyleConfig]()): seq[Link] =
   ## Render a single section to the buffer
   ## Returns list of links found in the section
   result = @[]
@@ -572,13 +612,28 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
   if isRemoved(layout.section.title):
     return
   
+  # Get styles from stylesheet or use defaults
+  let headingStyle = if styleSheet.hasKey("heading"):
+                       toStyle(styleSheet["heading"])
+                     else:
+                       Style(fg: ansiToColor(33), bg: black(), bold: true, underline: false, italic: false, dim: false)
+  
+  let bodyStyle = if styleSheet.hasKey("body"):
+                    toStyle(styleSheet["body"])
+                  else:
+                    Style(fg: ansiToColor(37), bg: black(), bold: false, underline: false, italic: false, dim: false)
+  
+  let placeholderStyle = if styleSheet.hasKey("placeholder"):
+                           toStyle(styleSheet["placeholder"])
+                         else:
+                           Style(fg: ansiToColor(30), bg: black(), bold: true, underline: false, italic: false, dim: false)
+  
   # If hidden and not current, show placeholder
   if isHidden(layout.section.title) and not isCurrent:
     let placeholder = "???"
     let centerX = screenX + (layout.width - placeholder.len) div 2
     let centerY = screenY + layout.height div 2
-    var style = Style(fg: ansiToColor(30), bg: black(), bold: true, underline: false, italic: false)
-    buffer.write(centerX, centerY, placeholder, style)
+    buffer.write(centerX, centerY, placeholder, placeholderStyle)
     return
   
   # Get raw content and preprocess to filter removed section links
@@ -603,32 +658,31 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                           formatted[0..<maxContentWidth] 
                         else: 
                           formatted
-      var style = Style(fg: ansiToColor(33), bg: black(), bold: true, underline: false, italic: false)
-      buffer.write(contentX, contentY, displayText, style)
+      buffer.write(contentX, contentY, displayText, headingStyle)
     elif line.contains("[") and line.contains("]("):
       # Line with links
       let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
-                                     buffer, isCurrent, currentLinkIdx)
+                                     buffer, isCurrent, currentLinkIdx, styleSheet, bodyStyle)
       result.add(links)
       currentLinkIdx += links.len  # Update index for next line with links
     elif "**" in line or "*" in line:
       # Line with markdown formatting
       discard renderInlineMarkdown(line, contentX, contentY, maxContentWidth,
-                                  buffer, 37, false)
+                                  buffer, bodyStyle)
     else:
       # Plain text - wrap it
       let wrapped = wrapText(line, maxContentWidth)
       for wLine in wrapped:
         if contentY >= screenY + layout.height:
           break
-        var style = Style(fg: ansiToColor(37), bg: black(), bold: false, underline: false, italic: false)
-        buffer.write(contentX, contentY, wLine, style)
+        buffer.write(contentX, contentY, wLine, bodyStyle)
         contentY += 1
       contentY -= 1  # Adjust for the increment below
     
     contentY += 1
 
-proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int) =
+proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
+                  styleSheet: StyleSheet = initTable[string, StyleConfig]()) =
   ## Main canvas rendering function
   if canvasState.isNil:
     return
@@ -690,7 +744,7 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int) =
     
     renderedCount += 1
     let isCurrent = (layout.index == canvasState.currentSectionIdx)
-    let links = renderSection(layout, screenX, screenY, buffer, isCurrent)
+    let links = renderSection(layout, screenX, screenY, buffer, isCurrent, styleSheet)
     
     if isCurrent:
       canvasState.links = links
@@ -804,6 +858,7 @@ proc getSectionCount*(): int =
 # Global references needed by nimini wrappers (set by registerCanvasBindings)
 var gCanvasBuffer: ptr TermBuffer
 var gCanvasAppState: ptr AppState
+var gCanvasStyleSheet: ptr StyleSheet
 
 # Helper to convert Value to int (handles both int and float values)
 # This may be duplicated in including contexts but that's okay for private helpers
@@ -852,7 +907,9 @@ proc nimini_markVisited*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render the canvas system. No args needed (uses global buffers)
   if not gCanvasAppState.isNil and not gCanvasBuffer.isNil:
-    canvasRender(gCanvasBuffer[], gCanvasAppState.termWidth, gCanvasAppState.termHeight)
+    let styleSheet = if not gCanvasStyleSheet.isNil: gCanvasStyleSheet[]
+                     else: initTable[string, StyleConfig]()
+    canvasRender(gCanvasBuffer[], gCanvasAppState.termWidth, gCanvasAppState.termHeight, styleSheet)
   return valNil()
 
 proc nimini_canvasUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -889,11 +946,13 @@ proc nimini_canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.}
   let isDown = if args[3].kind == vkBool: args[3].b else: (canvasValueToInt(args[3]) != 0)
   return valBool(canvasHandleMouse(x, y, button, isDown))
 
-proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState) =
+proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState, 
+                            styleSheet: ptr StyleSheet) =
   ## Register canvas bindings with the nimini runtime
   ## Call this during initialization after creating the nimini context
   gCanvasBuffer = buffer
   gCanvasAppState = appState
+  gCanvasStyleSheet = styleSheet
   
   # Export all nimini wrapper functions
   exportNiminiProcs(

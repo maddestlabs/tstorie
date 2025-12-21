@@ -6,6 +6,17 @@
 import tables
 
 type
+  StyleConfig* = object
+    ## Style configuration for text rendering
+    fg*: tuple[r, g, b: uint8]  ## Foreground color
+    bg*: tuple[r, g, b: uint8]  ## Background color
+    bold*: bool
+    italic*: bool
+    underline*: bool
+    dim*: bool
+  
+  StyleSheet* = Table[string, StyleConfig]  ## Named style configurations
+  
   CodeBlock* = object
     ## A code block extracted from markdown with lifecycle information
     code*: string
@@ -48,5 +59,6 @@ type
   MarkdownDocument* = object
     ## A complete parsed markdown document
     frontMatter*: FrontMatter
+    styleSheet*: StyleSheet      ## Style configurations from front matter
     codeBlocks*: seq[CodeBlock]  ## Flat list of all code blocks (for backward compatibility)
     sections*: seq[Section]      ## Structured section-based view

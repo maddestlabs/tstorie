@@ -46,6 +46,7 @@ type
     codeBlocks: seq[CodeBlock]
     niminiContext: NiminiContext
     frontMatter: FrontMatter  # Front matter from markdown
+    styleSheet: StyleSheet    # Style configurations from front matter
     # Pre-compiled layer references
     bgLayer: Layer
     fgLayer: Layer
@@ -122,6 +123,59 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
   echo output
   return valNil()
 
+# Style conversion functions
+proc styleConfigToValue(config: StyleConfig): Value =
+  ## Convert StyleConfig to a nimini Value (map)
+  let styleMap = valMap()
+  let fgMap = valMap()
+  fgMap.map["r"] = valInt(config.fg.r.int)
+  fgMap.map["g"] = valInt(config.fg.g.int)
+  fgMap.map["b"] = valInt(config.fg.b.int)
+  styleMap.map["fg"] = fgMap
+  
+  let bgMap = valMap()
+  bgMap.map["r"] = valInt(config.bg.r.int)
+  bgMap.map["g"] = valInt(config.bg.g.int)
+  bgMap.map["b"] = valInt(config.bg.b.int)
+  styleMap.map["bg"] = bgMap
+  
+  styleMap.map["bold"] = valBool(config.bold)
+  styleMap.map["italic"] = valBool(config.italic)
+  styleMap.map["underline"] = valBool(config.underline)
+  styleMap.map["dim"] = valBool(config.dim)
+  return styleMap
+
+proc valueToStyle(v: Value): Style =
+  ## Convert nimini Value (map) to Style
+  result = defaultStyle()
+  if v.kind != vkMap:
+    return
+  
+  if v.map.hasKey("fg"):
+    let fgVal = v.map["fg"]
+    if fgVal.kind == vkMap:
+      let r = if fgVal.map.hasKey("r"): fgVal.map["r"].i.uint8 else: 255'u8
+      let g = if fgVal.map.hasKey("g"): fgVal.map["g"].i.uint8 else: 255'u8
+      let b = if fgVal.map.hasKey("b"): fgVal.map["b"].i.uint8 else: 255'u8
+      result.fg = rgb(r, g, b)
+  
+  if v.map.hasKey("bg"):
+    let bgVal = v.map["bg"]
+    if bgVal.kind == vkMap:
+      let r = if bgVal.map.hasKey("r"): bgVal.map["r"].i.uint8 else: 0'u8
+      let g = if bgVal.map.hasKey("g"): bgVal.map["g"].i.uint8 else: 0'u8
+      let b = if bgVal.map.hasKey("b"): bgVal.map["b"].i.uint8 else: 0'u8
+      result.bg = rgb(r, g, b)
+  
+  if v.map.hasKey("bold"):
+    result.bold = v.map["bold"].b
+  if v.map.hasKey("italic"):
+    result.italic = v.map["italic"].b
+  if v.map.hasKey("underline"):
+    result.underline = v.map["underline"].b
+  if v.map.hasKey("dim"):
+    result.dim = v.map["dim"].b
+
 # ================================================================
 # DOCUMENT-SPECIFIC DRAWING HELPERS
 # ================================================================
@@ -154,7 +208,7 @@ proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let ch = args[2].s
-    let style = if args.len >= 4: gTextStyle else: gTextStyle  # TODO: support style arg
+    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
     gBgLayer.buffer.write(x, y, ch, style)
   return valNil()
 
@@ -163,7 +217,7 @@ proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let ch = args[2].s
-    let style = if args.len >= 4: gTextStyle else: gTextStyle
+    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
     gFgLayer.buffer.write(x, y, ch, style)
   return valNil()
 
@@ -172,7 +226,8 @@ proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let text = args[2].s
-    gBgLayer.buffer.writeText(x, y, text, gTextStyle)
+    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
+    gBgLayer.buffer.writeText(x, y, text, style)
   return valNil()
 
 proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -180,7 +235,8 @@ proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let x = valueToInt(args[0])
     let y = valueToInt(args[1])
     let text = args[2].s
-    gFgLayer.buffer.writeText(x, y, text, gTextStyle)
+    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
+    gFgLayer.buffer.writeText(x, y, text, style)
   return valNil()
 
 proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -190,7 +246,8 @@ proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let w = valueToInt(args[2])
     let h = valueToInt(args[3])
     let ch = args[4].s
-    gBgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
+    let style = if args.len >= 6: valueToStyle(args[5]) else: gTextStyle
+    gBgLayer.buffer.fillRect(x, y, w, h, ch, style)
   return valNil()
 
 proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -200,7 +257,8 @@ proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let w = valueToInt(args[2])
     let h = valueToInt(args[3])
     let ch = args[4].s
-    gFgLayer.buffer.fillRect(x, y, w, h, ch, gTextStyle)
+    let style = if args.len >= 6: valueToStyle(args[5]) else: gTextStyle
+    gFgLayer.buffer.fillRect(x, y, w, h, ch, style)
   return valNil()
 
 # Random number functions
@@ -327,6 +385,26 @@ proc clearGlobalHandlers*() =
     storieCtx.globalRenderHandlers = @[]
     storieCtx.globalUpdateHandlers = @[]
     storieCtx.globalInputHandlers = @[]
+
+# Style functions
+proc nimini_defaultStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## defaultStyle() -> Style map
+  return styleConfigToValue(getDefaultStyleConfig())
+
+proc nimini_getStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## getStyle(name: string) -> Style map
+  ## Retrieve a named style from the stylesheet defined in front matter
+  if args.len < 1:
+    return styleConfigToValue(getDefaultStyleConfig())
+  
+  let styleName = args[0].s
+  
+  # Access the stylesheet from storieCtx
+  if not storieCtx.isNil and storieCtx.styleSheet.hasKey(styleName):
+    return styleConfigToValue(storieCtx.styleSheet[styleName])
+  
+  # Fallback to default style
+  return styleConfigToValue(getDefaultStyleConfig())
 
 # Nimini wrapper functions
 proc nimini_registerGlobalRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -757,6 +835,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
     nimini_enableMouse, nimini_disableMouse,
     nimini_initCanvas,
+    nimini_defaultStyle, nimini_getStyle,
     # Animation/transition helpers (simple, safe)
     nimini_newTransition, nimini_updateTransition, nimini_transitionProgress,
     nimini_transitionEasedProgress, nimini_transitionIsActive, nimini_resetTransition,
@@ -921,6 +1000,7 @@ proc initStorieContext(state: AppState) =
   let doc = loadAndParseMarkdown()
   storieCtx.codeBlocks = doc.codeBlocks
   storieCtx.frontMatter = doc.frontMatter
+  storieCtx.styleSheet = doc.styleSheet
   storieCtx.sectionMgr = newSectionManager(doc.sections)
   
   when defined(emscripten):
@@ -971,7 +1051,7 @@ proc initStorieContext(state: AppState) =
   
   # Now register module bindings (must be after runtime init)
   registerSectionManagerBindings(addr storieCtx.sectionMgr)
-  registerCanvasBindings(addr gFgLayer.buffer, addr gAppState)
+  registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   
   # Expose front matter to user scripts as global variables
   for key, value in storieCtx.frontMatter.pairs:

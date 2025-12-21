@@ -1,6 +1,7 @@
 import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 import nimini
+import lib/storie_types
 
 when not defined(emscripten):
   import src/platform/terminal
@@ -965,6 +966,104 @@ proc registerTstorieApis*(env: ref Env, state: pointer) =
   env.vars["blue"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
     return makeColorMap(0, 0, 255)
   
+  env.vars["cyan"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(0, 255, 255)
+  
+  env.vars["magenta"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(255, 0, 255)
+  
+  env.vars["yellow"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(255, 255, 0)
+  
+  env.vars["gray"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## gray(level: int) -> color map
+    if args.len < 1:
+      return makeColorMap(128, 128, 128)  # Default medium gray
+    let level = args[0].i
+    return makeColorMap(level, level, level)
+  
+  # ============================================================================
+  # Style System
+  # ============================================================================
+  
+  proc styleConfigToValue(config: StyleConfig): Value =
+    ## Convert StyleConfig to a nimini Value (map)
+    let styleMap = valMap()
+    let fgMap = valMap()
+    fgMap.map["r"] = valInt(config.fg.r.int)
+    fgMap.map["g"] = valInt(config.fg.g.int)
+    fgMap.map["b"] = valInt(config.fg.b.int)
+    styleMap.map["fg"] = fgMap
+    
+    let bgMap = valMap()
+    bgMap.map["r"] = valInt(config.bg.r.int)
+    bgMap.map["g"] = valInt(config.bg.g.int)
+    bgMap.map["b"] = valInt(config.bg.b.int)
+    styleMap.map["bg"] = bgMap
+    
+    styleMap.map["bold"] = valBool(config.bold)
+    styleMap.map["italic"] = valBool(config.italic)
+    styleMap.map["underline"] = valBool(config.underline)
+    styleMap.map["dim"] = valBool(config.dim)
+    return styleMap
+  
+  proc valueToStyle(v: Value): Style =
+    ## Convert nimini Value (map) to Style
+    result = defaultStyle()
+    if v.kind != vkMap:
+      return
+    
+    if v.map.hasKey("fg"):
+      let fgVal = v.map["fg"]
+      if fgVal.kind == vkMap:
+        let r = if fgVal.map.hasKey("r"): fgVal.map["r"].i.uint8 else: 255'u8
+        let g = if fgVal.map.hasKey("g"): fgVal.map["g"].i.uint8 else: 255'u8
+        let b = if fgVal.map.hasKey("b"): fgVal.map["b"].i.uint8 else: 255'u8
+        result.fg = rgb(r, g, b)
+    
+    if v.map.hasKey("bg"):
+      let bgVal = v.map["bg"]
+      if bgVal.kind == vkMap:
+        let r = if bgVal.map.hasKey("r"): bgVal.map["r"].i.uint8 else: 0'u8
+        let g = if bgVal.map.hasKey("g"): bgVal.map["g"].i.uint8 else: 0'u8
+        let b = if bgVal.map.hasKey("b"): bgVal.map["b"].i.uint8 else: 0'u8
+        result.bg = rgb(r, g, b)
+    
+    if v.map.hasKey("bold"):
+      result.bold = v.map["bold"].b
+    if v.map.hasKey("italic"):
+      result.italic = v.map["italic"].b
+    if v.map.hasKey("underline"):
+      result.underline = v.map["underline"].b
+    if v.map.hasKey("dim"):
+      result.dim = v.map["dim"].b
+  
+  proc getDefaultStyleConfig(): StyleConfig =
+    ## Get the default style configuration
+    StyleConfig(
+      fg: (255'u8, 255'u8, 255'u8),
+      bg: (0'u8, 0'u8, 0'u8),
+      bold: false,
+      italic: false,
+      underline: false,
+      dim: false
+    )
+  
+  env.vars["defaultStyle"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## defaultStyle() -> Style map
+    return styleConfigToValue(getDefaultStyleConfig())
+  
+  env.vars["getStyle"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getStyle(name: string) -> Style map
+    ## Retrieve a named style from the stylesheet defined in front matter
+    if args.len < 1:
+      return styleConfigToValue(getDefaultStyleConfig())
+    
+    let styleName = args[0].s
+    # Try to get stylesheet from storieCtx (need to find a way to access it)
+    # For now, return default style - this will be enhanced when storieCtx is accessible
+    return styleConfigToValue(getDefaultStyleConfig())
+  
   # ============================================================================
   # Input Handling
   # ============================================================================
@@ -1765,6 +1864,7 @@ when defined(emscripten):
         storieCtx.codeBlocks = doc.codeBlocks
         storieCtx.sectionMgr = newSectionManager(doc.sections)
         storieCtx.frontMatter = doc.frontMatter
+        storieCtx.styleSheet = doc.styleSheet
         
         # Clear all layer buffers
         for layer in globalState.layers:

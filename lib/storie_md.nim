@@ -7,6 +7,93 @@ import strutils, tables
 import storie_types
 export storie_types  # Re-export types so users get them automatically
 
+proc parseColor*(colorStr: string): tuple[r, g, b: uint8] =
+  ## Parse a color string in various formats:
+  ## - "255,0,0" or "255, 0, 0" (RGB values)
+  ## - "#FF0000" (hex color)
+  ## Returns tuple of RGB values
+  let trimmed = colorStr.strip()
+  
+  if trimmed.startsWith("#"):
+    # Hex color: #RRGGBB
+    if trimmed.len == 7:
+      let r = parseHexInt(trimmed[1..2])
+      let g = parseHexInt(trimmed[3..4])
+      let b = parseHexInt(trimmed[5..6])
+      return (r.uint8, g.uint8, b.uint8)
+  elif ',' in trimmed:
+    # Comma-separated RGB: "255, 0, 0"
+    let parts = trimmed.split(',')
+    if parts.len == 3:
+      let r = parseInt(parts[0].strip())
+      let g = parseInt(parts[1].strip())
+      let b = parseInt(parts[2].strip())
+      return (r.uint8, g.uint8, b.uint8)
+  
+  # Default to black if parsing fails
+  return (0'u8, 0'u8, 0'u8)
+
+proc parseBool*(boolStr: string): bool =
+  ## Parse a boolean string value
+  let lower = boolStr.strip().toLowerAscii()
+  return lower == "true" or lower == "yes" or lower == "1"
+
+proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
+  ## Parse style configurations from front matter
+  ## Supports nested keys like:
+  ##   styles.default.fg: "255,255,255"
+  ##   styles.default.bg: "0,0,0"
+  ##   styles.heading1.bold: "true"
+  result = initTable[string, StyleConfig]()
+  
+  var styleData = initTable[string, Table[string, string]]()
+  
+  # Collect all style.* keys and group by style name
+  for key, value in frontMatter:
+    if key.startsWith("styles."):
+      let rest = key[7..^1]  # Remove "styles." prefix
+      let dotPos = rest.find('.')
+      
+      if dotPos > 0:
+        let styleName = rest[0..<dotPos]
+        let property = rest[dotPos+1..^1]
+        
+        if not styleData.hasKey(styleName):
+          styleData[styleName] = initTable[string, string]()
+        
+        styleData[styleName][property] = value
+  
+  # Convert collected data into StyleConfig objects
+  for styleName, properties in styleData:
+    var style = StyleConfig(
+      fg: (255'u8, 255'u8, 255'u8),  # Default white
+      bg: (0'u8, 0'u8, 0'u8),         # Default black
+      bold: false,
+      italic: false,
+      underline: false,
+      dim: false
+    )
+    
+    # Apply properties
+    for prop, val in properties:
+      case prop
+      of "fg", "foreground":
+        style.fg = parseColor(val)
+      of "bg", "background":
+        style.bg = parseColor(val)
+      of "bold":
+        style.bold = parseBool(val)
+      of "italic":
+        style.italic = parseBool(val)
+      of "underline":
+        style.underline = parseBool(val)
+      of "dim":
+        style.dim = parseBool(val)
+      else:
+        discard  # Unknown property, ignore
+    
+    result[styleName] = style
+
 proc parseFrontMatter*(content: string): FrontMatter =
   ## Parse YAML-style front matter from the beginning of markdown content.
   ## Front matter is enclosed between --- delimiters at the start of the file.
@@ -39,7 +126,12 @@ proc parseFrontMatter*(content: string): FrontMatter =
     let colonPos = line.find(':')
     if colonPos > 0:
       let key = line[0..<colonPos].strip()
-      let value = line[colonPos+1..^1].strip()
+      var value = line[colonPos+1..^1].strip()
+      
+      # Remove surrounding quotes if present
+      if value.len >= 2 and value[0] == '"' and value[^1] == '"':
+        value = value[1..^2]
+      
       result[key] = value
     
     inc i
@@ -254,6 +346,7 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
   ##   # Next Section
   ##   More content here.
   result.frontMatter = parseFrontMatter(content)
+  result.styleSheet = parseStyleSheet(result.frontMatter)
   result.codeBlocks = @[]
   result.sections = @[]
   

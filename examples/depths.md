@@ -3,6 +3,16 @@ title: "The Depths of Khel-Daran"
 author: "Maddest Labs"
 minWidth: 80
 minHeight: 24
+styles.heading.fg: "#FFD700"
+styles.heading.bold: "true"
+styles.link.fg: "#4A9EFF"
+styles.link.underline: "true"
+styles.link_focused.fg: "#FFD700"
+styles.link_focused.bold: "true"
+styles.link_focused.underline: "true"
+styles.body.fg: "#CCCCCC"
+styles.placeholder.fg: "#505050"
+styles.placeholder.dim: "true"
 ---
 
 ```nim on:init
