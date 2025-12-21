@@ -1,8 +1,8 @@
 ## UI Components Module
-## Example of how to create reusable modules with the simplified architecture
-## Import storie directly and work with AppState
-
-import ../storie
+## Reusable UI component utilities
+## 
+## Note: This module expects Color, Style, AppState, Layer, and color functions
+## (white, blue, yellow, black) to be available from the importing/including context.
 
 # ================================================================
 # BOX DRAWING

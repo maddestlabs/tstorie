@@ -1,10 +1,10 @@
 ## Canvas Navigation System for TStorie
 ## Provides spatial layout, smooth camera panning, and interactive navigation
 ## Compatible with Nimini code blocks
+##
+## Note: This module expects storie_md and layout to be available from the importing context.
 
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
-import ../lib/storie_md
-import ../lib/layout
 
 # ================================================================
 # CONFIGURATION CONSTANTS

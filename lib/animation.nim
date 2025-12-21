@@ -1,7 +1,9 @@
 ## Animation Helpers Module
 ## Reusable animation utilities
+## 
+## Note: This module expects Color, Style, AppState, Layer, and black() 
+## to be available from the importing/including context.
 
-import ../storie
 import math
 
 # ================================================================

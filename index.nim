@@ -1,41 +1,26 @@
 # TStorie entry point
+# 
+# Note: This file is included by tstorie.nim and has access to all tstorie types and lib modules.
+# When compiling, use: nim c tstorie.nim -d:userFile=index (or ./build.sh / ./build-web.sh)
 
 import strutils, tables, random, times, algorithm
 when not defined(emscripten):
   import os
   import src/platform/terminal
 import nimini
-import lib/storie_md
-import lib/layout
 
-# Include canvas module so it has access to TermBuffer and Style types
-include lib/canvas
+# Import library modules - customize this list based on what you need
+import lib/storie_md          # Markdown parser
+import lib/section_manager    # Section navigation and management (includes nimini bindings)
+import lib/layout             # Text layout utilities
 
-# Figlet font data for digital clock
-const figletDigits = [
-  # 0
-  ["+---+", "|   |", "|   |", "|   |", "+---+"],
-  # 1
-  ["    |", "    |", "    |", "    |", "    |"],
-  # 2
-  ["+---+", "    |", "+---+", "|    ", "+---+"],
-  # 3
-  ["+---+", "    |", "+---+", "    |", "+---+"],
-  # 4
-  ["|   |", "|   |", "+---+", "    |", "    |"],
-  # 5
-  ["+---+", "|    ", "+---+", "    |", "+---+"],
-  # 6
-  ["+---+", "|    ", "+---+", "|   |", "+---+"],
-  # 7
-  ["+---+", "    |", "    |", "    |", "    |"],
-  # 8
-  ["+---+", "|   |", "+---+", "|   |", "+---+"],
-  # 9
-  ["+---+", "|   |", "+---+", "    |", "+---+"]
-]
-
-const figletColon = [" ", "o", " ", "o", " "]
+# These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
+# so they must be included to share the same namespace
+include lib/events            # Event handling system
+include lib/animation         # Animation helpers and easing
+include lib/drawing           # Drawing utilities for layers
+include lib/ui_components     # Reusable UI components
+include lib/canvas            # Canvas navigation system
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -65,10 +50,7 @@ type
     bgLayer: Layer
     fgLayer: Layer
     # Section management
-    sections: seq[Section]       # All sections from the document
-    currentSectionIndex: int     # Index of currently active section (default 0)
-    multiSectionMode: bool       # If true, render all sections; if false, render only current
-    scrollY: int                 # Scroll position for multi-section mode
+    sectionMgr: SectionManager   # Section manager handles all section state
     # Global event handlers
     globalRenderHandlers*: seq[GlobalHandler]
     globalUpdateHandlers*: seq[GlobalHandler]
@@ -87,142 +69,6 @@ var gAppState: AppState  # Global reference to app state for state accessors
 
 # Forward declaration for functions that will be defined later
 var storieCtx: StorieContext
-
-# ================================================================
-# SECTION MANAGEMENT FUNCTIONS
-# ================================================================
-
-proc getCurrentSection*(): Section =
-  ## Get the currently active section
-  if storieCtx.isNil or storieCtx.sections.len == 0:
-    result = Section(id: "", title: "", level: 1, blocks: @[])
-  elif storieCtx.currentSectionIndex >= 0 and storieCtx.currentSectionIndex < storieCtx.sections.len:
-    result = storieCtx.sections[storieCtx.currentSectionIndex]
-  else:
-    result = storieCtx.sections[0]
-
-proc getAllSections*(): seq[Section] =
-  ## Get all sections in the document
-  if storieCtx.isNil:
-    return @[]
-  return storieCtx.sections
-
-proc getSectionById*(id: string): Section =
-  ## Get a section by its ID
-  if storieCtx.isNil:
-    return Section(id: "", title: "", level: 1, blocks: @[])
-  
-  for section in storieCtx.sections:
-    if section.id == id:
-      return section
-  
-  # Not found
-  return Section(id: "", title: "", level: 1, blocks: @[])
-
-proc getSectionByIndex*(index: int): Section =
-  ## Get a section by its index
-  if storieCtx.isNil or index < 0 or index >= storieCtx.sections.len:
-    return Section(id: "", title: "", level: 1, blocks: @[])
-  return storieCtx.sections[index]
-
-proc gotoSection*(target: int): bool =
-  ## Navigate to a section by index
-  if storieCtx.isNil or target < 0 or target >= storieCtx.sections.len:
-    return false
-  
-  let oldIndex = storieCtx.currentSectionIndex
-  storieCtx.currentSectionIndex = target
-  
-  # TODO: Execute on:exit for old section and on:enter for new section
-  # This would require finding code blocks with those lifecycle hooks in each section
-  
-  return true
-
-proc gotoSectionById*(id: string): bool =
-  ## Navigate to a section by ID
-  if storieCtx.isNil:
-    return false
-  
-  for i, section in storieCtx.sections:
-    if section.id == id:
-      return gotoSection(i)
-  
-  return false
-
-proc createSection*(id: string, title: string, level: int = 1): bool =
-  ## Create a new section and add it to the document
-  if storieCtx.isNil:
-    return false
-  
-  let newSection = Section(
-    id: id,
-    title: title,
-    level: level,
-    blocks: @[ContentBlock(kind: HeadingBlock, level: level, title: title)]
-  )
-  
-  storieCtx.sections.add(newSection)
-  return true
-
-proc deleteSection*(id: string): bool =
-  ## Delete a section by ID
-  if storieCtx.isNil:
-    return false
-  
-  var indexToDelete = -1
-  for i, section in storieCtx.sections:
-    if section.id == id:
-      indexToDelete = i
-      break
-  
-  if indexToDelete >= 0:
-    storieCtx.sections.delete(indexToDelete)
-    # Adjust current index if needed
-    if storieCtx.currentSectionIndex >= storieCtx.sections.len:
-      storieCtx.currentSectionIndex = max(0, storieCtx.sections.len - 1)
-    return true
-  
-  return false
-
-proc updateSectionTitle*(id: string, newTitle: string): bool =
-  ## Update a section's title
-  if storieCtx.isNil:
-    return false
-  
-  for section in storieCtx.sections.mitems:
-    if section.id == id:
-      section.title = newTitle
-      # Update the heading block if it exists
-      for blk in section.blocks.mitems:
-        if blk.kind == HeadingBlock:
-          blk.title = newTitle
-          break
-      return true
-  
-  return false
-
-proc setMultiSectionMode*(enabled: bool) =
-  ## Enable or disable multi-section rendering mode
-  if not storieCtx.isNil:
-    storieCtx.multiSectionMode = enabled
-
-proc getMultiSectionMode*(): bool =
-  ## Get current multi-section mode setting
-  if storieCtx.isNil:
-    return true
-  return storieCtx.multiSectionMode
-
-proc setScrollY*(y: int) =
-  ## Set scroll position for multi-section mode
-  if not storieCtx.isNil:
-    storieCtx.scrollY = y
-
-proc getScrollY*(): int =
-  ## Get current scroll position
-  if storieCtx.isNil:
-    return 0
-  return storieCtx.scrollY
-
 
 # Type conversion functions
 proc nimini_int(env: ref Env; args: seq[Value]): Value =
@@ -457,155 +303,6 @@ proc getTotalTime(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valFloat(gAppState.totalTime)
 
 # ================================================================
-# SECTION MANAGEMENT WRAPPERS
-# ================================================================
-
-proc nimini_getCurrentSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the currently active section as a table
-  let section = getCurrentSection()
-  var table = initTable[string, Value]()
-  table["id"] = valString(section.id)
-  table["title"] = valString(section.title)
-  table["level"] = valInt(section.level)
-  table["blockCount"] = valInt(section.blocks.len)
-  table["index"] = valInt(storieCtx.currentSectionIndex)
-  
-  # Add metadata as a nested table
-  var metadataTable = initTable[string, Value]()
-  for key, val in section.metadata:
-    metadataTable[key] = valString(val)
-  table["metadata"] = valMap(metadataTable)
-  
-  return valMap(table)
-
-proc nimini_getAllSections(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get all sections as an array of tables
-  let sections = getAllSections()
-  var arr: seq[Value] = @[]
-  for i, section in sections:
-    var table = initTable[string, Value]()
-    table["id"] = valString(section.id)
-    table["title"] = valString(section.title)
-    table["level"] = valInt(section.level)
-    table["blockCount"] = valInt(section.blocks.len)
-    table["index"] = valInt(i)
-    
-    # Add metadata as a nested table
-    var metadataTable = initTable[string, Value]()
-    for key, val in section.metadata:
-      metadataTable[key] = valString(val)
-    table["metadata"] = valMap(metadataTable)
-    
-    arr.add(valMap(table))
-  return valArray(arr)
-
-proc nimini_getSectionById(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get a section by ID. Args: id (string)
-  if args.len == 0:
-    return valNil()
-  let id = args[0].s
-  let section = getSectionById(id)
-  if section.id.len == 0:
-    return valNil()
-  
-  # Find index
-  var sectionIndex = 0
-  for i, s in getAllSections():
-    if s.id == id:
-      sectionIndex = i
-      break
-  
-  var table = initTable[string, Value]()
-  table["id"] = valString(section.id)
-  table["title"] = valString(section.title)
-  table["level"] = valInt(section.level)
-  table["blockCount"] = valInt(section.blocks.len)
-  table["index"] = valInt(sectionIndex)
-  
-  # Add metadata as a nested table
-  var metadataTable = initTable[string, Value]()
-  for key, val in section.metadata:
-    metadataTable[key] = valString(val)
-  table["metadata"] = valMap(metadataTable)
-  
-  return valMap(table)
-
-proc nimini_gotoSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Navigate to a section. Args: target (int index or string ID)
-  if args.len == 0:
-    return valBool(false)
-  
-  let success = case args[0].kind
-    of vkInt:
-      gotoSection(args[0].i)
-    of vkString:
-      gotoSectionById(args[0].s)
-    else:
-      false
-  
-  return valBool(success)
-
-proc nimini_createSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a new section. Args: id (string), title (string), level (int, default 1)
-  if args.len < 2:
-    return valBool(false)
-  
-  let id = args[0].s
-  let title = args[1].s
-  let level = if args.len > 2: valueToInt(args[2]) else: 1
-  
-  return valBool(createSection(id, title, level))
-
-proc nimini_deleteSection(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Delete a section by ID. Args: id (string)
-  if args.len == 0:
-    return valBool(false)
-  
-  let id = args[0].s
-  return valBool(deleteSection(id))
-
-proc nimini_updateSectionTitle(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update a section's title. Args: id (string), newTitle (string)
-  if args.len < 2:
-    return valBool(false)
-  
-  let id = args[0].s
-  let newTitle = args[1].s
-  return valBool(updateSectionTitle(id, newTitle))
-
-proc nimini_setMultiSectionMode(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Enable or disable multi-section rendering. Args: enabled (bool)
-  if args.len > 0:
-    let enabled = args[0].b
-    setMultiSectionMode(enabled)
-  return valNil()
-
-proc nimini_getMultiSectionMode(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current multi-section mode setting
-  return valBool(getMultiSectionMode())
-
-proc nimini_setScrollY(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set scroll position. Args: y (int)
-  if args.len > 0:
-    setScrollY(valueToInt(args[0]))
-  return valNil()
-
-proc nimini_getScrollY(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get current scroll position
-  return valInt(getScrollY())
-
-proc nimini_getSectionCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get total number of sections
-  return valInt(getAllSections().len)
-
-proc nimini_getCurrentSectionIndex(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the index of the current section
-  if storieCtx.isNil:
-    return valInt(0)
-  return valInt(storieCtx.currentSectionIndex)
-
-
-# ================================================================
 # GLOBAL EVENT HANDLER MANAGEMENT
 # ================================================================
 
@@ -749,8 +446,10 @@ proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc nimini_initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Initialize canvas system with all sections. Args: currentIdx (int, optional, default 0)
+  if storieCtx.isNil:
+    return valBool(false)
   let currentIdx = if args.len > 0: valueToInt(args[0]) else: 0
-  let sections = getAllSections()
+  let sections = storieCtx.sectionMgr.getAllSections()
   initCanvas(sections, currentIdx)
   return valBool(true)
 
@@ -1107,8 +806,7 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
 # LIFECYCLE MANAGEMENT
 # ================================================================
 
-var gWaitingForGist: bool = false  # Global flag set before context initialization
-var gMarkdownFile: string = "index.md"  # Global markdown file path (can be set via CLI)
+# Note: gMarkdownFile and gWaitingForGist are now defined in tstorie.nim
 
 proc loadAndParseMarkdown(): MarkdownDocument =
   ## Load markdown file and parse it for code blocks and front matter
@@ -1171,10 +869,7 @@ proc initStorieContext(state: AppState) =
   let doc = loadAndParseMarkdown()
   storieCtx.codeBlocks = doc.codeBlocks
   storieCtx.frontMatter = doc.frontMatter
-  storieCtx.sections = doc.sections
-  storieCtx.currentSectionIndex = 0
-  storieCtx.multiSectionMode = true  # Default to multi-section mode (render all)
-  storieCtx.scrollY = 0
+  storieCtx.sectionMgr = newSectionManager(doc.sections)
   
   when defined(emscripten):
     if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:
@@ -1213,6 +908,9 @@ proc initStorieContext(state: AppState) =
   gBorderStyle = borderStyle
   gInfoStyle = infoStyle
   gAppState = state  # Store state reference for accessors
+  
+  # Register section manager for nimini bindings
+  registerSectionManagerBindings(addr storieCtx.sectionMgr)
   
   when not defined(emscripten):
     echo "Loaded ", storieCtx.codeBlocks.len, " code blocks from ", gMarkdownFile

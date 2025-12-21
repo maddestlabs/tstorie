@@ -1,11 +1,10 @@
 import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 import nimini
-import lib/module_loader
-import lib/nimini_bridge
 
 when not defined(emscripten):
   import src/platform/terminal
+  import std/httpclient
 
 const version = "0.1.0"
 
@@ -607,6 +606,284 @@ when not defined(emscripten):
 # MODULE LOADING SYSTEM
 # ================================================================
 
+# Module cache for runtime-loaded Nim modules
+type
+  ModuleCache* = ref object
+    modules*: Table[string, ref Env]  # moduleRef -> compiled runtime
+    sourceCode*: Table[string, string]   # moduleRef -> source code
+    
+var globalModuleCache* = ModuleCache(
+  modules: initTable[string, ref Env](),
+  sourceCode: initTable[string, string]()
+)
+
+proc fetchGistFile*(gistId: string, filename: string): string =
+  ## Fetch a file from a GitHub gist
+  ## Format: gistId is the raw gist ID, filename is the file within the gist
+  when defined(emscripten):
+    # In WASM, this will be populated by JavaScript via emLoadGistCode
+    # Return empty string to signal that async fetch is needed
+    return ""
+  else:
+    let client = newHttpClient()
+    # Use raw githubusercontent URL for direct file access
+    let url = "https://gist.githubusercontent.com/raw/" & gistId & "/" & filename
+    try:
+      return client.getContent(url)
+    except:
+      raise newException(IOError, "Failed to fetch gist: " & gistId & "/" & filename)
+
+proc parseGistReference*(moduleRef: string): tuple[gistId: string, filename: string, isGist: bool] =
+  ## Parse a module reference into its components
+  ## Formats:
+  ##   "gist:abc123/canvas.nim" -> (abc123, canvas.nim, true)
+  ##   "lib/utils.nim" -> ("", lib/utils.nim, false)
+  if moduleRef.startsWith("gist:"):
+    let parts = moduleRef[5..^1].split('/', maxsplit=1)
+    if parts.len != 2:
+      raise newException(ValueError, "Invalid gist format. Use: gist:ID/file.nim")
+    return (parts[0], parts[1], true)
+  else:
+    return ("", moduleRef, false)
+
+proc requireModule*(moduleRef: string, env: ref Env = nil): ref Env =
+  ## Load and compile a .nim module from a gist or local file
+  ## Returns a ref Env with the module's exported functions and variables
+  ## 
+  ## Format examples:
+  ##   requireModule("gist:abc123def456/canvas.nim")
+  ##   requireModule("lib/utils.nim")
+  
+  # Check cache first
+  if globalModuleCache.modules.hasKey(moduleRef):
+    return globalModuleCache.modules[moduleRef]
+  
+  var sourceCode: string
+  let (gistId, filename, isGist) = parseGistReference(moduleRef)
+  
+  if isGist:
+    # Fetch from gist
+    sourceCode = fetchGistFile(gistId, filename)
+    
+    when defined(emscripten):
+      # In WASM, empty string means we need JS to fetch it
+      if sourceCode == "":
+        # Check if code was loaded by JS
+        if globalModuleCache.sourceCode.hasKey(moduleRef):
+          sourceCode = globalModuleCache.sourceCode[moduleRef]
+        else:
+          # Signal that async fetch is needed
+          raise newException(IOError, "Module not yet loaded: " & moduleRef)
+  else:
+    # Load from local file
+    if not fileExists(filename):
+      raise newException(IOError, "Module file not found: " & filename)
+    sourceCode = readFile(filename)
+  
+  # Compile using nimini
+  try:
+    let program = compileSource(sourceCode)
+    
+    # Create runtime environment for this module
+    var moduleEnv = newEnv()
+    
+    # If a parent environment was provided, link it
+    if env != nil:
+      moduleEnv.parent = env
+    
+    # Execute the module to populate its exports
+    execProgram(program, moduleEnv)
+    
+    # Cache the compiled module
+    globalModuleCache.modules[moduleRef] = moduleEnv
+    globalModuleCache.sourceCode[moduleRef] = sourceCode
+    
+    return moduleEnv
+    
+  except Exception as e:
+    raise newException(ValueError, "Failed to compile module " & moduleRef & ": " & e.msg)
+
+proc loadGistCode*(moduleRef: string, code: string) =
+  ## Called by JavaScript in WASM builds after fetching gist content
+  ## Stores the code for later compilation
+  globalModuleCache.sourceCode[moduleRef] = code
+
+proc clearModuleCache*() =
+  ## Clear all cached modules (useful for development/testing)
+  globalModuleCache.modules.clear()
+  globalModuleCache.sourceCode.clear()
+
+proc listCachedModules*(): seq[string] =
+  ## Get list of all cached module references
+  result = @[]
+  for key in globalModuleCache.modules.keys:
+    result.add(key)
+
+# ================================================================
+# NIMINI BRIDGE - API Registration
+# ================================================================
+
+# Store the global state ref here to avoid circular imports
+var globalAppStateRef: pointer = nil
+
+proc setGlobalAppState*(state: pointer) =
+  ## Called by tstorie to set the app state reference
+  globalAppStateRef = state
+
+proc registerTstorieApis*(env: ref Env, state: pointer) =
+  ## Register all tstorie API functions in the nimini environment
+  ## This makes them available to interpreted modules
+  ## state is a pointer to AppState to avoid circular dependency
+  
+  # Store state for later use
+  setGlobalAppState(state)
+  
+  # ============================================================================
+  # Drawing APIs
+  # ============================================================================
+  
+  # Note: These will call back into tstorie via proc pointers
+  # For now, provide placeholder implementations
+  env.vars["write"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## write(x: int, y: int, text: string)
+    if args.len < 3:
+      raise newException(ValueError, "write() requires at least 3 arguments: x, y, text")
+    
+    echo "write(", args[0].i, ", ", args[1].i, ", ", args[2].s, ")"
+    return valNil()
+  
+  env.vars["writeText"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## writeText(x: int, y: int, text: string)
+    if args.len < 3:
+      raise newException(ValueError, "writeText() requires at least 3 arguments")
+    
+    echo "writeText(", args[0].i, ", ", args[1].i, ", ", args[2].s, ")"
+    return valNil()
+  
+  env.vars["fillRect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## fillRect(x: int, y: int, w: int, h: int, ch: string)
+    if args.len < 5:
+      raise newException(ValueError, "fillRect() requires at least 5 arguments")
+    
+    echo "fillRect(", args[0].i, ", ", args[1].i, ", ", args[2].i, ", ", args[3].i, ", ", args[4].s, ")"
+    return valNil()
+  
+  # ============================================================================
+  # Layer Management
+  # ============================================================================
+  
+  env.vars["createLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## createLayer(id: string, z: int)
+    if args.len < 2:
+      raise newException(ValueError, "createLayer() requires 2 arguments: id, z")
+    
+    echo "createLayer(", args[0].s, ", ", args[1].i, ")"
+    return valNil()
+  
+  env.vars["getLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getLayer(id: string) -> map with layer info
+    if args.len < 1:
+      raise newException(ValueError, "getLayer() requires 1 argument: id")
+    
+    # Return nil for now - will be implemented with real tstorie integration
+    return valNil()
+  
+  env.vars["removeLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## removeLayer(id: string)
+    if args.len < 1:
+      raise newException(ValueError, "removeLayer() requires 1 argument: id")
+    
+    echo "removeLayer(", args[0].s, ")"
+    return valNil()
+  
+  # ============================================================================
+  # Color Utilities
+  # ============================================================================
+  
+  env.vars["rgb"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## rgb(r: int, g: int, b: int) -> color map
+    if args.len < 3:
+      raise newException(ValueError, "rgb() requires 3 arguments: r, g, b")
+    
+    let colorMap = valMap()
+    colorMap.map["r"] = valInt(args[0].i)
+    colorMap.map["g"] = valInt(args[1].i)
+    colorMap.map["b"] = valInt(args[2].i)
+    return colorMap
+  
+  proc makeColorMap(r, g, b: int): Value =
+    let m = valMap()
+    m.map["r"] = valInt(r)
+    m.map["g"] = valInt(g)
+    m.map["b"] = valInt(b)
+    return m
+  
+  env.vars["black"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(0, 0, 0)
+  
+  env.vars["white"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(255, 255, 255)
+  
+  env.vars["red"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(255, 0, 0)
+  
+  env.vars["green"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(0, 255, 0)
+  
+  env.vars["blue"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    return makeColorMap(0, 0, 255)
+  
+  # ============================================================================
+  # Input Handling
+  # ============================================================================
+  
+  env.vars["getInput"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getInput() -> array of input events
+    # Return empty array for now
+    return valArray()
+  
+  # ============================================================================
+  # State Access
+  # ============================================================================
+  
+  env.vars["getWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getWidth() -> int
+    return valInt(80)  # Default size
+  
+  env.vars["getHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getHeight() -> int
+    return valInt(24)  # Default size
+  
+  env.vars["getDeltaTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getDeltaTime() -> float
+    return valFloat(0.016)  # ~60 FPS
+  
+  # ============================================================================
+  # Utility Functions
+  # ============================================================================
+  
+  env.vars["echo"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## echo(...) - print to console/stdout
+    var output = ""
+    for i, arg in args:
+      if i > 0: output.add(" ")
+      output.add($arg)
+    echo output
+    return valNil()
+  
+  env.vars["len"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## len(array or string) -> int
+    if args.len < 1:
+      raise newException(ValueError, "len() requires 1 argument")
+    
+    case args[0].kind
+    of vkArray:
+      return valInt(args[0].arr.len)
+    of vkString:
+      return valInt(args[0].s.len)
+    else:
+      raise newException(ValueError, "len() requires array or string")
+
 var globalRuntimeEnv*: ref Env = nil
 
 proc initGlobalRuntime*(state: AppState) =
@@ -944,8 +1221,30 @@ proc setTargetFps*(state: AppState, fps: float) =
   state.targetFps = fps
 
 # ================================================================
+# LIBRARY MODULES
+# ================================================================
+# Library modules are imported by user files (like index.nim) as needed.
+# tstorie.nim provides only the core framework (types, buffers, layers, etc.)
+# 
+# Available library modules:
+# - lib/storie_md: Markdown parser
+# - lib/section_manager: Section navigation and management
+# - lib/layout: Text layout utilities
+# - lib/events: Event handling system
+# - lib/animation: Animation helpers and easing
+# - lib/drawing: Drawing utilities for layers
+# - lib/ui_components: Reusable UI components
+# - lib/canvas: Canvas navigation system
+# - lib/module_loader: Dynamic module loading (imported above)
+# - lib/nimini_bridge: Nimini API bridge (imported above)
+
+# ================================================================
 # USER CALLBACKS
 # ================================================================
+
+# Global markdown file path (can be set via CLI or from user files)
+var gMarkdownFile*: string = "index.md"
+var gWaitingForGist*: bool = false
 
 when not defined(emscripten):
   var onInit*: proc(state: AppState) = nil
@@ -1334,10 +1633,8 @@ when defined(emscripten):
         
         # Replace the code blocks and sections
         storieCtx.codeBlocks = doc.codeBlocks
-        storieCtx.sections = doc.sections
+        storieCtx.sectionMgr = newSectionManager(doc.sections)
         storieCtx.frontMatter = doc.frontMatter
-        storieCtx.currentSectionIndex = 0
-        storieCtx.multiSectionMode = true
         
         # Clear all layer buffers
         for layer in globalState.layers:

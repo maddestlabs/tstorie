@@ -1,8 +1,9 @@
 ## Drawing Module
 ## Provides convenient drawing functions for use with Nimini scripts
 ## Works with both background and foreground layers
-
-import ../tstorie
+## 
+## Note: This module expects Layer and Style types to be available
+## from the importing/including context.
 
 # Figlet font data for digital clock
 const figletDigits* = [
