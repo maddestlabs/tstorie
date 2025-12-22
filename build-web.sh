@@ -139,6 +139,9 @@ echo "Compiling tstorie to WASM with ${FILE_BASE}.nim..."
 echo "Output directory: $OUTPUT_DIR"
 echo ""
 
+# Emscripten compilation flags
+export EMCC_CFLAGS="-Os"
+
 # Nim compiler options for Emscripten
 NIM_OPTS="c
   --path:nimini/src
@@ -156,24 +159,22 @@ NIM_OPTS="c
   --exceptions:goto
   $RELEASE_MODE
   --nimcache:nimcache_wasm
+  --passL:-s --passL:ALLOW_MEMORY_GROWTH=1
+  --passL:-s --passL:EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseRelease','_emHandleMouseMove','_emSetWaitingForGist','_emLoadMarkdownFromJS']
+  --passL:-s --passL:EXPORTED_RUNTIME_METHODS=['ccall','cwrap','allocateUTF8','UTF8ToString','lengthBytesUTF8','stringToUTF8']
+  --passL:-s --passL:MODULARIZE=0
+  --passL:-s --passL:EXPORT_NAME='Module'
+  --passL:-s --passL:ENVIRONMENT=web
+  --passL:-s --passL:INITIAL_MEMORY=33554432
+  --passL:-s --passL:STACK_SIZE=5242880
+  --passL:-s --passL:ASSERTIONS=0
+  --passL:-s --passL:STACK_OVERFLOW_CHECK=0
+  --passL:-Os
+  --passL:-flto
+  --passL:--js-library --passL:web/audio_bridge.js
+  --passL:--closure --passL:1
   -o:$OUTPUT_DIR/tstorie.wasm.js
   tstorie.nim"
-
-# Emscripten flags
-export EMCC_CFLAGS="-s ALLOW_MEMORY_GROWTH=1 \
-  -s EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseRelease','_emHandleMouseMove','_emSetWaitingForGist','_emLoadMarkdownFromJS'] \
-  -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','allocateUTF8','UTF8ToString','lengthBytesUTF8','stringToUTF8'] \
-  -s MODULARIZE=0 \
-  -s EXPORT_NAME='Module' \
-  -s ENVIRONMENT=web \
-  -s INITIAL_MEMORY=33554432 \
-  -s STACK_SIZE=5242880 \
-  -s ASSERTIONS=0 \
-  -s STACK_OVERFLOW_CHECK=0 \
-  -Os \
-  -flto \
-  --js-library web/audio_bridge.js \
-  --closure 1"
 
 # Compile
 echo "Running Nim compiler..."

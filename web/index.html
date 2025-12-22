@@ -86,7 +86,7 @@
     
     <script>
         // Setup Module before loading WASM (Emscripten will merge with this)
-        const canvas = document.getElementById('terminal');
+        let canvas = document.getElementById('terminal');  // Use 'let' so we can replace it with WebGL canvas
         const loading = document.getElementById('loading');
         const progress = document.getElementById('progress');
         const container = document.getElementById('container');
@@ -95,14 +95,21 @@
         const urlParams = new URLSearchParams(window.location.search);
         const gistId = urlParams.get('gist');
         const fontUrl = urlParams.get('font');
+        const shaderGistId = urlParams.get('shader');
         
         // Gist loading state
         let gistMarkdown = null;
         let moduleReady = false;
         let gistReady = false;
+        let shaderCode = null;
+        let shaderReady = false;
         
         if (gistId) {
             console.log('Gist parameter detected:', gistId);
+        }
+        
+        if (shaderGistId) {
+            console.log('Shader parameter detected:', shaderGistId);
         }
         
         // Load custom font if specified
@@ -229,6 +236,11 @@
                     console.error('inittstorie function not found. Make sure tstorie.js is loaded.');
                 }
                 
+                // Initialize shader system if shader is loaded
+                if (shaderGistId && shaderReady) {
+                    initShaderSystem();
+                }
+                
                 // Try loading gist if it's ready
                 if (gistId) {
                     tryLoadGist();
@@ -278,8 +290,256 @@
                 });
         }
         
+        // Fetch shader if specified
+        if (shaderGistId) {
+            progress.textContent = 'Loading shader ' + shaderGistId + '...';
+            
+            fetch('https://api.github.com/gists/' + shaderGistId)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Shader gist not found (HTTP ' + response.status + ')');
+                    }
+                    return response.json();
+                })
+                .then(function(gist) {
+                    // Find first .js file in gist
+                    var jsFile = null;
+                    for (var filename in gist.files) {
+                        if (filename.endsWith('.js')) {
+                            jsFile = gist.files[filename];
+                            break;
+                        }
+                    }
+                    
+                    if (jsFile) {
+                        console.log('Found shader file in gist:', jsFile.filename);
+                        shaderCode = jsFile.content;
+                        shaderReady = true;
+                        progress.textContent = 'Loaded shader ' + jsFile.filename;
+                        
+                        // Initialize shader system if module is ready
+                        if (moduleReady) {
+                            initShaderSystem();
+                        }
+                    } else {
+                        throw new Error('No .js file found in shader gist');
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error loading shader:', error);
+                    progress.textContent = 'Shader error: ' + error.message;
+                    shaderCode = null;
+                });
+        }
+        
         console.log('Load from gist with URL parameter: ?gist=YOUR_GIST_ID');
         console.log('Use custom font with: ?font=Font+Name or ?font=FULL_GOOGLE_FONTS_URL');
+        console.log('Apply shader effect with: ?shader=SHADER_GIST_ID');
+    </script>
+    
+    <!-- Shader system -->
+    <script>
+        let shaderSystem = null;
+        
+        function initShaderSystem() {
+            if (!shaderCode || !canvas) {
+                console.log('Cannot init shader system - missing code or canvas');
+                return;
+            }
+            
+            try {
+                console.log('Initializing shader system...');
+                
+                // Store original terminal canvas reference
+                const terminalCanvas = canvas;
+                
+                // Get actual rendered dimensions
+                const width = terminalCanvas.width || 800;
+                const height = terminalCanvas.height || 600;
+                
+                console.log('Terminal dimensions:', width, 'x', height);
+                
+                // Keep terminal rendering to its original canvas
+                // We'll sample from it each frame
+                
+                // Create new WebGL canvas for shader output
+                const webglCanvas = document.createElement('canvas');
+                webglCanvas.id = 'terminal-webgl';
+                webglCanvas.width = width;
+                webglCanvas.height = height;
+                webglCanvas.className = terminalCanvas.className;
+                webglCanvas.style.cssText = terminalCanvas.style.cssText;
+                webglCanvas.tabIndex = terminalCanvas.tabIndex || 0;
+                
+                // Hide terminal canvas but keep it rendering
+                terminalCanvas.style.display = 'none';
+                
+                // Insert WebGL canvas after terminal canvas
+                terminalCanvas.parentNode.insertBefore(webglCanvas, terminalCanvas.nextSibling);
+                
+                // Forward input events from WebGL canvas to terminal canvas
+                ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click'].forEach(eventType => {
+                    webglCanvas.addEventListener(eventType, function(e) {
+                        const clonedEvent = new e.constructor(e.type, e);
+                        terminalCanvas.dispatchEvent(clonedEvent);
+                    });
+                });
+                
+                // Update canvas reference for shader rendering
+                canvas = webglCanvas;
+                
+                // Evaluate shader code (should define getShaderConfig())
+                eval(shaderCode);
+                
+                if (typeof getShaderConfig !== 'function') {
+                    throw new Error('Shader must export getShaderConfig() function');
+                }
+                
+                const config = getShaderConfig();
+                if (!config.vertexShader || !config.fragmentShader) {
+                    throw new Error('Shader config must include vertexShader and fragmentShader');
+                }
+                
+                // Create WebGL context from new canvas
+                const gl = webglCanvas.getContext('webgl') || webglCanvas.getContext('experimental-webgl');
+                if (!gl) {
+                    throw new Error('WebGL not supported');
+                }
+                
+                // Compile shaders
+                const vertexShader = createShader(gl, gl.VERTEX_SHADER, config.vertexShader);
+                const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, config.fragmentShader);
+                
+                const program = gl.createProgram();
+                gl.attachShader(program, vertexShader);
+                gl.attachShader(program, fragmentShader);
+                gl.linkProgram(program);
+                
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                    throw new Error('Shader program link failed: ' + gl.getProgramInfoLog(program));
+                }
+                
+                // Create fullscreen quad
+                const positions = new Float32Array([
+                    -1, -1,  1, -1,  -1, 1,
+                    -1, 1,   1, -1,   1, 1
+                ]);
+                
+                const posBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+                
+                // Create texture for terminal canvas
+                const texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                
+                // Get attribute and uniform locations
+                const posLocation = gl.getAttribLocation(program, 'position');
+                const timeLocation = gl.getUniformLocation(program, 'time');
+                const resolutionLocation = gl.getUniformLocation(program, 'resolution');
+                const textureLocation = gl.getUniformLocation(program, 'contentTexture');
+                
+                // Get custom uniform locations if defined
+                const customUniforms = config.uniforms || {};
+                const uniformLocations = {};
+                for (const name in customUniforms) {
+                    uniformLocations[name] = gl.getUniformLocation(program, name);
+                }
+                
+                const startTime = Date.now();
+                
+                shaderSystem = {
+                    gl: gl,
+                    program: program,
+                    terminalCanvas: terminalCanvas,
+                    visibleCanvas: webglCanvas,
+                    texture: texture,
+                    posBuffer: posBuffer,
+                    posLocation: posLocation,
+                    timeLocation: timeLocation,
+                    resolutionLocation: resolutionLocation,
+                    textureLocation: textureLocation,
+                    uniformLocations: uniformLocations,
+                    customUniforms: customUniforms,
+                    startTime: startTime,
+                    animationId: null,
+                    
+                    render: function() {
+                        // Update texture from terminal canvas (which is still rendering)
+                        gl.bindTexture(gl.TEXTURE_2D, texture);
+                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, terminalCanvas);
+                        
+                        // Set viewport to match canvas
+                        gl.viewport(0, 0, webglCanvas.width, webglCanvas.height);
+                        
+                        // Use shader program
+                        gl.useProgram(program);
+                        
+                        // Set uniforms
+                        const time = (Date.now() - startTime) / 1000.0;
+                        gl.uniform1f(timeLocation, time);
+                        gl.uniform2f(resolutionLocation, webglCanvas.width, webglCanvas.height);
+                        gl.uniform1i(textureLocation, 0);
+                        
+                        // Set custom uniforms
+                        for (const name in customUniforms) {
+                            const value = customUniforms[name];
+                            const location = uniformLocations[name];
+                            if (location) {
+                                if (typeof value === 'number') {
+                                    gl.uniform1f(location, value);
+                                } else if (Array.isArray(value)) {
+                                    if (value.length === 2) {
+                                        gl.uniform2f(location, value[0], value[1]);
+                                    } else if (value.length === 3) {
+                                        gl.uniform3f(location, value[0], value[1], value[2]);
+                                    } else if (value.length === 4) {
+                                        gl.uniform4f(location, value[0], value[1], value[2], value[3]);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Draw fullscreen quad
+                        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+                        gl.enableVertexAttribArray(posLocation);
+                        gl.vertexAttribPointer(posLocation, 2, gl.FLOAT, false, 0, 0);
+                        
+                        gl.drawArrays(gl.TRIANGLES, 0, 6);
+                        
+                        // Continue render loop
+                        this.animationId = requestAnimationFrame(() => this.render());
+                    }
+                };
+                
+                // Start continuous render loop
+                shaderSystem.render();
+                
+                console.log('Shader system initialized successfully');
+                progress.textContent = '';
+            } catch (e) {
+                console.error('Failed to initialize shader system:', e);
+                progress.textContent = 'Shader initialization error: ' + e.message;
+            }
+        }
+        
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                const info = gl.getShaderInfoLog(shader);
+                gl.deleteShader(shader);
+                throw new Error('Shader compile failed: ' + info);
+            }
+            
+            return shader;
+        }
     </script>
     
     <!-- Load our terminal interface first -->
