@@ -172,6 +172,7 @@ export EMCC_CFLAGS="-s ALLOW_MEMORY_GROWTH=1 \
   -s STACK_OVERFLOW_CHECK=0 \
   -Os \
   -flto \
+  --js-library web/audio_bridge.js \
   --closure 1"
 
 # Compile

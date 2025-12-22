@@ -2,6 +2,7 @@ import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 import nimini
 import lib/storie_types
+import lib/audio_gen
 
 when not defined(emscripten):
   import src/platform/terminal
@@ -598,6 +599,7 @@ type
     layers*: seq[Layer]
     inputParser*: TerminalInputParser
     lastMouseX*, lastMouseY*: int
+    audioSystemPtr*: pointer  ## Points to AudioSystem (to avoid import issues)
 
 when not defined(emscripten):
   var globalRunning {.global.} = true
@@ -821,6 +823,9 @@ var globalAppStateRef: pointer = nil
 proc setGlobalAppState*(state: pointer) =
   ## Called by tstorie to set the app state reference
   globalAppStateRef = state
+
+# Import audio here for API registration (avoids type conflicts at top level)
+import lib/audio as audioModule
 
 proc registerTstorieApis*(env: ref Env, state: pointer) =
   ## Register all tstorie API functions in the nimini environment
@@ -1166,6 +1171,133 @@ proc registerTstorieApis*(env: ref Env, state: pointer) =
       return valInt(args[0].s.len)
     else:
       raise newException(ValueError, "len() requires array or string")
+  
+  # ============================================================================
+  # Audio System (Procedural Sound Generation)
+  # ============================================================================
+  # Note: These are convenience wrappers. For full control, users can import
+  # lib/audio.nim and lib/audio_gen.nim directly in their code blocks.
+  
+  # Helper to get AudioSystem from pointer
+  template getAudioSys(): untyped =
+    if appState.audioSystemPtr.isNil:
+      # Lazy initialization
+      appState.audioSystemPtr = cast[pointer](audioModule.initAudio(44100))
+    cast[audioModule.AudioSystem](appState.audioSystemPtr)
+  
+  env.vars["audioPlayTone"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayTone(frequency: float, duration: float, waveform: string, volume: float)
+    ## waveform: "sine", "square", "sawtooth", "triangle", "noise"
+    if args.len < 2:
+      raise newException(ValueError, "audioPlayTone() requires at least 2 arguments: frequency, duration")
+    
+    let frequency = case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 440.0
+    
+    let duration = case args[1].kind
+      of vkFloat: args[1].f
+      of vkInt: args[1].i.float
+      else: 0.2
+    
+    let waveform = if args.len > 2 and args[2].kind == vkString:
+      case args[2].s.toLowerAscii()
+      of "square": wfSquare
+      of "sawtooth", "saw": wfSawtooth
+      of "triangle": wfTriangle
+      of "noise": wfNoise
+      else: wfSine
+    else: wfSine
+    
+    let volume = if args.len > 3:
+      case args[3].kind
+      of vkFloat: args[3].f
+      of vkInt: args[3].i.float
+      else: 0.5
+    else: 0.5
+    
+    getAudioSys().playTone(frequency, duration, waveform, volume)
+    return valNil()
+  
+  env.vars["audioPlayBleep"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayBleep(frequency: float = 440.0, volume: float = 0.4)
+    let frequency = if args.len > 0:
+      case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 440.0
+    else: 440.0
+    
+    let volume = if args.len > 1:
+      case args[1].kind
+      of vkFloat: args[1].f
+      of vkInt: args[1].i.float
+      else: 0.4
+    else: 0.4
+    
+    getAudioSys().playBleep(frequency, volume)
+    return valNil()
+  
+  env.vars["audioPlayJump"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayJump(volume: float = 0.4) - Play jump sound effect
+    let volume = if args.len > 0:
+      case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 0.4
+    else: 0.4
+    
+    getAudioSys().playJump(volume)
+    return valNil()
+  
+  env.vars["audioPlayLanding"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayLanding(volume: float = 0.5) - Play landing sound effect
+    let volume = if args.len > 0:
+      case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 0.5
+    else: 0.5
+    
+    getAudioSys().playLanding(volume)
+    return valNil()
+  
+  env.vars["audioPlayHit"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayHit(volume: float = 0.4) - Play hit/damage sound effect
+    let volume = if args.len > 0:
+      case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 0.4
+    else: 0.4
+    
+    getAudioSys().playHit(volume)
+    return valNil()
+  
+  env.vars["audioPlayPowerUp"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayPowerUp(volume: float = 0.4) - Play power-up sound effect
+    let volume = if args.len > 0:
+      case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 0.4
+    else: 0.4
+    
+    getAudioSys().playPowerUp(volume)
+    return valNil()
+  
+  env.vars["audioPlayLaser"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## audioPlayLaser(volume: float = 0.35) - Play laser sound effect
+    let volume = if args.len > 0:
+      case args[0].kind
+      of vkFloat: args[0].f
+      of vkInt: args[0].i.float
+      else: 0.35
+    else: 0.35
+    
+    getAudioSys().playLaser(volume)
+    return valNil()
 
 var globalRuntimeEnv*: ref Env = nil
 
@@ -1462,7 +1594,6 @@ proc setTargetFps*(state: AppState, fps: float) =
 # - lib/events: Event handling system
 # - lib/animation: Animation helpers and easing
 # - lib/drawing: Drawing utilities for layers
-# - lib/ui_components: Reusable UI components
 # - lib/canvas: Canvas navigation system
 # - lib/module_loader: Dynamic module loading (imported above)
 # - lib/nimini_bridge: Nimini API bridge (imported above)
@@ -1611,6 +1742,7 @@ when defined(emscripten):
     globalState.lastMouseX = 0
     globalState.lastMouseY = 0
     globalState.fps = 60.0
+    globalState.audioSystemPtr = nil
     
     # Call initStorieContext directly (callback system doesn't work in WASM)
     initStorieContext(globalState)
@@ -1980,6 +2112,7 @@ proc main() =
     state.layers = @[]
     state.inputParser = newTerminalInputParser()
     state.targetFps = 60.0
+    state.audioSystemPtr = nil
     when defined(windows):
       # If not Windows Terminal (WT_SESSION absent), lower default FPS for performance
       if getEnv("WT_SESSION").len == 0:

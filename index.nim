@@ -19,9 +19,9 @@ import lib/layout             # Text layout utilities
 include lib/events            # Event handling system
 include lib/animation         # Animation helpers and easing
 include lib/drawing           # Drawing utilities for layers
-include lib/ui_components     # Reusable UI components
 include lib/canvas            # Canvas navigation system
 include lib/tui               # TUI widget system
+include lib/audio             # Audio system
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
