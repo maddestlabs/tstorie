@@ -6,6 +6,7 @@ Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
 
 Demos on GitHub Gist:
 - [tstorie_clock.nim](https://maddestlabs.github.io/tstorie?gist=3916b876cf87fc3db21171b76a512b65) | [Source Gist](https://gist.github.com/R3V1Z3/3916b876cf87fc3db21171b76a512b65)
+- [tstorie-dungen.md](https://maddestlabs.github.io/tstorie?gist=6754c8623116a8296a409b9b4bc08905) | [Source Gist](https://gist.github.com/R3V1Z3/6754c8623116a8296a409b9b4bc08905)
 - [depths.nim](https://maddestlabs.github.io/tstorie?gist=79972b01bd5f3464da200fd5f8e0fd10) | [Source Gist](https://gist.github.com/R3V1Z3/79972b01bd5f3464da200fd5f8e0fd10)
 
 Core example Gists:

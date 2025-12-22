@@ -56,12 +56,13 @@ export nim_extensions  # Nim-specific language extensions (autopragma features)
 export seqops
 
 # Import stdlib modules
-import nimini/stdlib/[mathops, typeconv]
-export mathops, typeconv
+import nimini/stdlib/[mathops, typeconv, collections, random]
+export mathops, typeconv, collections, random
 
 # Initialize standard library - must be called after initRuntime()
 proc initStdlib*() =
   ## Register standard library functions with the runtime
+  ## NOTE: Random functions require setNiminiRng() to be called separately
   
   # Sequence operations
   registerNative("add", niminiAdd)
@@ -70,6 +71,32 @@ proc initStdlib*() =
   registerNative("setLen", niminiSetLen)
   registerNative("delete", niminiDelete)
   registerNative("insert", niminiInsert)
+  registerNative("pop", niminiPop)
+  registerNative("reverse", niminiReverse)
+  registerNative("contains", niminiContains)
+  registerNative("find", niminiFindIndex)
+  
+  # Collection data structures
+  registerNative("newHashSet", niminiNewHashSet)
+  registerNative("incl", niminiHashSetIncl)
+  registerNative("excl", niminiHashSetExcl)
+  registerNative("card", niminiHashSetCard)
+  registerNative("toSeq", niminiHashSetToSeq)
+  registerNative("newDeque", niminiNewDeque)
+  registerNative("addFirst", niminiDequeAddFirst)
+  registerNative("addLast", niminiDequeAddLast)
+  registerNative("popFirst", niminiDequePopFirst)
+  registerNative("popLast", niminiDequePopLast)
+  registerNative("peekFirst", niminiDequePeekFirst)
+  registerNative("peekLast", niminiDequePeekLast)
+  
+  # Random number generation and sampling
+  registerNative("randomize", niminiRandomize)
+  registerNative("rand", niminiRand)
+  registerNative("randFloat", niminiRandFloat)
+  registerNative("sample", niminiSample)
+  registerNative("choice", niminiChoice)
+  registerNative("shuffle", niminiShuffle)
   
   # Type conversion functions
   registerNative("int", niminiToInt)

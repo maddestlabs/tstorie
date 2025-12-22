@@ -1,8 +1,9 @@
 # Recursive descent + Pratt parser for Nimini, the mini-Nim DSL
 
-import std/[strutils]
+import std/[strutils, tables]
 import tokenizer
 import ast
+import debug
 
 type
   Parser = object
@@ -33,6 +34,15 @@ proc match(p: var Parser; kinds: varargs[TokenKind]): bool =
 
 proc expect(p: var Parser; kind: TokenKind; msg: string): Token =
   if p.cur().kind != kind:
+    debugLog("PARSER", "expect() FAILED: " & msg & " at line " & $p.cur().line)
+    debugLog("PARSER", "STACK TRACE:")
+    when not defined(emscripten):
+      try:
+        raise newException(CatchableError, "Stack trace")
+      except CatchableError:
+        debugLog("PARSER", getCurrentExceptionMsg() & "\n" & getStackTrace())
+    debugTokens("PARSER", p.tokens, p.pos, 5)
+    logParseError(msg, p.cur().line, p.cur().col, p.tokens, p.pos)
     var err = newException(NiminiParseError, msg & " at line " & $p.cur().line & " (got " & $p.cur().kind & " '" & p.cur().lexeme & "')")
     err.line = p.cur().line
     err.col = p.cur().col
@@ -123,11 +133,22 @@ proc parseObjectType(p: var Parser): TypeNode =
       discard p.advance()
       continue
     
-    # Parse field: name: Type
-    let fieldName = expect(p, tkIdent, "Expected field name").lexeme
-    discard expect(p, tkColon, "Expected ':' after field name")
+    # Parse field(s): name1, name2, name3: Type
+    var fieldNames: seq[string] = @[]
+    fieldNames.add(expect(p, tkIdent, "Expected field name").lexeme)
+    
+    # Check for comma-separated field names
+    while p.cur().kind == tkComma:
+      discard p.advance()  # consume comma
+      fieldNames.add(expect(p, tkIdent, "Expected field name after comma").lexeme)
+    
+    discard expect(p, tkColon, "Expected ':' after field name(s)")
     let fieldType = parseType(p)
-    fields.add((fieldName, fieldType))
+    
+    # Add all field names with the same type
+    for fieldName in fieldNames:
+      fields.add((fieldName, fieldType))
+    
     discard match(p, tkNewline)
   
   return newObjectType(fields)
@@ -614,7 +635,7 @@ proc parseExpr(p: var Parser; prec=0; allowDoNotation=true): Expr =
     if thisPrec <= prec:
       break
     let t = advance(p)    # SAFE (value is used)
-    let right = parseExpr(p, thisPrec)
+    let right = parseExpr(p, thisPrec, allowDoNotation)
     left = newBinOp(opLexeme, left, right, t.line, t.col)
   left
 
@@ -664,15 +685,32 @@ proc parseSingleVarDecl(p: var Parser; isLet: bool; isConst: bool; line, col: in
     discard p.advance()
     typeAnnotation = parseType(p)
   
-  discard expect(p, tkOp, "Expected '='")
-  let val = parseExpr(p)
-  
-  if isConst:
-    newConst(nameTok.lexeme, val, typeAnnotation, line, col)
-  elif isLet:
-    newLet(nameTok.lexeme, val, typeAnnotation, line, col)
+  # Check if there's an initializer
+  # For var, initializer is optional (uninitialized vars allowed)
+  # For let/const, initializer is required
+  if p.cur().kind == tkOp and p.cur().lexeme == "=":
+    discard p.advance()
+    let val = parseExpr(p)
+    
+    if isConst:
+      return newConst(nameTok.lexeme, val, typeAnnotation, line, col)
+    elif isLet:
+      return newLet(nameTok.lexeme, val, typeAnnotation, line, col)
+    else:
+      return newVar(nameTok.lexeme, val, typeAnnotation, line, col)
   else:
-    newVar(nameTok.lexeme, val, typeAnnotation, line, col)
+    # No initializer
+    if isConst or isLet:
+      var err = newException(NiminiParseError, 
+        (if isConst: "const" else: "let") & " declarations must have an initializer at line " & $line)
+      err.line = line
+      err.col = col
+      raise err
+    
+    # Uninitialized var declaration - use an empty map as default
+    # This will be treated as an empty object at runtime
+    let defaultVal = newMap(@[], line, col)
+    return newVar(nameTok.lexeme, defaultVal, typeAnnotation, line, col)
 
 proc parseVarStmt(p: var Parser; isLet: bool; isConst: bool = false): Stmt =
   let kw = advance(p)
@@ -854,7 +892,9 @@ proc parseFor(p: var Parser): Stmt =
   discard p.advance()
 
   # Parse the iterable expression (e.g., 1..5, range(1,10), someArray, etc.)
+  debugLog("PARSER", "parseFor: before parseExpr for iterable, cur token: " & $p.cur().kind & " '" & p.cur().lexeme & "' at line " & $p.cur().line)
   let iterableExpr = parseExpr(p, allowDoNotation=false)
+  debugLog("PARSER", "parseFor: after parseExpr for iterable, cur token: " & $p.cur().kind & " '" & p.cur().lexeme & "' at line " & $p.cur().line)
 
   discard expect(p, tkColon, "Expected ':'")
   discard expect(p, tkNewline, "Expected newline")
@@ -946,15 +986,21 @@ proc parseProc(p: var Parser): Stmt =
   
   # Optional return type
   var returnType: TypeNode = nil
+  debugLog("PARSER", "parseProc: checking for return type, cur token: " & $p.cur().kind & " '" & p.cur().lexeme & "'")
   if p.cur().kind == tkColon:
+    debugLog("PARSER", "parseProc: found colon, checking for return type")
     discard p.advance()
+    debugLog("PARSER", "parseProc: after colon, cur token: " & $p.cur().kind & " '" & p.cur().lexeme & "'")
     # If next token is an identifier that looks like a type (not a statement keyword),
     # parse it as return type
     if p.cur().kind == tkIdent and p.cur().lexeme notin ["defer", "if", "for", "while", "return", "var", "let", "const", "block", "case", "break", "continue"]:
+      debugLog("PARSER", "parseProc: parsing return type: " & p.cur().lexeme)
       returnType = parseType(p)
+      debugLog("PARSER", "parseProc: after parseType, cur token: " & $p.cur().kind & " '" & p.cur().lexeme & "'")
     else:
       # The colon we just consumed is the proc body colon (not a return type)
       # We're done with the signature
+      debugLog("PARSER", "parseProc: colon was body colon, not return type")
       discard expect(p, tkNewline, "Expected newline")
       let body = parseBlock(p)
       return newProc(nameTok.lexeme, params, body, returnType, @[], tok.line, tok.col)
@@ -974,11 +1020,14 @@ proc parseProc(p: var Parser): Stmt =
         discard p.advance()
   
   # Expect the proc body separator (= or :)
+  debugLog("PARSER", "parseProc: expecting '=' or ':', cur token: " & $p.cur().kind & " '" & p.cur().lexeme & "'")
   if p.cur().kind == tkOp and p.cur().lexeme == "=":
     discard p.advance()  # consume the '='
   elif p.cur().kind == tkColon:
     discard p.advance()  # consume the ':'
   else:
+    debugLog("PARSER", "parseProc: ERROR - Expected '=' or ':', got: " & $p.cur().kind & " '" & p.cur().lexeme & "'")
+    debugTokens("PARSER", p.tokens, p.pos, 5)
     var err = newException(NiminiParseError, "Expected '=' or ':' before proc body at line " & $p.cur().line)
     err.line = p.cur().line
     err.col = p.cur().col

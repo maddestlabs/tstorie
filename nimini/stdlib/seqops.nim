@@ -96,6 +96,73 @@ proc niminiInsert*(env: ref Env; args: seq[Value]): Value =
   args[0].arr.insert(args[1], idx)
   return valNil()
 
+# Pop element from end of array (like stack)
+proc niminiPop*(env: ref Env; args: seq[Value]): Value =
+  ## pop(seq) - Removes and returns the last element
+  if args.len < 1:
+    quit "pop requires 1 argument (seq)"
+  
+  if args[0].kind != vkArray:
+    quit "pop argument must be an array"
+  
+  if args[0].arr.len == 0:
+    quit "pop: array is empty"
+  
+  let item = args[0].arr[^1]
+  args[0].arr.setLen(args[0].arr.len - 1)
+  return item
+
+# Reverse array in-place
+proc niminiReverse*(env: ref Env; args: seq[Value]): Value =
+  ## reverse(seq) - Reverses an array in-place
+  if args.len < 1:
+    quit "reverse requires 1 argument (seq)"
+  
+  if args[0].kind != vkArray:
+    quit "reverse argument must be an array"
+  
+  # Get mutable reference to the array
+  let n = args[0].arr.len
+  for i in 0 ..< (n div 2):
+    let temp = args[0].arr[i]
+    args[0].arr[i] = args[0].arr[n - 1 - i]
+    args[0].arr[n - 1 - i] = temp
+  
+  return valNil()
+
+# Check if array contains element
+proc niminiContains*(env: ref Env; args: seq[Value]): Value =
+  ## contains(seq, item) - Checks if array contains an item
+  if args.len < 2:
+    quit "contains requires 2 arguments (seq, item)"
+  
+  if args[0].kind != vkArray:
+    quit "contains first argument must be an array"
+  
+  # Simple comparison - compares string representations
+  let searchStr = $args[1]
+  for item in args[0].arr:
+    if $item == searchStr:
+      return valBool(true)
+  
+  return valBool(false)
+
+# Find index of element
+proc niminiFindIndex*(env: ref Env; args: seq[Value]): Value =
+  ## find(seq, item) - Returns the index of item in array, or -1 if not found
+  if args.len < 2:
+    quit "find requires 2 arguments (seq, item)"
+  
+  if args[0].kind != vkArray:
+    quit "find first argument must be an array"
+  
+  let searchStr = $args[1]
+  for i, item in args[0].arr:
+    if $item == searchStr:
+      return valInt(i)
+  
+  return valInt(-1)
+
 # Register all sequence operations
 proc registerSeqOps*() =
   registerNative("newSeq", niminiNewSeq)
@@ -104,3 +171,7 @@ proc registerSeqOps*() =
   registerNative("add", niminiAdd)
   registerNative("delete", niminiDelete)
   registerNative("insert", niminiInsert)
+  registerNative("pop", niminiPop)
+  registerNative("reverse", niminiReverse)
+  registerNative("contains", niminiContains)
+  registerNative("find", niminiFindIndex)
