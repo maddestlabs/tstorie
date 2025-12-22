@@ -10,7 +10,7 @@ var rainPrevY = []
 var rainSpeed = []
 var rainColor = []
 var rainChar = []
-var numRainParticles = 20
+var numRainParticles = 40
 
 # Create rain particles
 var i = 0

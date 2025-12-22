@@ -268,28 +268,59 @@ proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # Random number functions
-proc randInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Generate random integer: randInt(max) returns 0..max-1, randInt(min, max) returns min..max-1
-  if args.len == 0:
-    return valInt(0)
-  elif args.len == 1:
-    let max = valueToInt(args[0])
-    return valInt(rand(max - 1))
-  else:
-    let min = valueToInt(args[0])
-    let max = valueToInt(args[1])
-    return valInt(rand(max - min - 1) + min)
+when defined(emscripten):
+  # Import JavaScript random function via emscripten
+  proc emscripten_random(): cfloat {.
+    importc: "emscripten_random",
+    header: "<emscripten.h>".}
+  
+  proc randInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Generate random integer: randInt(max) returns 0..max-1, randInt(min, max) returns min..max-1
+    if args.len == 0:
+      return valInt(0)
+    elif args.len == 1:
+      let max = valueToInt(args[0])
+      return valInt(int(emscripten_random() * float(max)))
+    else:
+      let min = valueToInt(args[0])
+      let max = valueToInt(args[1])
+      let range = max - min
+      return valInt(min + int(emscripten_random() * float(range)))
+  
+  proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Generate random float: randFloat() returns 0.0..1.0, randFloat(max) returns 0.0..max
+    if args.len == 0:
+      return valFloat(emscripten_random())
+    else:
+      let max = case args[0].kind
+        of vkFloat: args[0].f
+        of vkInt: args[0].i.float
+        else: 1.0
+      return valFloat(emscripten_random() * max)
+else:
+  # Use Nim's random module for native builds
+  proc randInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Generate random integer: randInt(max) returns 0..max-1, randInt(min, max) returns min..max-1
+    if args.len == 0:
+      return valInt(0)
+    elif args.len == 1:
+      let max = valueToInt(args[0])
+      return valInt(rand(max - 1))
+    else:
+      let min = valueToInt(args[0])
+      let max = valueToInt(args[1])
+      return valInt(rand(max - min - 1) + min)
 
-proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Generate random float: randFloat() returns 0.0..1.0, randFloat(max) returns 0.0..max
-  if args.len == 0:
-    return valFloat(rand(1.0))
-  else:
-    let max = case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 1.0
-    return valFloat(rand(max))
+  proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Generate random float: randFloat() returns 0.0..1.0, randFloat(max) returns 0.0..max
+    if args.len == 0:
+      return valFloat(rand(1.0))
+    else:
+      let max = case args[0].kind
+        of vkFloat: args[0].f
+        of vkInt: args[0].i.float
+        else: 1.0
+      return valFloat(rand(max))
 
 proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Draw a figlet digit at x, y position. Args: digit(0-9 or 10 for colon), x, y
