@@ -369,6 +369,7 @@
                 webglCanvas.height = height;
                 webglCanvas.className = terminalCanvas.className;
                 webglCanvas.style.cssText = terminalCanvas.style.cssText;
+                webglCanvas.style.outline = 'none';  // Ensure outline is disabled
                 webglCanvas.tabIndex = terminalCanvas.tabIndex || 0;
                 
                 // Hide terminal canvas but keep it rendering
@@ -384,6 +385,22 @@
                         terminalCanvas.dispatchEvent(clonedEvent);
                     });
                 });
+                
+                // Watch for terminal canvas size changes and sync to WebGL canvas
+                const resizeObserver = new ResizeObserver(entries => {
+                    for (const entry of entries) {
+                        if (entry.target === terminalCanvas) {
+                            const newWidth = terminalCanvas.width;
+                            const newHeight = terminalCanvas.height;
+                            if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight) {
+                                webglCanvas.width = newWidth;
+                                webglCanvas.height = newHeight;
+                                console.log('Synced shader canvas size:', newWidth, 'x', newHeight);
+                            }
+                        }
+                    }
+                });
+                resizeObserver.observe(terminalCanvas);
                 
                 // Update canvas reference for shader rendering
                 canvas = webglCanvas;

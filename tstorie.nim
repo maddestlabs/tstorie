@@ -1582,23 +1582,6 @@ proc setTargetFps*(state: AppState, fps: float) =
   state.targetFps = fps
 
 # ================================================================
-# LIBRARY MODULES
-# ================================================================
-# Library modules are imported by user files (like index.nim) as needed.
-# tstorie.nim provides only the core framework (types, buffers, layers, etc.)
-# 
-# Available library modules:
-# - lib/storie_md: Markdown parser
-# - lib/section_manager: Section navigation and management
-# - lib/layout: Text layout utilities
-# - lib/events: Event handling system
-# - lib/animation: Animation helpers and easing
-# - lib/drawing: Drawing utilities for layers
-# - lib/canvas: Canvas navigation system
-# - lib/module_loader: Dynamic module loading (imported above)
-# - lib/nimini_bridge: Nimini API bridge (imported above)
-
-# ================================================================
 # USER CALLBACKS
 # ================================================================
 
