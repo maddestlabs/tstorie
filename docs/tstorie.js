@@ -109,6 +109,11 @@ class TStorieTerminal {
             this.handleMouseClick(e);
         });
         
+        this.canvas.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            this.handleMouseRelease(e);
+        });
+        
         this.canvas.addEventListener('mousemove', (e) => {
             this.handleMouseMove(e);
         });
@@ -213,8 +218,26 @@ class TStorieTerminal {
         const alt = e.altKey ? 1 : 0;
         const ctrl = e.ctrlKey ? 1 : 0;
         
-        //console.log('Mouse click:', x, y, 'button:', e.button);
+        console.log('Mouse click:', x, y, 'button:', e.button);
         Module._emHandleMouseClick(x, y, e.button, shift, alt, ctrl);
+    }
+    
+    handleMouseRelease(e) {
+        if (!Module._emHandleMouseRelease) {
+            console.warn('Module._emHandleMouseRelease not available');
+            return;
+        }
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.charWidth);
+        const y = Math.floor((e.clientY - rect.top) / this.charHeight);
+        
+        const shift = e.shiftKey ? 1 : 0;
+        const alt = e.altKey ? 1 : 0;
+        const ctrl = e.ctrlKey ? 1 : 0;
+        
+        console.log('Mouse release:', x, y, 'button:', e.button);
+        Module._emHandleMouseRelease(x, y, e.button, shift, alt, ctrl);
     }
     
     handleMouseMove(e) {

@@ -1148,6 +1148,16 @@ proc initRuntime*() =
 proc execProgram*(prog: Program; env: ref Env) =
   discard execBlock(prog.stmts, env)
 
+proc execProgramWithResult*(prog: Program; env: ref Env): Value =
+  ## Execute a program and return its result value
+  ## If the program executes a return statement, returns that value
+  ## Otherwise returns nil
+  let result = execBlock(prog.stmts, env)
+  if result.controlFlow == cfReturn:
+    return result.value
+  else:
+    return valNil()
+
 proc setGlobal*(name: string; v: Value) =
   defineVar(runtimeEnv, name, v)
 

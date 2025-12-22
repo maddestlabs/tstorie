@@ -21,6 +21,7 @@ include lib/animation         # Animation helpers and easing
 include lib/drawing           # Drawing utilities for layers
 include lib/ui_components     # Reusable UI components
 include lib/canvas            # Canvas navigation system
+include lib/tui               # TUI widget system
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -67,6 +68,11 @@ var gBgLayer: Layer
 var gFgLayer: Layer
 var gTextStyle, gBorderStyle, gInfoStyle: Style
 var gAppState: AppState  # Global reference to app state for state accessors
+
+# Global TUI widget manager and widget registry
+var gWidgetManager: WidgetManager
+var gWidgetRegistry = initTable[string, Widget]()
+var gLastClickedWidget: string = ""  # Track last clicked widget for polling
 
 # Forward declaration for functions that will be defined later
 var storieCtx: StorieContext
@@ -462,6 +468,330 @@ proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # ================================================================
+# TUI WIDGET SYSTEM WRAPPERS
+# ================================================================
+
+# Test function to verify nimini registration works
+proc nimini_tuiTest(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Simple test function
+  return valString("TUI functions are loaded!")
+
+proc nimini_newWidgetManager(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a new widget manager. Optional arg: use document styleSheet (bool, default true)
+  let useStyleSheet = if args.len > 0: args[0].b else: true
+  if useStyleSheet and not storieCtx.isNil and storieCtx.styleSheet.len > 0:
+    gWidgetManager = newWidgetManager(storieCtx.styleSheet)
+  else:
+    gWidgetManager = newWidgetManager()
+  return valNil()
+
+proc nimini_newLabel(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a label widget. Args: id, x, y, width, height, text
+  if args.len >= 6:
+    let id = args[0].s
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    let w = valueToInt(args[3])
+    let h = valueToInt(args[4])
+    let text = args[5].s
+    let label = newLabel(id, x, y, w, h, text)
+    gWidgetRegistry[id] = label
+    gWidgetManager.addWidget(label)
+  return valNil()
+
+proc nimini_newButton(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a button widget. Args: id, x, y, width, height, label
+  if args.len >= 6:
+    let id = args[0].s
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    let w = valueToInt(args[3])
+    let h = valueToInt(args[4])
+    let labelText = args[5].s
+    let button = newButton(id, x, y, w, h, labelText)
+    
+    # Set default onClick to record the click
+    button.onClick = proc(w: Widget) {.nimcall.} =
+      gLastClickedWidget = w.id
+    
+    gWidgetRegistry[id] = button
+    gWidgetManager.addWidget(button)
+  return valNil()
+
+proc nimini_newCheckBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a checkbox widget. Args: id, x, y, label, checked (optional)
+  if args.len >= 4:
+    let id = args[0].s
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    let labelText = args[3].s
+    let checked = if args.len >= 5: args[4].b else: false
+    let checkbox = newCheckBox(id, x, y, labelText, checked)
+    gWidgetRegistry[id] = checkbox
+    gWidgetManager.addWidget(checkbox)
+  return valNil()
+
+proc nimini_newRadioButton(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a radio button widget. Args: id, x, y, label, group
+  if args.len >= 5:
+    let id = args[0].s
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    let labelText = args[3].s
+    let group = args[4].s
+    let radio = newRadioButton(id, x, y, labelText, group)
+    gWidgetRegistry[id] = radio
+    gWidgetManager.addWidget(radio)
+  return valNil()
+
+proc nimini_newSlider(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a horizontal slider widget. Args: id, x, y, length, minVal, maxVal
+  if args.len >= 6:
+    let id = args[0].s
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    let length = valueToInt(args[3])
+    let minVal = if args[4].kind == vkFloat: args[4].f else: float(args[4].i)
+    let maxVal = if args[5].kind == vkFloat: args[5].f else: float(args[5].i)
+    let slider = newSlider(id, x, y, length, minVal, maxVal)
+    gWidgetRegistry[id] = slider
+    gWidgetManager.addWidget(slider)
+  return valNil()
+
+proc nimini_widgetSetText(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set text on a label widget. Args: id, text
+  if args.len >= 2:
+    let id = args[0].s
+    if gWidgetRegistry.hasKey(id):
+      let widget = gWidgetRegistry[id]
+      if widget of Label:
+        Label(widget).setText(args[1].s)
+  return valNil()
+
+proc nimini_widgetGetValue(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get value from a widget (checkbox checked state or slider value). Args: id
+  if args.len >= 1:
+    let id = args[0].s
+    if gWidgetRegistry.hasKey(id):
+      let widget = gWidgetRegistry[id]
+      if widget of CheckBox:
+        return valBool(CheckBox(widget).checked)
+      elif widget of Slider:
+        return valFloat(Slider(widget).value)
+  return valNil()
+
+proc nimini_widgetSetValue(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set value on a widget (checkbox checked or slider value). Args: id, value
+  if args.len >= 2:
+    let id = args[0].s
+    if gWidgetRegistry.hasKey(id):
+      let widget = gWidgetRegistry[id]
+      if widget of CheckBox:
+        CheckBox(widget).setChecked(args[1].b)
+      elif widget of Slider:
+        let val = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
+        Slider(widget).setValue(val)
+  return valNil()
+
+proc nimini_widgetSetCallback(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set a callback for a widget. Args: id, callbackType, callback
+  ## callbackType can be: "click", "change", "focus", "blur"
+  if args.len >= 3:
+    let id = args[0].s
+    let callbackType = args[1].s
+    let callback = args[2]
+    
+    if callback.kind != vkFunction:
+      return valNil()
+    
+    if gWidgetRegistry.hasKey(id):
+      let widget = gWidgetRegistry[id]
+      
+      # Store the callback in userData as a pointer to the Value
+      # We'll need to call it manually from a wrapper
+      let callbackPtr = create(Value)
+      callbackPtr[] = callback
+      widget.userData = cast[pointer](callbackPtr)
+      
+      case callbackType
+      of "click":
+        # Set onClick callback that calls the stored nimini function
+        widget.onClick = proc(w: Widget) {.nimcall.} =
+          if not w.userData.isNil:
+            let cb = cast[ptr Value](w.userData)
+            if cb[].kind == vkFunction:
+              try:
+                let callEnv = storieCtx.niminiContext.env
+                if cb[].fnVal.isNative:
+                  discard cb[].fnVal.native(callEnv, @[])
+              except:
+                discard
+      
+      of "change":
+        # Set onChange callback
+        widget.onChange = proc(w: Widget) {.nimcall.} =
+          if not w.userData.isNil:
+            let cb = cast[ptr Value](w.userData)
+            if cb[].kind == vkFunction:
+              try:
+                let callEnv = storieCtx.niminiContext.env
+                if cb[].fnVal.isNative:
+                  discard cb[].fnVal.native(callEnv, @[])
+              except:
+                discard
+      
+      of "focus":
+        # Set onFocus callback
+        widget.onFocus = proc(w: Widget) {.nimcall.} =
+          if not w.userData.isNil:
+            let cb = cast[ptr Value](w.userData)
+            if cb[].kind == vkFunction:
+              try:
+                let callEnv = storieCtx.niminiContext.env
+                if cb[].fnVal.isNative:
+                  discard cb[].fnVal.native(callEnv, @[])
+              except:
+                discard
+      
+      of "blur":
+        # Set onBlur callback
+        widget.onBlur = proc(w: Widget) {.nimcall.} =
+          if not w.userData.isNil:
+            let cb = cast[ptr Value](w.userData)
+            if cb[].kind == vkFunction:
+              try:
+                let callEnv = storieCtx.niminiContext.env
+                if cb[].fnVal.isNative:
+                  discard cb[].fnVal.native(callEnv, @[])
+              except:
+                discard
+      
+      else:
+        discard
+  
+  return valNil()
+
+proc nimini_widgetWasClicked(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if a widget was just clicked. Args: id
+  ## Returns true and clears the flag, so only returns true once per click
+  if args.len >= 1:
+    let id = args[0].s
+    if gLastClickedWidget == id:
+      gLastClickedWidget = ""
+      return valBool(true)
+  return valBool(false)
+
+proc nimini_widgetGetLastClicked(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the ID of the last clicked widget and clear it
+  let result = gLastClickedWidget
+  gLastClickedWidget = ""
+  return valString(result)
+
+proc nimini_widgetManagerUpdate(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update widget manager. Args: dt (float, optional)
+  let dt = if args.len > 0 and args[0].kind == vkFloat: args[0].f else: 0.016
+  if not gWidgetManager.isNil:
+    gWidgetManager.update(dt)
+  return valNil()
+
+proc nimini_widgetManagerRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Render widgets to a layer. Args: layerId (string, optional, default "foreground")
+  let layerId = if args.len > 0: args[0].s else: "foreground"
+  
+  if not gWidgetManager.isNil and not gAppState.isNil:
+    # Find the layer
+    for layer in gAppState.layers:
+      if layer.id == layerId:
+        gWidgetManager.render(layer)
+        break
+  
+  return valNil()
+
+proc nimini_widgetManagerHandleInput(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle input event with widget manager. 
+  ## The event is available in the environment from the input lifecycle
+  ## Returns: bool (true if event was consumed)
+  
+  if gWidgetManager.isNil:
+    return valBool(false)
+  
+  # Get the event from the environment - it should be set by executeCodeBlock
+  # Use getVar to walk the scope chain (event is in child scope!)
+  let eventVar = getVar(env, "event")
+  if eventVar.kind == vkNil:
+    return valBool(false)
+  
+  # We need to decode the event back into an InputEvent
+  # For now, we'll handle basic keyboard and mouse events
+  if eventVar.kind != vkMap:
+    return valBool(false)
+  
+  let eventMap = eventVar.map
+  let eventType = if eventMap.hasKey("type"): eventMap["type"].s else: ""
+  
+  # Create an InputEvent based on the type
+  var inputEvent: InputEvent
+  
+  case eventType
+  of "key":
+    let keyCode = if eventMap.hasKey("keyCode"): eventMap["keyCode"].i else: 0
+    let action = if eventMap.hasKey("action"): eventMap["action"].s else: "press"
+    
+    inputEvent = InputEvent(
+      kind: KeyEvent,
+      keyCode: keyCode,
+      keyAction: case action
+        of "press": Press
+        of "release": Release
+        of "repeat": Repeat
+        else: Press,
+      keyMods: {}  # TODO: decode modifiers if needed
+    )
+  
+  of "mouse":
+    let x = if eventMap.hasKey("x"): eventMap["x"].i else: 0
+    let y = if eventMap.hasKey("y"): eventMap["y"].i else: 0
+    let button = if eventMap.hasKey("button"): eventMap["button"].s else: "left"
+    let action = if eventMap.hasKey("action"): eventMap["action"].s else: "press"
+    
+    inputEvent = InputEvent(
+      kind: MouseEvent,
+      mouseX: x,
+      mouseY: y,
+      button: case button
+        of "left": Left
+        of "right": Right
+        of "middle": Middle
+        of "scroll_up": ScrollUp
+        of "scroll_down": ScrollDown
+        else: Unknown,
+      action: case action
+        of "press": Press
+        of "release": Release
+        of "repeat": Repeat
+        else: Press,
+      mods: {}  # TODO: decode modifiers if needed
+    )
+  
+  of "mouse_move":
+    let x = if eventMap.hasKey("x"): eventMap["x"].i else: 0
+    let y = if eventMap.hasKey("y"): eventMap["y"].i else: 0
+    
+    inputEvent = InputEvent(
+      kind: MouseMoveEvent,
+      moveX: x,
+      moveY: y,
+      moveMods: {}  # TODO: decode modifiers if needed
+    )
+  
+  else:
+    return valBool(false)
+  
+  # Pass the event to the widget manager
+  let consumed = gWidgetManager.handleInput(inputEvent)
+  return valBool(consumed)
+
+# ================================================================
 # CANVAS SYSTEM WRAPPERS
 # ================================================================
 
@@ -502,6 +832,8 @@ proc encodeInputEvent(event: InputEvent): Value =
   of TextEvent:
     table["type"] = valString("text")
     table["text"] = valString(event.text)
+    # Include character code for first character (useful for key handling)
+    table["keyCode"] = if event.text.len > 0: valInt(int(event.text[0])) else: valInt(0)
   
   of MouseEvent:
     table["type"] = valString("mouse")
@@ -836,6 +1168,12 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_enableMouse, nimini_disableMouse,
     nimini_initCanvas,
     nimini_defaultStyle, nimini_getStyle,
+    # TUI widget system
+    nimini_tuiTest, nimini_newWidgetManager,
+    nimini_newLabel, nimini_newButton, nimini_newCheckBox, nimini_newRadioButton, nimini_newSlider,
+    nimini_widgetSetText, nimini_widgetGetValue, nimini_widgetSetValue, nimini_widgetSetCallback,
+    nimini_widgetWasClicked, nimini_widgetGetLastClicked,
+    nimini_widgetManagerUpdate, nimini_widgetManagerRender, nimini_widgetManagerHandleInput,
     # Animation/transition helpers (simple, safe)
     nimini_newTransition, nimini_updateTransition, nimini_transitionProgress,
     nimini_transitionEasedProgress, nimini_transitionIsActive, nimini_resetTransition,
@@ -871,6 +1209,60 @@ proc createNiminiContext(state: AppState): NiminiContext =
   let ctx = NiminiContext(env: runtimeEnv)
   
   return ctx
+
+proc executeInputCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState, event: InputEvent): tuple[success: bool, consumed: bool] =
+  ## Execute an input code block and return both success status and event consumption
+  ## Returns (true, true/false) on success with event consumption status
+  ## Returns (false, false) on error
+  if codeBlock.code.strip().len == 0:
+    return (true, false)
+  
+  try:
+    # Build a wrapper that includes state access
+    var scriptCode = ""
+    
+    # Add state field accessors as local variables
+    scriptCode.add("var termWidth = " & $state.termWidth & "\n")
+    scriptCode.add("var termHeight = " & $state.termHeight & "\n")
+    scriptCode.add("var fps = " & formatFloat(state.fps, ffDecimal, 2) & "\n")
+    scriptCode.add("var frameCount = " & $state.frameCount & "\n")
+    scriptCode.add("var deltaTime = 0.0\n")  # Not used in input blocks
+    scriptCode.add("\n")
+    
+    # Add user code
+    scriptCode.add(codeBlock.code)
+    
+    let tokens = tokenizeDsl(scriptCode)
+    let program = parseDsl(tokens)
+    
+    # Input blocks run in child scope
+    let execEnv = newEnv(context.env)
+    
+    # Expose the event object
+    let eventValue = encodeInputEvent(event)
+    defineVar(execEnv, "event", eventValue)
+    
+    # Execute and capture return value
+    let returnValue = execProgramWithResult(program, execEnv)
+    
+    # Check if event was consumed
+    # Scripts return 1 (or true) to indicate consumption, 0 (or false) otherwise
+    var consumed = false
+    case returnValue.kind
+    of vkInt:
+      consumed = returnValue.i != 0
+    of vkBool:
+      consumed = returnValue.b
+    else:
+      consumed = false
+    
+    return (true, consumed)
+  except Exception as e:
+    when not defined(emscripten):
+      echo "Error in input block: ", e.msg
+    when defined(emscripten):
+      lastError = "Error in on:input - " & e.msg
+    return (false, false)
 
 proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppState, event: InputEvent = InputEvent(), deltaTime: float = 0.0): bool =
   ## Execute a code block using Nimini
@@ -991,6 +1383,25 @@ proc loadAndParseMarkdown(): MarkdownDocument =
 # INITIALIZE CONTEXT AND LAYERS
 # ================================================================
 
+proc exposeFrontMatterVariables*() =
+  ## Expose front matter variables to the Nimini environment as globals
+  ## This must be called after the Nimini context is created and after
+  ## frontMatter is populated
+  if storieCtx.isNil or storieCtx.niminiContext.isNil:
+    return
+  
+  for key, value in storieCtx.frontMatter.pairs:
+    # Try to parse as number first, otherwise store as string
+    try:
+      let numVal = parseFloat(value)
+      if '.' in value:
+        setGlobal(key, valFloat(numVal))
+      else:
+        setGlobal(key, valInt(numVal.int))
+    except:
+      # Not a number, store as string
+      setGlobal(key, valString(value))
+
 proc initStorieContext(state: AppState) =
   ## Initialize the Storie context, parse Markdown, and set up layers
   if storieCtx.isNil:
@@ -1054,17 +1465,7 @@ proc initStorieContext(state: AppState) =
   registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   
   # Expose front matter to user scripts as global variables
-  for key, value in storieCtx.frontMatter.pairs:
-    # Try to parse as number first, otherwise store as string
-    try:
-      let numVal = parseFloat(value)
-      if '.' in value:
-        setGlobal(key, valFloat(numVal))
-      else:
-        setGlobal(key, valInt(numVal.int))
-    except:
-      # Not a number, store as string
-      setGlobal(key, valString(value))
+  exposeFrontMatterVariables()
   
   # Execute init code blocks
   when not defined(emscripten):
@@ -1239,22 +1640,25 @@ proc inputHandler(state: AppState, event: InputEvent): bool =
       when not defined(emscripten):
         echo "Error in global input handler '", handler.name, "': ", e.msg
   
-  # Default quit behavior (Q or ESC)
-  if event.kind == KeyEvent and event.keyAction == Press:
-    if event.keyCode == ord('q') or event.keyCode == ord('Q') or event.keyCode == INPUT_ESCAPE:
-      state.running = false
-      return true
+  # 2. Execute section-specific on:input blocks
+  for codeBlock in storieCtx.codeBlocks:
+    if codeBlock.lifecycle == "input":
+      let (success, consumed) = executeInputCodeBlock(storieCtx.niminiContext, codeBlock, state, event)
+      if success and consumed:
+        return true
+  
+  # 3. Default handlers (only if not consumed by user code)
   
   # Handle canvas input if canvas is initialized
   if not canvasState.isNil and event.kind == KeyEvent and event.keyAction == Press:
     if canvasHandleKey(event.keyCode, {}):
       return true
   
-  # 2. Execute section-specific on:input blocks
-  for codeBlock in storieCtx.codeBlocks:
-    if codeBlock.lifecycle == "input":
-      if executeCodeBlock(storieCtx.niminiContext, codeBlock, state, event):
-        return true
+  # Default quit behavior (Q or ESC)
+  if event.kind == KeyEvent and event.keyAction == Press:
+    if event.keyCode == ord('q') or event.keyCode == ord('Q') or event.keyCode == INPUT_ESCAPE:
+      state.running = false
+      return true
   
   return false
 

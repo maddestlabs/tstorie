@@ -883,7 +883,10 @@ proc nimini_removeSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   removeSection(args[0].s)
   return valNil()
-
+# Test function for TUI
+proc nimini_tuiTestInCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Test if canvas location works for TUI functions
+  return valString("TUI test from canvas.nim works!")
 proc nimini_restoreSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Restore a removed section. Args: sectionRef (string)
   if args.len == 0:

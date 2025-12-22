@@ -3,6 +3,9 @@
 ## 
 ## Note: This module expects Color, Style, AppState, Layer, and color functions
 ## (white, blue, yellow, black) to be available from the importing/including context.
+##
+## NOTE: Button and other interactive widgets have been moved to lib/tui.nim
+## This module now contains only simple drawing utilities.
 
 # ================================================================
 # BOX DRAWING
@@ -63,43 +66,6 @@ proc drawBoxOnLayer*(layer: Layer, x, y, w, h: int, style: Style, title: string 
   for i in 1 ..< w-1:
     layer.buffer.write(x + i, y + h - 1, "─", style)
   layer.buffer.write(x + w - 1, y + h - 1, "┘", style)
-
-# ================================================================
-# BUTTON COMPONENT
-# ================================================================
-
-type
-  Button* = object
-    x*, y*: int
-    width*, height*: int
-    label*: string
-    style*: Style
-    hoverStyle*: Style
-    pressed*: bool
-
-proc newButton*(x, y, width, height: int, label: string): Button =
-  result.x = x
-  result.y = y
-  result.width = width
-  result.height = height
-  result.label = label
-  result.style = Style(fg: white(), bg: blue(), bold: false)
-  result.hoverStyle = Style(fg: yellow(), bg: blue(), bold: true)
-
-proc contains*(btn: Button, x, y: int): bool =
-  ## Check if coordinates are inside button
-  x >= btn.x and x < btn.x + btn.width and
-  y >= btn.y and y < btn.y + btn.height
-
-proc render*(btn: Button, state: AppState, isHovered: bool = false) =
-  ## Render button to current buffer
-  let style = if isHovered: btn.hoverStyle else: btn.style
-  state.currentBuffer.fillRect(btn.x, btn.y, btn.width, btn.height, " ", style)
-  
-  # Center label
-  let labelX = btn.x + (btn.width - btn.label.len) div 2
-  let labelY = btn.y + btn.height div 2
-  state.currentBuffer.writeText(labelX, labelY, btn.label, style)
 
 # ================================================================
 # PROGRESS BAR

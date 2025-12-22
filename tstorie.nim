@@ -1778,6 +1778,22 @@ when defined(emscripten):
     # Call inputHandler directly (defined in index.nim via include)
     discard inputHandler(globalState, event)
   
+  proc emHandleMouseRelease(x, y, button, shift, alt, ctrl: int) {.exportc.} =
+    var mods: set[uint8] = {}
+    if shift != 0: mods.incl ModShift
+    if alt != 0: mods.incl ModAlt
+    if ctrl != 0: mods.incl ModCtrl
+    
+    let mouseButton = case button
+      of 0: Left
+      of 1: Middle
+      of 2: Right
+      else: Unknown
+    
+    let event = InputEvent(kind: MouseEvent, button: mouseButton, mouseX: x, mouseY: y, mods: mods, action: Release)
+    # Call inputHandler directly (defined in index.nim via include)
+    discard inputHandler(globalState, event)
+  
   proc emHandleMouseMove(x, y: int) {.exportc.} =
     globalState.lastMouseX = x
     globalState.lastMouseY = y
@@ -1865,6 +1881,9 @@ when defined(emscripten):
         storieCtx.sectionMgr = newSectionManager(doc.sections)
         storieCtx.frontMatter = doc.frontMatter
         storieCtx.styleSheet = doc.styleSheet
+        
+        # Expose front matter variables to Nimini environment
+        exposeFrontMatterVariables()
         
         # Clear all layer buffers
         for layer in globalState.layers:

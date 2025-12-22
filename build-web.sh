@@ -161,7 +161,7 @@ NIM_OPTS="c
 
 # Emscripten flags
 export EMCC_CFLAGS="-s ALLOW_MEMORY_GROWTH=1 \
-  -s EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseMove','_emSetWaitingForGist','_emLoadMarkdownFromJS'] \
+  -s EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseRelease','_emHandleMouseMove','_emSetWaitingForGist','_emLoadMarkdownFromJS'] \
   -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','allocateUTF8','UTF8ToString','lengthBytesUTF8','stringToUTF8'] \
   -s MODULARIZE=0 \
   -s EXPORT_NAME='Module' \

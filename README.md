@@ -4,9 +4,13 @@ Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with
 
 Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
 
-Examples on GitHub Gist:
+Demos on GitHub Gist:
 - [tstorie_clock.nim](https://maddestlabs.github.io/tstorie?gist=3916b876cf87fc3db21171b76a512b65) | [Source Gist](https://gist.github.com/R3V1Z3/3916b876cf87fc3db21171b76a512b65)
 - [depths.nim](https://maddestlabs.github.io/tstorie?gist=79972b01bd5f3464da200fd5f8e0fd10) | [Source Gist](https://gist.github.com/R3V1Z3/79972b01bd5f3464da200fd5f8e0fd10)
+
+Core example Gists:
+- [tstorie-layout.nim](https://maddestlabs.github.io/tstorie?gist=801231910431b8415da0c91f03bc5dad) | [Source Gist](https://gist.github.com/R3V1Z3/801231910431b8415da0c91f03bc5dad)
+- [tstorie-tui.nim](https://maddestlabs.github.io/tstorie?gist=6ad7540692053f1c1406bf27d3a8b490) | [Source Gist](https://gist.github.com/R3V1Z3/6ad7540692053f1c1406bf27d3a8b490)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 

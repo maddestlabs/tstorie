@@ -1,24 +1,26 @@
-# Styles Demo
-
-This example demonstrates tstorie's new style system with front matter configuration.
-
 ---
+title: "Style System Demo"
 targetFPS: 30
-styles.default.fg: "255,255,255"
-styles.default.bg: "0,0,0"
-styles.heading1.fg: "255,255,0"
+styles.default.fg: "#FFFFFF"
+styles.default.bg: "#000000"
+styles.heading1.fg: "#FFFF00"
 styles.heading1.bold: "true"
-styles.heading2.fg: "0,255,255"
+styles.heading2.fg: "#00FFFF"
 styles.heading2.bold: "true"
-styles.success.fg: "0,255,0"
+styles.success.fg: "#00FF00"
 styles.success.bold: "true"
-styles.error.fg: "255,0,0"
+styles.error.fg: "#FF0000"
 styles.error.bold: "true"
-styles.warning.fg: "255,165,0"
-styles.info.fg: "100,200,255"
-styles.muted.fg: "128,128,128"
+styles.warning.fg: "#FFA500"
+styles.info.fg: "#64C8FF"
+styles.muted.fg: "#808080"
 styles.muted.dim: "true"
 ---
+
+# Styles Demo
+
+This example demonstrates tstorie's style system with front matter configuration.
+
 
 ```nim on:init
 var counter = 0
