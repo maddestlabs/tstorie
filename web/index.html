@@ -94,10 +94,11 @@
         // Parse URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const gistId = urlParams.get('gist');
+        const demoName = urlParams.get('demo');
         const fontUrl = urlParams.get('font');
         const shaderGistId = urlParams.get('shader');
         
-        // Gist loading state
+        // Gist/demo loading state
         let gistMarkdown = null;
         let moduleReady = false;
         let gistReady = false;
@@ -106,6 +107,10 @@
         
         if (gistId) {
             console.log('Gist parameter detected:', gistId);
+        }
+        
+        if (demoName) {
+            console.log('Demo parameter detected:', demoName);
         }
         
         if (shaderGistId) {
@@ -161,7 +166,7 @@
             // Only load if both module and gist are ready
             console.log('tryLoadGist called - moduleReady:', moduleReady, 'gistReady:', gistReady, 'hasMarkdown:', !!gistMarkdown);
             if (moduleReady && gistReady && gistMarkdown) {
-                console.log('=== Loading markdown from gist (' + gistMarkdown.length + ' bytes) ===');
+                console.log('=== Loading markdown (' + gistMarkdown.length + ' bytes) ===');
                 try {
                     if (typeof Module.ccall === 'function') {
                         Module.ccall(
@@ -171,7 +176,7 @@
                             [gistMarkdown],
                             { async: false }
                         );
-                        console.log('=== Successfully loaded gist content via ccall ===');
+                        console.log('=== Successfully loaded content via ccall ===');
                         Module.setStatus('');
                     } else if (typeof Module._emLoadMarkdownFromJS === 'function') {
                         // Fallback: manually allocate string in WASM memory
@@ -181,15 +186,15 @@
                         Module.stringToUTF8(gistMarkdown, strPtr, len);
                         Module._emLoadMarkdownFromJS(strPtr);
                         Module._free(strPtr);
-                        console.log('=== Successfully loaded gist content via manual allocation ===');
+                        console.log('=== Successfully loaded content via manual allocation ===');
                         Module.setStatus('');
                     } else {
                         console.error('Module.ccall and Module._emLoadMarkdownFromJS not available');
-                        progress.textContent = 'Error: Gist load function not available';
+                        progress.textContent = 'Error: Load function not available';
                     }
                 } catch (e) {
-                    console.error('Error loading gist markdown:', e);
-                    progress.textContent = 'Error loading gist: ' + e.message;
+                    console.error('Error loading markdown:', e);
+                    progress.textContent = 'Error loading content: ' + e.message;
                 }
             }
         }
@@ -198,7 +203,7 @@
         // This must be available when WASM initializes
         // Use quoted property access to prevent Closure Compiler mangling
         window['urlParamStore'] = {};
-        const specialParams = ['gist', 'font', 'shader'];
+        const specialParams = ['gist', 'demo', 'font', 'shader'];
         for (const [key, value] of urlParams.entries()) {
             if (!specialParams.includes(key)) {
                 window['urlParamStore'][key] = value;
@@ -214,7 +219,7 @@
         };
         
         var Module = {
-            waitingForGist: gistId ? true : false,
+            waitingForGist: (gistId || demoName) ? true : false,
             customFontFamily: window.customFontFamily || null,
             canvas: canvas,
             print: function(text) {
@@ -234,9 +239,9 @@
             onRuntimeInitialized: async function() {
                 moduleReady = true;
                 
-                // Set waiting flag if gist is present (must be done before init)
-                if (gistId) {
-                    console.log('Setting wait flag for gist before initialization');
+                // Set waiting flag if gist or demo is present (must be done before init)
+                if (gistId || demoName) {
+                    console.log('Setting wait flag for content before initialization');
                     try {
                         if (typeof Module._emSetWaitingForGist === 'function') {
                             Module._emSetWaitingForGist();
@@ -260,8 +265,8 @@
                     initShaderSystem();
                 }
                 
-                // Try loading gist if it's ready
-                if (gistId) {
+                // Try loading content if it's ready
+                if (gistId || demoName) {
                     tryLoadGist();
                 } else {
                     Module.setStatus('');
@@ -309,6 +314,37 @@
                 });
         }
         
+        // Fetch demo from local server if specified
+        if (demoName) {
+            progress.textContent = 'Loading demo ' + demoName + '...';
+            
+            // Add .md extension if not present
+            var demoFile = demoName.endsWith('.md') ? demoName : demoName + '.md';
+            var demoUrl = 'demos/' + demoFile;
+            
+            fetch(demoUrl)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Demo not found (HTTP ' + response.status + ')');
+                    }
+                    return response.text();
+                })
+                .then(function(content) {
+                    console.log('Loaded demo file:', demoFile, '(' + content.length + ' bytes)');
+                    gistMarkdown = content;
+                    gistReady = true;
+                    progress.textContent = 'Loaded ' + demoFile + ', starting...';
+                    
+                    // Try loading demo if module is ready
+                    tryLoadGist();
+                })
+                .catch(function(error) {
+                    console.error('Error loading demo:', error);
+                    progress.textContent = 'Error loading demo: ' + error.message;
+                    gistMarkdown = null;
+                });
+        }
+        
         // Fetch shader if specified
         if (shaderGistId) {
             progress.textContent = 'Loading shader ' + shaderGistId + '...';
@@ -352,6 +388,7 @@
         }
         
         console.log('Load from gist with URL parameter: ?gist=YOUR_GIST_ID');
+        console.log('Load local demo with URL parameter: ?demo=demo_name (or ?demo=demo_name.md)');
         console.log('Use custom font with: ?font=Font+Name or ?font=FULL_GOOGLE_FONTS_URL');
         console.log('Apply shader effect with: ?shader=SHADER_GIST_ID');
     </script>

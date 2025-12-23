@@ -210,6 +210,12 @@ if [ "$OUTPUT_DIR" != "web" ]; then
         cp index.md "$OUTPUT_DIR/index.md"
         echo "  - $OUTPUT_DIR/index.md (runtime content)"
     fi
+    # Copy demos directory if it exists and we're building for docs/
+    if [ "$OUTPUT_DIR" = "docs" ] && [ -d "examples" ]; then
+        mkdir -p "$OUTPUT_DIR/demos"
+        cp examples/*.md "$OUTPUT_DIR/demos/" 2>/dev/null || true
+        echo "  - $OUTPUT_DIR/demos/ (example files for local loading)"
+    fi
 else
     echo "  - $OUTPUT_DIR/tstorie.js (JavaScript interface)"
     echo "  - $OUTPUT_DIR/index.html (HTML template)"

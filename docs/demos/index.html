@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TStorie Demos</title>
+    <style>
+        @font-face {
+            font-family: 'FiraCode';
+            src: url('../assets/FiraCodeNerdFont-Regular.ttf') format('truetype');
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            color: #00ff00;
+            font-family: 'FiraCode', 'Consolas', 'Monaco', monospace;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #00ff00;
+            border-bottom: 2px solid #00ff00;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        h2 {
+            color: #00cc00;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .intro {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+        
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .demo-card {
+            background: #1a1a1a;
+            border: 1px solid #00aa00;
+            padding: 15px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        
+        .demo-card:hover {
+            border-color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .demo-card h3 {
+            color: #00ff00;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        
+        .demo-card p {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        
+        .demo-card a {
+            color: #00ff00;
+            text-decoration: none;
+            border: 1px solid #00aa00;
+            padding: 5px 10px;
+            display: inline-block;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        
+        .demo-card a:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            color: #00ff00;
+            text-decoration: none;
+            border: 1px solid #00aa00;
+            padding: 8px 15px;
+            border-radius: 3px;
+        }
+        
+        .back-link:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        code {
+            background: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #00ff00;
+            font-size: 0.9em;
+        }
+        
+        .info-box {
+            background: #1a3a1a;
+            border-left: 4px solid #00ff00;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 TStorie Demos</h1>
+    
+    <div class="intro">
+        <p>Welcome to the TStorie demo collection! These examples showcase various features of the TStorie terminal engine. Click any demo to run it in your browser.</p>
+    </div>
+    
+    <h2>🎵 Audio Examples</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>Audio Demo</h3>
+            <p>Audio generation and playback</p>
+            <a href="../?demo=audio_demo">Run Demo →</a>
+        </div>
+    </div>
+    
+    <h2>🎨 Canvas & Graphics</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>Canvas Demo</h3>
+            <p>Basic canvas drawing operations</p>
+            <a href="../?demo=canvas_demo">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Rainclock</h3>
+            <p>Animated rain effect with clock</p>
+            <a href="../?demo=rainclock">Run Demo →</a>
+        </div>
+    </div>
+    
+    <h2>💻 Terminal UI (TUI)</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>TUI Simple</h3>
+            <p>Simple terminal user interface</p>
+            <a href="../?demo=tui_simple">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>TUI Button</h3>
+            <p>Interactive button components</p>
+            <a href="../?demo=tui_button">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Button Test</h3>
+            <p>Button interaction testing</p>
+            <a href="../?demo=button_test">Run Demo →</a>
+        </div>
+    </div>
+    
+    <h2>✨ Animations & Effects</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>Clock</h3>
+            <p>Animated clock display</p>
+            <a href="../?demo=clock">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Transitions</h3>
+            <p>Transition effects between scenes</p>
+            <a href="../?demo=transitions">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Depths</h3>
+            <p>Layering and depth management</p>
+            <a href="../?demo=depths">Run Demo →</a>
+        </div>
+    </div>
+    
+    <h2>📐 Layout & Styling</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>Layout</h3>
+            <p>Layout system demonstration</p>
+            <a href="../?demo=layout">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Styles</h3>
+            <p>Text styling and formatting</p>
+            <a href="../?demo=styles">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Sections Demo</h3>
+            <p>Section management</p>
+            <a href="../?demo=sections_demo">Run Demo →</a>
+        </div>
+    </div>
+    
+    <h2>🎮 Events & Interaction</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>Mouse Events</h3>
+            <p>Mouse event handling</p>
+            <a href="../?demo=events_mouse">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Keyboard Events</h3>
+            <p>Keyboard event handling</p>
+            <a href="../?demo=events_keys">Run Demo →</a>
+        </div>
+    </div>
+    
+    <h2>🚀 Advanced</h2>
+    <div class="demo-grid">
+        <div class="demo-card">
+            <h3>Scoping</h3>
+            <p>Variable scoping examples</p>
+            <a href="../?demo=scoping">Run Demo →</a>
+        </div>
+        <div class="demo-card">
+            <h3>Dungen</h3>
+            <p>Dungeon generation algorithm</p>
+            <a href="../?demo=dungen">Run Demo →</a>
+        </div>
+    </div>
+    
+    <div class="info-box">
+        <h2>💡 How to Use</h2>
+        <p>You can also access demos directly using URL parameters:</p>
+        <p><code>?demo=demo_name</code> - Load a specific demo</p>
+        <p><code>?gist=YOUR_GIST_ID</code> - Load from GitHub Gist</p>
+        <p><code>?font=Font+Name</code> - Use custom font</p>
+        <p><code>?shader=SHADER_GIST_ID</code> - Apply shader effect</p>
+    </div>
+    
+    <a href="../" class="back-link">← Back to Main App</a>
+</body>
+</html>
