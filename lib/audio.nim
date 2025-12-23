@@ -3,9 +3,17 @@
 # ================================================================
 # Platform-agnostic audio playback for procedurally generated sounds
 # Uses Web Audio API for WASM, miniaudio for native builds
+#
+# This module provides TWO APIs:
+# 1. Simple procedural API (legacy): playTone(), playJump(), etc.
+# 2. Node-based API: Full Web Audio-style node graph (see audio_nodes.nim)
 
 import audio_gen
 import tables
+
+# Export the node-based API
+import audio_nodes
+export audio_nodes
 
 when not defined(emscripten):
   import miniaudio_bindings

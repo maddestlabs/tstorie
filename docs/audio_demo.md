@@ -1,12 +1,12 @@
 ---
-title: "The Depths of Khel-Daran"
+title: "TStorie Audio Demo"
 author: "Maddest Labs"
 targetFPS: 60
 ---
 
 # Procedural Audio Demo
 
-Test procedural sound generation in TStorie!
+Test procedural sound generation!
 
 Press keys to trigger sounds:
 - **J** - Jump sound
@@ -17,11 +17,10 @@ Press keys to trigger sounds:
 - **1-5** - Musical notes
 
 ```nim on:init
-# Audio system is automatically initialized by TStorie
 # Track what's playing for visual feedback
 var lastSound = "none"
 var soundTimer = 0.0
-var frameTime = 1.0 / 60.0  # Approximate frame time
+var frameTime = 1.0 / 60.0
 ```
 
 ```nim on:render
@@ -53,13 +52,11 @@ if soundTimer > 0.0:
   bgWriteText(2, 20, "Playing: " & lastSound)
 
 # Info
-bgWriteText(2, 23, "Audio ready - press keys to play sounds!")
+bgWriteText(2, 23, "Audio ready - press keys!")
 ```
 
 ```nim on:input
-# Handle keyboard events through the input lifecycle
 if event.type == "text":
-  # Handle text input (alphanumeric keys)
   var ch = event.text
   
   if ch == "j" or ch == "J":
@@ -83,21 +80,35 @@ if event.type == "text":
     soundTimer = 1.0
   
   elif ch == "1":
-    audioPlayBleep(261.63)  # C note
+    audioPlayBleep(261.63)
     lastSound = "Note: C"
     soundTimer = 1.0
   
   elif ch == "2":
-    audioPlayBleep(293.66)  # D note
+    audioPlayBleep(293.66)
     lastSound = "Note: D"
     soundTimer = 1.0
   
   elif ch == "3":
-    audioPlayBleep(329.63)  # E note
+    audioPlayBleep(329.63)
     lastSound = "Note: E"
     soundTimer = 1.0
   
   elif ch == "4":
+    audioPlayBleep(349.23)
+    lastSound = "Note: F"
+    soundTimer = 1.0
+  
+  elif ch == "5":
+    audioPlayBleep(392.00)
+    lastSound = "Note: G"
+    soundTimer = 1.0
+
+elif event.type == "keydown" and event.key == "Space":
+  audioPlayLaser()
+  lastSound = "Laser"
+  soundTimer = 1.0
+```
     audioPlayBleep(349.23)  # F note
     lastSound = "Note: F"
     soundTimer = 1.0
