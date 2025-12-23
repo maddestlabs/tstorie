@@ -1,6 +1,7 @@
 import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 import nimini
+import nimini/stdlib/params
 import lib/storie_types
 import lib/audio_gen
 
@@ -1641,6 +1642,11 @@ when defined(emscripten):
   var lastRenderExecutedCount*: int = -1
   var lastError*: string = ""
   
+  # Store URL params locally until runtime is initialized
+  var wasmPendingParams: seq[(string, string)] = @[]
+  var gEmSetUrlParamCalls: int = 0
+  var gFlushWasmParamsCalls: int = 0
+  
   # For WASM builds, we need to include the user file logic
   # Define callback variables (proc variables) like native builds
   var onInit*: proc(state: AppState) = nil
@@ -1711,6 +1717,29 @@ when defined(emscripten):
     if not onShutdown.isNil:
       onShutdown(state)
   
+  proc flushWasmParams() =
+    ## Flush pending WASM params to the nimini runtime
+    gFlushWasmParamsCalls.inc
+    
+    if runtimeEnv.isNil:
+      return
+    
+    # Store debug info about execution
+    defineVar(runtimeEnv, "_emset_calls", valString($gEmSetUrlParamCalls))
+    defineVar(runtimeEnv, "_flush_calls", valString($gFlushWasmParamsCalls))
+    defineVar(runtimeEnv, "_flush_count", valString($wasmPendingParams.len))
+    
+    if wasmPendingParams.len == 0:
+      defineVar(runtimeEnv, "_flush_status", valString("empty_array"))
+      return
+    
+    for (name, value) in wasmPendingParams:
+      setParam(name, value)
+      # Also set a debug flag directly in runtime to confirm flushing worked
+      defineVar(runtimeEnv, "_wasm_flushed_" & name, valString(value))
+    
+    defineVar(runtimeEnv, "_flush_status", valString("flushed_" & $wasmPendingParams.len))
+  
   proc emInit(width, height: int) {.exportc.} =
     globalState = new(AppState)
     globalState.termWidth = width
@@ -1729,6 +1758,9 @@ when defined(emscripten):
     
     # Call initStorieContext directly (callback system doesn't work in WASM)
     initStorieContext(globalState)
+    
+    # Flush any URL params that were set before initialization
+    flushWasmParams()
   
   proc emUpdate(deltaMs: float) {.exportc.} =
     let dt = deltaMs / 1000.0
@@ -1923,6 +1955,16 @@ when defined(emscripten):
     if storieCtx.isNil:
       storieCtx = StorieContext()
   
+  proc jsGetUrlParam(name: cstring): cstring {.importc.} =
+    ## Call JavaScript to retrieve a URL parameter
+    ## JavaScript side: window.jsGetUrlParam(name)
+    discard
+  
+  proc emGetUrlParam(name: cstring): cstring {.exportc.} =
+    ## Called from Nim to get URL parameter from JavaScript
+    ## This bridges to window.jsGetUrlParam()
+    return jsGetUrlParam(name)
+  
   proc emLoadGistCode(moduleRef: cstring, code: cstring) {.exportc.} =
     ## Called by JavaScript after fetching a gist file
     ## Stores the code for later compilation by requireModule
@@ -1991,6 +2033,9 @@ when defined(emscripten):
       if not storieCtx.isNil and not storieCtx.niminiContext.isNil:
         gWaitingForGist = false
         
+        # Flush WASM params before executing init blocks
+        flushWasmParams()
+        
         # Replace the code blocks and sections
         storieCtx.codeBlocks = doc.codeBlocks
         storieCtx.sectionMgr = newSectionManager(doc.sections)
@@ -2021,21 +2066,34 @@ proc showHelp() =
   echo "Terminal-based interactive fiction engine"
   echo ""
   echo "Usage:"
-  echo "  tstorie [OPTIONS] [FILE]"
+  echo "  tstorie [OPTIONS] [FILE] [PARAMS...]"
   echo ""
   echo "Arguments:"
   echo "  FILE                  Markdown file to run (default: index.md)"
+  echo "  PARAMS                Custom parameters as key=value pairs"
   echo ""
   echo "Options:"
   echo "  -h, --help            Show this help message"
   echo "  -v, --version         Show version information"
   echo "  --fps <num>           Set target FPS (default 60; Windows non-WT default 30)"
   echo "                        Can also use STORIE_TARGET_FPS env var"
+  echo "  --<key>=<value>       Custom parameter (accessible via getParam/hasParam)"
+  echo ""
+  echo "Custom Parameters:"
+  echo "  Scripts can access custom parameters using:"
+  echo "    hasParam(\"name\")     - Check if parameter exists"
+  echo "    getParam(\"name\")     - Get parameter as string"
+  echo "    getParamInt(\"name\", default) - Get parameter as integer"
   echo ""
   echo "Examples:"
   echo "  tstorie                              # Run index.md"
   echo "  tstorie depths.md                    # Run depths.md"
+  echo "  tstorie examples/dungen.md seed=12345  # Run with seed parameter"
+  echo "  tstorie examples/dungen.md --seed=12345  # Same using --option format"
   echo "  tstorie examples/canvas_demo.md      # Run a demo"
+  echo ""
+  echo "Web Usage (URL parameters):"
+  echo "  https://example.com/?seed=12345      # Parameters passed via URL"
   echo "  tstorie --fps 30 my_story.md         # Run with custom FPS"
   echo ""
 
@@ -2043,6 +2101,7 @@ proc main() =
   var p = initOptParser()
   var cliFps: float = 0.0
   var mdFile: string = ""
+  var customParams: seq[(string, string)] = @[]
   
   for kind, key, val in p.getopt():
     case kind
@@ -2054,22 +2113,6 @@ proc main() =
       of "version", "v":
         echo "storie version " & version
         quit(0)
-      else:
-        echo "Unknown option: " & key
-        echo "Use --help for usage information"
-        quit(1)
-    of cmdArgument:
-      # First positional argument is the markdown file
-      if mdFile.len == 0:
-        mdFile = key
-      else:
-        echo "Only one markdown file can be specified"
-        echo "Use --help for usage information"
-        quit(1)
-    else: discard
-    # Handle long option with value (e.g., --fps 30 or --fps=30)
-    if kind in {cmdLongOption, cmdShortOption}:
-      case key
       of "fps":
         if val.len == 0:
           echo "--fps requires a value (e.g., --fps 30)"
@@ -2083,7 +2126,33 @@ proc main() =
         except:
           echo "Invalid --fps value: " & val
           quit(1)
-      else: discard
+      else:
+        # Custom parameter (e.g., --seed=12345 or --width=100)
+        if val.len > 0:
+          customParams.add((key, val))
+        else:
+          echo "Unknown option: " & key
+          echo "Use --help for usage information"
+          quit(1)
+    of cmdArgument:
+      # First positional argument is the markdown file
+      if mdFile.len == 0:
+        mdFile = key
+      else:
+        # Additional arguments as key=value pairs (e.g., seed=12345)
+        let parts = key.split('=', maxsplit=1)
+        if parts.len == 2:
+          customParams.add((parts[0], parts[1]))
+        else:
+          echo "Only one markdown file can be specified"
+          echo "Additional arguments should be key=value pairs (e.g., seed=12345)"
+          echo "Use --help for usage information"
+          quit(1)
+    else: discard
+  
+  # Store custom parameters in nimini stdlib
+  for (key, val) in customParams:
+    setParam(key, val)
   
   # Set the markdown file if specified
   if mdFile.len > 0:

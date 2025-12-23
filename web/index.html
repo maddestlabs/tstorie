@@ -194,6 +194,25 @@
             }
         }
         
+        // Set up URL parameter store BEFORE Module loads
+        // This must be available when WASM initializes
+        // Use quoted property access to prevent Closure Compiler mangling
+        window['urlParamStore'] = {};
+        const specialParams = ['gist', 'font', 'shader'];
+        for (const [key, value] of urlParams.entries()) {
+            if (!specialParams.includes(key)) {
+                window['urlParamStore'][key] = value;
+                console.log('Pre-initialized URL param:', key, '=', value);
+            }
+        }
+        
+        // Provide getter function for Nim to call (MUST exist before WASM loads)
+        window['jsGetUrlParam'] = function(name) {
+            const value = window['urlParamStore'][name] || '';
+            console.log('[JS] jsGetUrlParam(' + name + ') returning:', value);
+            return value;
+        };
+        
         var Module = {
             waitingForGist: gistId ? true : false,
             customFontFamily: window.customFontFamily || null,

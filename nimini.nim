@@ -56,8 +56,8 @@ export nim_extensions  # Nim-specific language extensions (autopragma features)
 export seqops
 
 # Import stdlib modules
-import nimini/stdlib/[mathops, typeconv, collections, random]
-export mathops, typeconv, collections, random
+import nimini/stdlib/[mathops, typeconv, collections, random, params]
+export mathops, typeconv, collections, random, params
 
 # Initialize standard library - must be called after initRuntime()
 proc initStdlib*() =
@@ -97,6 +97,14 @@ proc initStdlib*() =
   registerNative("sample", niminiSample)
   registerNative("choice", niminiChoice)
   registerNative("shuffle", niminiShuffle)
+  
+  # Parameters (command-line args and URL params)
+  registerNative("getParam", niminiGetParam)
+  registerNative("hasParam", niminiHasParam)
+  registerNative("getParamInt", niminiGetParamInt)
+  
+  # Flush any params that were set before runtime was initialized
+  flushPendingParams()
   
   # Type conversion functions
   registerNative("int", niminiToInt)

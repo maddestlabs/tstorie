@@ -172,6 +172,7 @@ NIM_OPTS="c
   --passL:-Os
   --passL:-flto
   --passL:--js-library --passL:web/audio_bridge.js
+  --passL:--js-library --passL:url_params.js
   --passL:--closure --passL:1
   -o:$OUTPUT_DIR/tstorie.wasm.js
   tstorie.nim"
