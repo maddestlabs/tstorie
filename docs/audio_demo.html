@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TStorie Audio Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        #terminal {
+            background-color: #000;
+            padding: 20px;
+            border-radius: 5px;
+            min-height: 400px;
+            white-space: pre;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        h1 {
+            color: #00ff00;
+            text-align: center;
+        }
+        
+        .info {
+            background-color: #2a2a2a;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .info h2 {
+            margin-top: 0;
+            color: #00aaff;
+        }
+        
+        .status {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            background-color: #2a2a2a;
+        }
+        
+        .loading {
+            border-left: 3px solid #ffaa00;
+            color: #ffaa00;
+        }
+        
+        .ready {
+            border-left: 3px solid #00ff00;
+            color: #00ff00;
+        }
+        
+        .error {
+            border-left: 3px solid #ff0000;
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🎵 TStorie Procedural Audio Demo</h1>
+        
+        <div class="info">
+            <h2>Instructions</h2>
+            <p>Once loaded, press these keys to trigger sounds:</p>
+            <ul>
+                <li><strong>J</strong> - Jump sound</li>
+                <li><strong>L</strong> - Landing sound</li>
+                <li><strong>H</strong> - Hit/damage sound</li>
+                <li><strong>P</strong> - Power-up sound</li>
+                <li><strong>Space</strong> - Laser sound</li>
+                <li><strong>1-5</strong> - Musical notes (C, D, E, F, G)</li>
+            </ul>
+        </div>
+        
+        <div id="status" class="status loading">
+            Loading audio demo...
+        </div>
+        
+        <div id="terminal"></div>
+    </div>
+    
+    <script src="tstorie.js"></script>
+    <script>
+        // Configuration
+        const GIST_ID = ''; // Empty = use local file
+        const MD_FILE = 'audio_demo.md';
+        
+        // Status updates
+        function updateStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+        }
+        
+        // Load the audio demo
+        async function loadDemo() {
+            try {
+                updateStatus('Fetching audio demo markdown...', 'loading');
+                
+                // Fetch from same directory as HTML file
+                const response = await fetch(MD_FILE);
+                if (!response.ok) {
+                    throw new Error('Failed to load ' + MD_FILE);
+                }
+                
+                const markdown = await response.text();
+                updateStatus('Initializing TStorie engine...', 'loading');
+                
+                // Wait a bit for the module to be ready
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Initialize TStorie with the markdown
+                if (typeof Module !== 'undefined' && Module.ccall) {
+                    updateStatus('Loading and parsing markdown...', 'loading');
+                    
+                    const result = Module.ccall('emLoadMarkdownFromJS', 'number', ['string'], [markdown]);
+                    
+                    if (result === 0) {
+                        updateStatus('✓ Audio demo loaded! Press keys to play sounds.', 'ready');
+                        console.log('Audio demo loaded successfully');
+                    } else {
+                        updateStatus('✗ Failed to load demo (error code: ' + result + ')', 'error');
+                    }
+                } else {
+                    updateStatus('✗ TStorie module not ready', 'error');
+                }
+            } catch (error) {
+                updateStatus('✗ Error: ' + error.message, 'error');
+                console.error('Error loading demo:', error);
+            }
+        }
+        
+        // Wait for Module to be ready
+        if (typeof Module !== 'undefined') {
+            Module.onRuntimeInitialized = loadDemo;
+        } else {
+            window.addEventListener('load', () => {
+                setTimeout(loadDemo, 500);
+            });
+        }
+    </script>
+</body>
+</html>

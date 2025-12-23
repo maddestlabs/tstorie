@@ -171,9 +171,8 @@ NIM_OPTS="c
   --passL:-s --passL:STACK_OVERFLOW_CHECK=0
   --passL:-Os
   --passL:-flto
-  --passL:--js-library --passL:web/audio_bridge.js
   --passL:--js-library --passL:url_params.js
-  --passL:--closure --passL:1
+  --passL:--js-library --passL:web/audio_bridge.js
   -o:$OUTPUT_DIR/tstorie.wasm.js
   tstorie.nim"
 
