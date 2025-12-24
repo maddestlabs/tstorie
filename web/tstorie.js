@@ -4,7 +4,13 @@
 class TStorieTerminal {
     constructor(canvasElement, fontFamily = null) {
         this.canvas = canvasElement;
-        this.ctx = canvasElement.getContext('2d', { alpha: false });
+        this.ctx = canvasElement.getContext('2d', { 
+            alpha: false,
+            desynchronized: true
+        });
+        
+        // Disable anti-aliasing to prevent sub-pixel rendering artifacts
+        this.ctx.imageSmoothingEnabled = false;
         
         // Terminal dimensions in characters
         this.cols = 80;
@@ -192,7 +198,6 @@ class TStorieTerminal {
         }
         
         if (keyCode > 0) {
-            //console.log('Key event:', keyCode, 'shift:', shift, 'alt:', alt, 'ctrl:', ctrl);
             Module._emHandleKeyPress(keyCode, shift, alt, ctrl);
             
             // Also send text input for printable characters
@@ -234,7 +239,6 @@ class TStorieTerminal {
         const alt = e.altKey ? 1 : 0;
         const ctrl = e.ctrlKey ? 1 : 0;
         
-        console.log('Mouse release:', x, y, 'button:', e.button);
         Module._emHandleMouseRelease(x, y, e.button, shift, alt, ctrl);
     }
     
@@ -258,17 +262,13 @@ class TStorieTerminal {
             return;
         }
         
-        // Clear canvas
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
         // Debug first frame
         if (this.debugFirstFrame) {
             console.log('First render frame - dimensions:', this.cols, 'x', this.rows);
             this.debugFirstFrame = false;
         }
         
-        // Render each cell
+        // Render each cell (backgrounds cover entire canvas, no pre-clear needed)
         for (let y = 0; y < this.rows; y++) {
             for (let x = 0; x < this.cols; x++) {
                 this.renderCell(x, y);
@@ -292,20 +292,19 @@ class TStorieTerminal {
         const italic = Module._emGetCellItalic(x, y);
         const underline = Module._emGetCellUnderline(x, y);
         
-        const px = x * this.charWidth;
-        const py = y * this.charHeight;
+        const px = Math.floor(x * this.charWidth);
+        const py = Math.floor(y * this.charHeight);
+        const pxNext = Math.ceil((x + 1) * this.charWidth);
+        const pyNext = Math.ceil((y + 1) * this.charHeight);
         
-        // Debug first non-empty cell
-        if (this.debugFirstCell && (ch !== ' ' && ch !== '')) {
-            console.log(`First non-empty cell at (${x},${y}): "${ch}" fg:rgb(${fgR},${fgG},${fgB}) bg:rgb(${bgR},${bgG},${bgB})`);
-            this.debugFirstCell = false;
-        }
+        // Ensure integer dimensions for pixel-perfect rendering
+        const width = Math.max(1, pxNext - px);
+        const height = Math.max(1, pyNext - py);
         
-        // Draw background (always, even if no character)
-        if (bgR !== 0 || bgG !== 0 || bgB !== 0) {
-            this.ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
-            this.ctx.fillRect(px, py, this.charWidth, this.charHeight);
-        }
+        // Draw background (always draw to ensure no gaps)
+        // Use integer coordinates to eliminate sub-pixel artifacts
+        this.ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
+        this.ctx.fillRect(px, py, width, height);
         
         // If no character, we're done
         if (!ch || ch === '') return;
@@ -315,6 +314,9 @@ class TStorieTerminal {
         if (italic) fontStyle += 'italic ';
         if (bold) fontStyle += 'bold ';
         this.ctx.font = `${fontStyle}${this.fontSize}px ${this.fontFamily}`;
+        
+        // Ensure textBaseline is set (font changes may reset it)
+        this.ctx.textBaseline = 'top';
         
         // Draw text
         this.ctx.fillStyle = `rgb(${fgR}, ${fgG}, ${fgB})`;
@@ -385,12 +387,6 @@ async function inittstorie() {
             console.log('Module._emInit completed');
         } else {
             throw new Error('Module._emInit not found');
-        }
-        
-        // Test: Try to read a cell
-        if (Module._emGetCell) {
-            const testCell = Module.UTF8ToString(Module._emGetCell(0, 0));
-            console.log('Test cell at (0,0):', testCell);
         }
         
         // Start animation loop

@@ -216,7 +216,8 @@ proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let y = valueToInt(args[1])
     let ch = args[2].s
     let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
-    gBgLayer.buffer.write(x, y, ch, style)
+    # Use writeText to properly handle multi-character strings
+    gBgLayer.buffer.writeText(x, y, ch, style)
   return valNil()
 
 proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -225,7 +226,8 @@ proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let y = valueToInt(args[1])
     let ch = args[2].s
     let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
-    gFgLayer.buffer.write(x, y, ch, style)
+    # Use writeText to properly handle multi-character strings
+    gFgLayer.buffer.writeText(x, y, ch, style)
   return valNil()
 
 proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =

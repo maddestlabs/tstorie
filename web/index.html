@@ -442,21 +442,47 @@
                     });
                 });
                 
+                // Function to sync WebGL canvas dimensions from terminal canvas
+                function syncCanvasDimensions() {
+                    const newWidth = terminalCanvas.width;
+                    const newHeight = terminalCanvas.height;
+                    const newStyleWidth = terminalCanvas.style.width;
+                    const newStyleHeight = terminalCanvas.style.height;
+                    
+                    // Always sync both buffer size and style dimensions together
+                    if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight ||
+                        webglCanvas.style.width !== newStyleWidth || webglCanvas.style.height !== newStyleHeight) {
+                        webglCanvas.width = newWidth;
+                        webglCanvas.height = newHeight;
+                        webglCanvas.style.width = newStyleWidth;
+                        webglCanvas.style.height = newStyleHeight;
+                        console.log('Synced shader canvas size:', newWidth, 'x', newHeight, 'style:', newStyleWidth, 'x', newStyleHeight);
+                        
+                        // Force viewport update on next render
+                        if (shaderSystem && shaderSystem.gl) {
+                            shaderSystem.gl.viewport(0, 0, newWidth, newHeight);
+                        }
+                    }
+                }
+                
                 // Watch for terminal canvas size changes and sync to WebGL canvas
                 const resizeObserver = new ResizeObserver(entries => {
                     for (const entry of entries) {
                         if (entry.target === terminalCanvas) {
-                            const newWidth = terminalCanvas.width;
-                            const newHeight = terminalCanvas.height;
-                            if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight) {
-                                webglCanvas.width = newWidth;
-                                webglCanvas.height = newHeight;
-                                console.log('Synced shader canvas size:', newWidth, 'x', newHeight);
-                            }
+                            // Use requestAnimationFrame to ensure terminal canvas properties are updated
+                            requestAnimationFrame(syncCanvasDimensions);
                         }
                     }
                 });
                 resizeObserver.observe(terminalCanvas);
+                
+                // Also listen to window resize to catch any missed updates
+                window.addEventListener('resize', () => {
+                    // Double-delay to ensure terminal has processed the resize
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(syncCanvasDimensions);
+                    });
+                });
                 
                 // Update canvas reference for shader rendering
                 canvas = webglCanvas;
