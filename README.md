@@ -2,37 +2,35 @@
 
 Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms.
 
-Check it out live: [► Demo](https://maddestlabs.github.io/tstorie/)
+Check it out live: ► [Demo](https://maddestlabs.github.io/tstorie/)
 
 Demos:
 - [clock.md](https://maddestlabs.github.io/tstorie?demo=clock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
-- [dungen.md](https://maddestlabs.github.io/tstorie?demo=dungen) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
-- [depths.md](https://maddestlabs.github.io/tstorie?demo=depths) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie?demo=dungen) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
+- [depths.md](https://maddestlabs.github.io/tstorie?demo=depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [slides.md](https://maddestlabs.github.io/tstorie?demo=slides&shader=crt&font=Kode+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 
 Core examples:
-- [layout.md](https://maddestlabs.github.io/tstorie?demo=layout) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
-- [tui_simple.md](https://maddestlabs.github.io/tstorie?demo=tui_simple) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
+- [layout.md](https://maddestlabs.github.io/tstorie?demo=layout) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
+- [tui_simple.md](https://maddestlabs.github.io/tstorie?demo=tui_simple) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
 
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie?gist=863a4175989370857ccd67cb5492ac11&shader=4e90c8ee277103230272d64294675049&font=Monofett) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
 
-The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
+The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the TStorie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 
 ## Features
 
 Core engine features:
 - **Cross-Platform** - Runs natively in terminals and in web browsers via WebAssembly.
-- **Minimal Filesize** - Compiled games/apps average from maybe 400KB to 2MB.
+- **Minimal Filesize** - Compiled games/apps average from maybe 600KB to 2MB.
 - **Input Handling** - Comprehensive keyboard, mouse, and special key support.
 - **Optimized Rendering** - Double-buffered rendering of only recent changes for optimal FPS.
 - **Color Support** - True color (24-bit), 256-color, and 8-color terminal support.
 - **Layer System** - Z-ordered layers with transparency support.
 - **Terminal Resizing** - All layers automatically resize when terminal or browser window changes size.
-
-Higher level features:
 - **Nim-based scripting** - Code with executable code blocks. Powered by [Nimini](https://github.com/maddestlabs/nimini).
-- **Reusable Libraries** - Helper modules for advanced events, animations, and UI components
-- **Transition System** - Smooth visual transitions between states (fade, slide, wipe, dissolve, etc.)
+- **Reusable Libraries** - Helper modules for advanced events, animations, TUI, transitions and more.
 
 ## Getting Started
 

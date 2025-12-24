@@ -30,6 +30,14 @@ proc valueToInt(v: Value): int =
   of vkFloat: return int(v.f)
   else: return 0
 
+# Helper to convert Value to bool
+proc valueToBool(v: Value): bool =
+  case v.kind
+  of vkBool: return v.b
+  of vkInt: return v.i != 0
+  of vkFloat: return v.f != 0.0
+  else: return false
+
 # ================================================================
 # NIMINI INTEGRATION
 # ================================================================
@@ -807,12 +815,14 @@ proc nimini_widgetManagerHandleInput(env: ref Env; args: seq[Value]): Value {.ni
 # ================================================================
 
 proc nimini_initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Initialize canvas system with all sections. Args: currentIdx (int, optional, default 0)
+  ## Initialize canvas system with all sections. 
+  ## Args: currentIdx (int, optional, default 0), presentationMode (bool, optional, default false)
   if storieCtx.isNil:
     return valBool(false)
   let currentIdx = if args.len > 0: valueToInt(args[0]) else: 0
+  let presentationMode = if args.len > 1: valueToBool(args[1]) else: false
   let sections = storieCtx.sectionMgr.getAllSections()
-  initCanvas(sections, currentIdx)
+  initCanvas(sections, currentIdx, presentationMode)
   return valBool(true)
 
 proc encodeInputEvent(event: InputEvent): Value =

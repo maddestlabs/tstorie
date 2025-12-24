@@ -76,6 +76,7 @@ type
     hiddenSections*: HashSet[string]
     removedSections*: HashSet[string]
     mouseEnabled*: bool
+    presentationMode*: bool
     lastRenderTime*: float
     lastViewportWidth*: int
     lastViewportHeight*: int
@@ -345,6 +346,37 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
     result.add(layout)
 
 # ================================================================
+# SECTION HIERARCHY HELPERS (for presentation mode)
+# ================================================================
+
+proc getSectionLevel*(section: Section): int =
+  ## Get the heading level (1 for #, 2 for ##, etc.)
+  ## Returns 1 if not determinable
+  let title = section.title
+  var level = 1
+  var pos = 0
+  while pos < title.len and title[pos] == '#':
+    inc level
+    inc pos
+  return level
+
+proc getNextSectionAtLevel*(currentIdx: int, level: int, forward: bool = true): int =
+  ## Find next/previous section at specified heading level
+  ## Returns -1 if no section found at that level
+  if canvasState.isNil or currentIdx < 0:
+    return -1
+  
+  let step = if forward: 1 else: -1
+  var idx = currentIdx + step
+  
+  while idx >= 0 and idx < canvasState.sections.len:
+    if getSectionLevel(canvasState.sections[idx].section) == level:
+      return idx
+    idx += step
+  
+  return -1  # Not found
+
+# ================================================================
 # TEXT RENDERING UTILITIES
 # ================================================================
 
@@ -393,8 +425,9 @@ proc stripMarkdownFormatting*(text: string): string =
 # INITIALIZATION
 # ================================================================
 
-proc initCanvas*(sections: seq[Section], currentIdx: int = 0) =
+proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: bool = false) =
   ## Initialize the canvas system (idempotent - only initializes if not already done)
+  ## Set presentationMode=true for slide-style navigation where all sections are visible
   if not canvasState.isNil:
     return  # Already initialized
   
@@ -408,6 +441,7 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0) =
     hiddenSections: initHashSet[string](),
     removedSections: initHashSet[string](),
     mouseEnabled: false,
+    presentationMode: presentationMode,
     lastRenderTime: 0.0,
     lastViewportWidth: 0,
     lastViewportHeight: 0
@@ -418,6 +452,11 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0) =
     if layout.section.metadata.hasKey("hidden"):
       if layout.section.metadata["hidden"].toLowerAscii() in ["true", "yes", "1"]:
         hideSection(layout.section.title)
+  
+  # In presentation mode, make all sections visible by default
+  if presentationMode:
+    for layout in canvasState.sections:
+      markVisited(layout.section.title)
   
   # Mark starting section as visited
   if currentIdx >= 0 and currentIdx < sections.len:
@@ -444,6 +483,7 @@ export isRemoved, removeSection, restoreSection
 export findSectionByReference, navigateToSection
 export parseLinks, filterRemovedSectionLinks
 export updateCamera, centerOnSection
+export getSectionLevel, getNextSectionAtLevel
 export wrapText, formatHeading, stripMarkdownFormatting
 export initCanvas, enableMouse, disableMouse
 export Camera, Link, SectionLayout, CanvasState
@@ -810,40 +850,81 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
   const INPUT_TAB = 9
   const INPUT_ENTER = 13
   
-  case keyCode
-  of INPUT_TAB, INPUT_RIGHT, INPUT_DOWN:
-    # Cycle to next link
-    if canvasState.links.len > 0:
-      canvasState.focusedLinkIdx = (canvasState.focusedLinkIdx + 1) mod canvasState.links.len
-      return true
-  
-  of INPUT_LEFT, INPUT_UP:
-    # Cycle to previous link
-    if canvasState.links.len > 0:
-      canvasState.focusedLinkIdx = (canvasState.focusedLinkIdx - 1 + canvasState.links.len) mod canvasState.links.len
-      return true
-  
-  of INPUT_ENTER:
-    # Follow focused link
-    if canvasState.links.len > 0 and canvasState.focusedLinkIdx < canvasState.links.len:
-      let link = canvasState.links[canvasState.focusedLinkIdx]
-      let targetSection = findSectionByReference(link.target)
-      if targetSection.section.id != "":
-        navigateToSection(targetSection.index)
+  # PRESENTATION MODE: Arrow keys navigate sections by heading level
+  if canvasState.presentationMode:
+    case keyCode
+    of INPUT_LEFT:
+      # Navigate to previous main heading (level 1)
+      let prevIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, false)
+      if prevIdx >= 0:
+        navigateToSection(prevIdx)
         return true
-  
-  of ord('1')..ord('9'):
-    # Quick jump to link by number
-    let linkNum = keyCode - ord('1')
-    if linkNum < canvasState.links.len:
-      let link = canvasState.links[linkNum]
-      let targetSection = findSectionByReference(link.target)
-      if targetSection.section.id != "":
-        navigateToSection(targetSection.index)
+    
+    of INPUT_RIGHT:
+      # Navigate to next main heading (level 1)
+      let nextIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, true)
+      if nextIdx >= 0:
+        navigateToSection(nextIdx)
         return true
+    
+    of INPUT_UP:
+      # Navigate to previous sub-heading (level 2+)
+      # Try level 2 first, then 3, etc.
+      for level in 2..6:
+        let prevIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, level, false)
+        if prevIdx >= 0:
+          navigateToSection(prevIdx)
+          return true
+      return false
+    
+    of INPUT_DOWN:
+      # Navigate to next sub-heading (level 2+)
+      for level in 2..6:
+        let nextIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, level, true)
+        if nextIdx >= 0:
+          navigateToSection(nextIdx)
+          return true
+      return false
+    
+    else:
+      return false
   
+  # DEFAULT MODE: Arrow keys and Tab navigate links (interactive fiction)
   else:
-    discard
+    case keyCode
+    of INPUT_TAB, INPUT_RIGHT, INPUT_DOWN:
+      # Cycle to next link
+      if canvasState.links.len > 0:
+        canvasState.focusedLinkIdx = (canvasState.focusedLinkIdx + 1) mod canvasState.links.len
+        return true
+    
+    of INPUT_LEFT, INPUT_UP:
+      # Cycle to previous link
+      if canvasState.links.len > 0:
+        canvasState.focusedLinkIdx = (canvasState.focusedLinkIdx - 1 + canvasState.links.len) mod canvasState.links.len
+        return true
+    
+    of INPUT_ENTER:
+      # Follow focused link
+      if canvasState.links.len > 0 and canvasState.focusedLinkIdx < canvasState.links.len:
+        let link = canvasState.links[canvasState.focusedLinkIdx]
+        let targetSection = findSectionByReference(link.target)
+        if targetSection.section.id != "":
+          navigateToSection(targetSection.index)
+          return true
+    
+    of ord('1')..ord('9'):
+      # Quick jump to link by number
+      let linkNum = keyCode - ord('1')
+      if linkNum < canvasState.links.len:
+        let link = canvasState.links[linkNum]
+        let targetSection = findSectionByReference(link.target)
+        if targetSection.section.id != "":
+          navigateToSection(targetSection.index)
+          return true
+    
+    else:
+      discard
   
   return false
 
@@ -857,15 +938,37 @@ proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
   if button != 0 or not isDown:
     return false
   
-  # Check if mouse click is on any visible link
-  for link in canvasState.links:
-    if mouseX >= link.screenX and mouseX < link.screenX + link.width and
-       mouseY == link.screenY:
-      # Mouse clicked on this link - follow it
-      let targetSection = findSectionByReference(link.target)
-      if targetSection.section.id != "":
-        navigateToSection(targetSection.index)
+  # PRESENTATION MODE: Screen-region navigation
+  if canvasState.presentationMode:
+    # Divide screen into left and right halves
+    let halfWidth = gViewportWidth div 2
+    
+    if mouseX < halfWidth:
+      # Left side clicked - go to previous main heading
+      let prevIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, false)
+      if prevIdx >= 0:
+        navigateToSection(prevIdx)
         return true
+    else:
+      # Right side clicked - go to next main heading
+      let nextIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, true)
+      if nextIdx >= 0:
+        navigateToSection(nextIdx)
+        return true
+    
+    return false
+  
+  # DEFAULT MODE: Click on links to navigate
+  else:
+    # Check if mouse click is on any visible link
+    for link in canvasState.links:
+      if mouseX >= link.screenX and mouseX < link.screenX + link.width and
+         mouseY == link.screenY:
+        # Mouse clicked on this link - follow it
+        let targetSection = findSectionByReference(link.target)
+        if targetSection.section.id != "":
+          navigateToSection(targetSection.index)
+          return true
   
   return false
 
