@@ -788,22 +788,6 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
     
     if isCurrent:
       canvasState.links = links
-  
-  # Render status bar
-  let statusY = vh - 1
-  if statusY >= 0 and canvasState.currentSectionIdx >= 0 and
-     canvasState.currentSectionIdx < canvasState.sections.len:
-    let currentSection = canvasState.sections[canvasState.currentSectionIdx]
-    let linkInfo = if canvasState.links.len > 0:
-                     " | Arrows/Tab: cycle links (" & $canvasState.links.len & ") | Enter: follow"
-                   else:
-                     ""
-    var status = " " & currentSection.section.title & linkInfo & " | 1-9: jump | Q: quit "
-    if status.len > vw:
-      status = status[0..<vw]
-    
-    var style = Style(fg: ansiToColor(30), bg: black(), bold: false, underline: false, italic: false, dim: false)
-    buffer.writeText(0, statusY, status, style)
 
 proc canvasUpdate*(deltaTime: float) =
   ## Update canvas animations

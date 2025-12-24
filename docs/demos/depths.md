@@ -3,7 +3,7 @@ title: "The Depths of Khel-Daran"
 author: "Maddest Labs"
 minWidth: 80
 minHeight: 24
-theme: "catppuccin"
+theme: "miami-vice"
 ---
 
 ```nim on:init
@@ -17,7 +17,6 @@ var hasAmulet = false
 var hasEssence = false
 var hasWeapon = false
 var visitedLibrary = false
-var knowsRiddle = false
 var torchQuality = "dim"
 
 print "State created"
@@ -100,7 +99,7 @@ torchQuality = "bright"
 # hall_of_statues {"hidden": true}
 ⠀
 You step into a vast hall supported by crumbling pillars. **Three stone statues** stand guard, each depicting a different warrior from a forgotten age. Their hollow eyes seem to follow you as you move.
-
+⠀
 Passages branch off in three directions:
 - To the **north**, you hear the sound of rushing water
 - To the **east**, a faint blue glow emanates from the darkness  
@@ -117,7 +116,7 @@ The main entrance lies behind you.
 # examine_statues {"hidden": true}
 ⠀
 You approach the statues carefully. Each warrior is carved in exquisite detail:
-
+⠀
 The **first statue** holds a sword pointed downward, its face serene.  
 The **second statue** clutches a shield, face twisted in rage.  
 The **third statue** bears a broken chain, face sorrowful.
@@ -132,7 +131,7 @@ At the base of the third statue, you notice something glinting in the torchlight
 You reach down and pick up a small, tarnished **brass key**. It's surprisingly heavy for its size, and covered in the same ancient runes you saw at the entrance.
 ⠀
 *This might unlock something important.*
-
+⠀
 [Return to the hall](hall_of_statues)
 
 ```nim on:enter
@@ -211,7 +210,6 @@ You open the book. The pages are filled with riddles and wisdom of the ancients.
 
 ```nim on:enter
 visitedLibrary = true
-knowsRiddle = true
 ```
 
 # alchemist_lab {"hidden": true}
@@ -300,16 +298,16 @@ The chamber begins to shake violently.
 You approach the pedestal marked with broken chains and bow your head. The gesture of **humility and understanding** resonates through the chamber.
 ⠀
 The guardian's eyes shift from threatening red to a calm **golden glow**.
-
+⠀
 *"You comprehend the ancient wisdom. Strength is nothing without the wisdom to bind it. You may pass."*
-
+⠀
 The guardian steps aside, revealing a passage to the **Treasure Vault**.
 ⠀
 ➛ [Enter the vault](treasure_vault)
 
 ```nim on:enter
-if knowsRiddle:
-  print("Your knowledge from the library helped you understand!")
+if visitedLibrary:
+  bgWriteTextBox(h-1, 0, w, 1, "Your knowledge from the library helped you understand!", "AlignCenter", "AlignTop", "WrapNone")
 ```
 
 # treasure_vault {"hidden": true}

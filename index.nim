@@ -1618,16 +1618,6 @@ onRender = proc(state: AppState) =
       if success:
         executedCount += 1
   
-  # Debug: Show number of registered handlers (AFTER render blocks to avoid being cleared)
-  when not defined(emscripten):
-    var debugStyle = defaultStyle()
-    debugStyle.fg = yellow()
-    debugStyle.bold = true
-    let handlerInfo = "Handlers: R=" & $storieCtx.globalRenderHandlers.len & 
-                      " U=" & $storieCtx.globalUpdateHandlers.len & 
-                      " I=" & $storieCtx.globalInputHandlers.len
-    storieCtx.fgLayer.buffer.writeText(2, 0, handlerInfo, debugStyle)
-  
   # Debug: Show execution status in WASM
   # Write to foreground layer so user code renders, then we overlay debug on layers
   when defined(emscripten):
