@@ -1833,11 +1833,15 @@ when defined(emscripten):
     globalState.previousBuffer = newTermBuffer(width, height)
     resizeLayers(globalState, width, height)
   
+  # Thread-local storage for cell character to ensure cstring stability
+  var cellCharBuffer {.threadvar.}: string
+  
   proc emGetCell(x, y: int): cstring {.exportc.} =
     if x >= 0 and x < globalState.currentBuffer.width and 
        y >= 0 and y < globalState.currentBuffer.height:
       let idx = y * globalState.currentBuffer.width + x
-      return cstring(globalState.currentBuffer.cells[idx].ch)
+      cellCharBuffer = globalState.currentBuffer.cells[idx].ch
+      return cstring(cellCharBuffer)
     return cstring("")
   
   proc emGetCellFgR(x, y: int): int {.exportc.} =

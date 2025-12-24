@@ -181,6 +181,16 @@ proc navigateToSection*(sectionIdx: int) =
   if canvasState.isNil or sectionIdx < 0 or sectionIdx >= canvasState.sections.len:
     return
   
+  # Check if leaving a section that should be removed after visit
+  let previousIdx = canvasState.currentSectionIdx
+  if previousIdx >= 0 and previousIdx < canvasState.sections.len and previousIdx != sectionIdx:
+    let previousSection = canvasState.sections[previousIdx].section
+    # Check if the previous section has removeAfterVisit metadata set to true
+    if previousSection.metadata.hasKey("removeAfterVisit"):
+      let removeValue = previousSection.metadata["removeAfterVisit"].toLowerAscii()
+      if removeValue == "true" or removeValue == "1":
+        removeSection(previousSection.title)
+  
   canvasState.currentSectionIdx = sectionIdx
   canvasState.focusedLinkIdx = 0
   
@@ -481,12 +491,30 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
       isItalic = not isItalic
       pos += 1
     else:
-      let ch = $text[pos]
+      # Properly handle UTF-8 multi-byte characters
+      let b = text[pos].ord
+      var charLen = 1
+      var ch = ""
+      
+      if (b and 0x80) == 0:
+        ch = $text[pos]
+      elif (b and 0xE0) == 0xC0 and pos + 1 < text.len:
+        ch = text[pos..pos+1]
+        charLen = 2
+      elif (b and 0xF0) == 0xE0 and pos + 2 < text.len:
+        ch = text[pos..pos+2]
+        charLen = 3
+      elif (b and 0xF8) == 0xF0 and pos + 3 < text.len:
+        ch = text[pos..pos+3]
+        charLen = 4
+      else:
+        ch = "?"
+      
       var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
                        underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
-      buffer.write(currentX, y, ch, style)
+      buffer.writeText(currentX, y, ch, style)
       currentX += 1
-      pos += 1
+      pos += charLen
   
   return currentX - x
 
@@ -562,7 +590,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
         # Render link text
         for ch in linkText:
           if currentX < x + maxWidth:
-            buffer.write(currentX, y, $ch, styleToUse)
+            buffer.writeText(currentX, y, $ch, styleToUse)
             currentX += 1
         
         globalLinkIdx += 1
@@ -633,7 +661,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     let placeholder = "???"
     let centerX = screenX + (layout.width - placeholder.len) div 2
     let centerY = screenY + layout.height div 2
-    buffer.write(centerX, centerY, placeholder, placeholderStyle)
+    buffer.writeText(centerX, centerY, placeholder, placeholderStyle)
     return
   
   # Get raw content and preprocess to filter removed section links
@@ -658,7 +686,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                           formatted[0..<maxContentWidth] 
                         else: 
                           formatted
-      buffer.write(contentX, contentY, displayText, headingStyle)
+      buffer.writeText(contentX, contentY, displayText, headingStyle)
     elif line.contains("[") and line.contains("]("):
       # Line with links
       let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
@@ -666,16 +694,22 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
       result.add(links)
       currentLinkIdx += links.len  # Update index for next line with links
     elif "**" in line or "*" in line:
-      # Line with markdown formatting
-      discard renderInlineMarkdown(line, contentX, contentY, maxContentWidth,
-                                  buffer, bodyStyle)
+      # Line with markdown formatting - wrap it first
+      let wrapped = wrapText(line, maxContentWidth)
+      for wLine in wrapped:
+        if contentY >= screenY + layout.height:
+          break
+        discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
+                                    buffer, bodyStyle)
+        contentY += 1
+      contentY -= 1  # Adjust for the increment below
     else:
       # Plain text - wrap it
       let wrapped = wrapText(line, maxContentWidth)
       for wLine in wrapped:
         if contentY >= screenY + layout.height:
           break
-        buffer.write(contentX, contentY, wLine, bodyStyle)
+        buffer.writeText(contentX, contentY, wLine, bodyStyle)
         contentY += 1
       contentY -= 1  # Adjust for the increment below
     
@@ -687,8 +721,14 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
   if canvasState.isNil:
     return
   
+  # Get background color from stylesheet, defaulting to black if not set
+  let bgColor = if styleSheet.hasKey("body"):
+                  styleSheet["body"].bg
+                else:
+                  (0'u8, 0'u8, 0'u8)
+  
   # Clear the entire buffer to ensure clean rendering during animations
-  buffer.clear()
+  buffer.clear(bgColor)
   
   # Copy parameters to local variables to avoid any potential shadowing issues
   let vw = viewportWidth
@@ -763,7 +803,7 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
       status = status[0..<vw]
     
     var style = Style(fg: ansiToColor(30), bg: black(), bold: false, underline: false, italic: false, dim: false)
-    buffer.write(0, statusY, status, style)
+    buffer.writeText(0, statusY, status, style)
 
 proc canvasUpdate*(deltaTime: float) =
   ## Update canvas animations
