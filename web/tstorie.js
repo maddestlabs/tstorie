@@ -217,8 +217,6 @@ class TStorieTerminal {
         const shift = e.shiftKey ? 1 : 0;
         const alt = e.altKey ? 1 : 0;
         const ctrl = e.ctrlKey ? 1 : 0;
-        
-        console.log('Mouse click:', x, y, 'button:', e.button);
         Module._emHandleMouseClick(x, y, e.button, shift, alt, ctrl);
     }
     

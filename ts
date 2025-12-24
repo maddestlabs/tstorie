@@ -19,12 +19,12 @@ fi
 if [ -f "$file" ]; then
     ./tstorie "$file" "$@"
 # Check if file exists in examples directory
-elif [ -f "examples/$file" ]; then
-    ./tstorie "examples/$file" "$@"
+elif [ -f "docs/demos/$file" ]; then
+    ./tstorie "docs/demos/$file" "$@"
 else
     echo "Error: File not found: $file"
     echo "Checked locations:"
     echo "  - ./$file"
-    echo "  - ./examples/$file"
+    echo "  - ./docs/demos/$file"
     exit 1
 fi

@@ -2,19 +2,19 @@
 
 Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms.
 
-Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
+Check it out live: [► Demo](https://maddestlabs.github.io/tstorie/)
 
-Demos on GitHub Gist:
-- [tstorie_clock.nim](https://maddestlabs.github.io/tstorie?gist=3916b876cf87fc3db21171b76a512b65) | [Source Gist](https://gist.github.com/R3V1Z3/3916b876cf87fc3db21171b76a512b65)
-- [tstorie-dungen.md](https://maddestlabs.github.io/tstorie?gist=6754c8623116a8296a409b9b4bc08905) | [Source Gist](https://gist.github.com/R3V1Z3/6754c8623116a8296a409b9b4bc08905)
-- [depths.nim](https://maddestlabs.github.io/tstorie?gist=79972b01bd5f3464da200fd5f8e0fd10) | [Source Gist](https://gist.github.com/R3V1Z3/79972b01bd5f3464da200fd5f8e0fd10)
+Demos:
+- [clock.md](https://maddestlabs.github.io/tstorie?demo=clock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie?demo=dungen) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
+- [depths.md](https://maddestlabs.github.io/tstorie?demo=depths) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 
-Core example Gists:
-- [tstorie-layout.nim](https://maddestlabs.github.io/tstorie?gist=801231910431b8415da0c91f03bc5dad) | [Source Gist](https://gist.github.com/R3V1Z3/801231910431b8415da0c91f03bc5dad)
-- [tstorie-tui.nim](https://maddestlabs.github.io/tstorie?gist=6ad7540692053f1c1406bf27d3a8b490) | [Source Gist](https://gist.github.com/R3V1Z3/6ad7540692053f1c1406bf27d3a8b490)
+Core examples:
+- [layout.md](https://maddestlabs.github.io/tstorie?demo=layout) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
+- [tui_simple.md](https://maddestlabs.github.io/tstorie?demo=tui_simple) | [Source Gist](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
 
-Shader and font loading:
-- [tstorie_rainclock.nim](https://maddestlabs.github.io/tstorie?gist=863a4175989370857ccd67cb5492ac11&shader=4e90c8ee277103230272d64294675049&font=Monofett) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
+Gist Example:
+- [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie?gist=863a4175989370857ccd67cb5492ac11&shader=4e90c8ee277103230272d64294675049&font=Monofett) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 

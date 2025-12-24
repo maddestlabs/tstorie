@@ -2,7 +2,7 @@
 
 This directory contains example TStorie documents that demonstrate various features.
 
-## 🌐 View Interactive Demo Browser
+## View Interactive Demo Browser
 
 **► [Open Demo Browser](https://maddestlabs.github.io/tstorie/demos/)** - Browse and run all demos with one click
 
@@ -15,13 +15,13 @@ https://maddestlabs.github.io/tstorie/?demo=demo_name
 
 ### Available Demos
 
-#### 🎵 Audio Examples
+#### Audio Examples
 - **audio_demo** - Audio generation and playback
   ```
   ?demo=audio_demo
   ```
 
-#### 🎨 Canvas & Graphics
+#### Canvas & Graphics
 - **canvas_demo** - Basic canvas drawing operations
   ```
   ?demo=canvas_demo
@@ -31,7 +31,7 @@ https://maddestlabs.github.io/tstorie/?demo=demo_name
   ?demo=rainclock
   ```
 
-#### 💻 Terminal UI (TUI)
+#### Terminal UI (TUI)
 - **tui_simple** - Simple terminal user interface
   ```
   ?demo=tui_simple
@@ -45,7 +45,7 @@ https://maddestlabs.github.io/tstorie/?demo=demo_name
   ?demo=button_test
   ```
 
-#### ✨ Animations & Effects
+#### Animations & Effects
 - **clock** - Animated clock display
   ```
   ?demo=clock
@@ -59,7 +59,7 @@ https://maddestlabs.github.io/tstorie/?demo=demo_name
   ?demo=depths
   ```
 
-#### 📐 Layout & Styling
+#### Layout & Styling
 - **layout** - Layout system demonstration
   ```
   ?demo=layout
@@ -73,7 +73,7 @@ https://maddestlabs.github.io/tstorie/?demo=demo_name
   ?demo=sections_demo
   ```
 
-#### 🎮 Events & Interaction
+#### Events & Interaction
 - **events_mouse** - Mouse event handling
   ```
   ?demo=events_mouse
@@ -83,7 +83,7 @@ https://maddestlabs.github.io/tstorie/?demo=demo_name
   ?demo=events_keys
   ```
 
-#### 🚀 Advanced
+#### Advanced
 - **scoping** - Variable scoping examples
   ```
   ?demo=scoping

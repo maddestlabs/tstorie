@@ -4,8 +4,8 @@
 ## This module has no file I/O or platform-specific dependencies - it only processes string content.
 
 import strutils, tables
-import storie_types
-export storie_types  # Re-export types so users get them automatically
+import storie_types, storie_themes
+export storie_types, storie_themes  # Re-export types so users get them automatically
 
 proc parseColor*(colorStr: string): tuple[r, g, b: uint8] =
   ## Parse a color string in various formats:
@@ -40,11 +40,16 @@ proc parseBool*(boolStr: string): bool =
 
 proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
   ## Parse style configurations from front matter
-  ## Supports nested keys like:
-  ##   styles.default.fg: "255,255,255"
-  ##   styles.default.bg: "0,0,0"
-  ##   styles.heading1.bold: "true"
+  ## Supports:
+  ##   1. Theme-based: theme: "catppuccin"
+  ##   2. Individual styles: styles.heading.fg: "#FF0000"
+  ## Theme is applied first, then individual overrides
   result = initTable[string, StyleConfig]()
+  
+  # Check if a theme is specified
+  if frontMatter.hasKey("theme"):
+    let themeName = frontMatter["theme"]
+    result = applyThemeByName(themeName)
   
   var styleData = initTable[string, Table[string, string]]()
   
@@ -63,18 +68,22 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
         
         styleData[styleName][property] = value
   
-  # Convert collected data into StyleConfig objects
+  # Convert collected data into StyleConfig objects (overriding theme if set)
   for styleName, properties in styleData:
-    var style = StyleConfig(
-      fg: (255'u8, 255'u8, 255'u8),  # Default white
-      bg: (0'u8, 0'u8, 0'u8),         # Default black
-      bold: false,
-      italic: false,
-      underline: false,
-      dim: false
-    )
+    # Start with existing style if theme was applied, otherwise use defaults
+    var style = if result.hasKey(styleName):
+      result[styleName]
+    else:
+      StyleConfig(
+        fg: (255'u8, 255'u8, 255'u8),  # Default white
+        bg: (0'u8, 0'u8, 0'u8),         # Default black
+        bold: false,
+        italic: false,
+        underline: false,
+        dim: false
+      )
     
-    # Apply properties
+    # Apply property overrides
     for prop, val in properties:
       case prop
       of "fg", "foreground":

@@ -601,6 +601,8 @@ type
     inputParser*: TerminalInputParser
     lastMouseX*, lastMouseY*: int
     audioSystemPtr*: pointer  ## Points to AudioSystem (to avoid import issues)
+    themeBackground*: tuple[r, g, b: uint8]  ## Theme's background color for terminal
+    styleSheet*: StyleSheet  ## Styles from front matter
 
 when not defined(emscripten):
   var globalRunning {.global.} = true
@@ -776,8 +778,8 @@ proc fillRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =
     for dx in 0 ..< w:
       tb.write(x + dx, y + dy, ch, style)
 
-proc clear*(tb: var TermBuffer) =
-  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
+proc clear*(tb: var TermBuffer, bgColor: tuple[r, g, b: uint8] = (0'u8, 0'u8, 0'u8)) =
+  let defaultStyle = Style(fg: white(), bg: Color(r: bgColor.r, g: bgColor.g, b: bgColor.b), bold: false)
   for i in 0 ..< tb.cells.len:
     tb.cells[i] = Cell(ch: " ", style: defaultStyle)
 
@@ -810,9 +812,9 @@ template tbFillRect(layer: Layer, x, y, w, h: int, ch: string, style: Style) =
   bind fillRect
   layer.buffer.fillRect(x, y, w, h, ch, style)
 
-template tbClear(layer: Layer) =
+template tbClear(layer: Layer, bgColor: tuple[r, g, b: uint8]) =
   bind clear
-  layer.buffer.clear()
+  layer.buffer.clear(bgColor)
 
 template tbClearTransparent(layer: Layer) =
   bind clearTransparent
@@ -899,7 +901,7 @@ proc registerTstorieApis*(env: ref Env, state: pointer) =
     let layerId = args[0].s
     var layer = getLayer(appState, layerId)
     if not layer.isNil:
-      tbClear(layer)
+      tbClear(layer, appState.themeBackground)
     return valNil()
   
   env.vars["clearLayerTransparent"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
@@ -1066,8 +1068,12 @@ proc registerTstorieApis*(env: ref Env, state: pointer) =
       return styleConfigToValue(getDefaultStyleConfig())
     
     let styleName = args[0].s
-    # Try to get stylesheet from storieCtx (need to find a way to access it)
-    # For now, return default style - this will be enhanced when storieCtx is accessible
+    
+    # Access the stylesheet from appState
+    if not appState.isNil and appState.styleSheet.hasKey(styleName):
+      return styleConfigToValue(appState.styleSheet[styleName])
+    
+    # Fallback to default style
     return styleConfigToValue(getDefaultStyleConfig())
   
   # ============================================================================
@@ -1566,6 +1572,9 @@ proc compositeLayers*(state: AppState) =
   if state.layers.len == 0:
     return
   
+  # Fill buffer with theme background color first
+  state.currentBuffer.clear(state.themeBackground)
+  
   for i in 0 ..< state.layers.len:
     for j in i + 1 ..< state.layers.len:
       if state.layers[j].z < state.layers[i].z:
@@ -1755,6 +1764,7 @@ when defined(emscripten):
     globalState.lastMouseY = 0
     globalState.fps = 60.0
     globalState.audioSystemPtr = nil
+    globalState.themeBackground = (0'u8, 0'u8, 0'u8)  # Default to black, will be updated when theme loads
     
     # Call initStorieContext directly (callback system doesn't work in WASM)
     initStorieContext(globalState)
@@ -1777,8 +1787,7 @@ when defined(emscripten):
         if codeBlock.lifecycle == "update":
           discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
     
-    # Clear current buffer before rendering
-    globalState.currentBuffer.clear()
+    # Note: Don't clear buffer here - compositeLayers will do it with theme background
     
     # Clear layer buffers each frame
     if not storieCtx.isNil:
@@ -1790,7 +1799,7 @@ when defined(emscripten):
     # Call render - this writes to layers
     renderStorie(globalState)
 
-    # Composite layers onto currentBuffer
+    # Composite layers onto currentBuffer (this will fill with theme background first)
     compositeLayers(globalState)
 
     # Optional: Show minimal debug info at bottom (can be removed)
@@ -2042,12 +2051,23 @@ when defined(emscripten):
         storieCtx.frontMatter = doc.frontMatter
         storieCtx.styleSheet = doc.styleSheet
         
+        # Also update globalState styleSheet for API access
+        globalState.styleSheet = doc.styleSheet
+        
+        # Extract theme background color from stylesheet and update globalState
+        if doc.styleSheet.hasKey("body"):
+          storieCtx.themeBackground = doc.styleSheet["body"].bg
+          globalState.themeBackground = storieCtx.themeBackground
+        else:
+          storieCtx.themeBackground = (0'u8, 0'u8, 0'u8)
+          globalState.themeBackground = (0'u8, 0'u8, 0'u8)
+        
         # Expose front matter variables to Nimini environment
         exposeFrontMatterVariables()
         
-        # Clear all layer buffers
+        # Clear all layer buffers with theme background
         for layer in globalState.layers:
-          layer.buffer.clear()
+          layer.buffer.clear(globalState.themeBackground)
         
         # Execute init blocks immediately
         for codeBlock in doc.codeBlocks:

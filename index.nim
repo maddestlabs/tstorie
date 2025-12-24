@@ -48,6 +48,7 @@ type
     niminiContext: NiminiContext
     frontMatter: FrontMatter  # Front matter from markdown
     styleSheet: StyleSheet    # Style configurations from front matter
+    themeBackground: tuple[r, g, b: uint8]  # Theme's background color for terminal
     # Pre-compiled layer references
     bgLayer: Layer
     fgLayer: Layer
@@ -140,9 +141,9 @@ proc styleConfigToValue(config: StyleConfig): Value =
   styleMap.map["fg"] = fgMap
   
   let bgMap = valMap()
-  bgMap.map["r"] = valInt(config.bg.r.int)
-  bgMap.map["g"] = valInt(config.bg.g.int)
-  bgMap.map["b"] = valInt(config.bg.b.int)
+  bgMap.map["r"] = valInt(int(config.bg.r))
+  bgMap.map["g"] = valInt(int(config.bg.g))
+  bgMap.map["b"] = valInt(int(config.bg.b))
   styleMap.map["bg"] = bgMap
   
   styleMap.map["bold"] = valBool(config.bold)
@@ -194,7 +195,7 @@ proc valueToStyle(v: Value): Style =
 #   clearLayerTransparent(layerId)
 
 proc bgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.buffer.clear()
+  gBgLayer.buffer.clear(storieCtx.themeBackground)
   return valNil()
 
 proc bgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -202,7 +203,7 @@ proc bgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 proc fgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.buffer.clear()
+  gFgLayer.buffer.clear(storieCtx.themeBackground)
   return valNil()
 
 proc fgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -1427,6 +1428,22 @@ proc initStorieContext(state: AppState) =
   storieCtx.frontMatter = doc.frontMatter
   storieCtx.styleSheet = doc.styleSheet
   storieCtx.sectionMgr = newSectionManager(doc.sections)
+  
+  # Also store styleSheet in state for API access
+  state.styleSheet = doc.styleSheet
+  
+  # Extract theme background color from stylesheet (body style or default to black)
+  if doc.styleSheet.hasKey("body"):
+    storieCtx.themeBackground = doc.styleSheet["body"].bg
+    state.themeBackground = storieCtx.themeBackground
+    # Debug: print stylesheet contents
+    when not defined(emscripten):
+      echo "Stylesheet loaded with ", doc.styleSheet.len, " styles:"
+      for name, style in doc.styleSheet:
+        echo "  ", name, " -> bg=(", style.bg.r, ",", style.bg.g, ",", style.bg.b, ") fg=(", style.fg.r, ",", style.fg.g, ",", style.fg.b, ")"
+  else:
+    storieCtx.themeBackground = (0'u8, 0'u8, 0'u8)
+    state.themeBackground = (0'u8, 0'u8, 0'u8)
   
   when defined(emscripten):
     if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:
