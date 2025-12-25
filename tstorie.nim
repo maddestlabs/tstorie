@@ -1,7 +1,7 @@
 import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 import nimini
-import nimini/stdlib/params
+import src/params
 import lib/storie_types
 import lib/audio_gen
 
@@ -1766,11 +1766,17 @@ when defined(emscripten):
     globalState.audioSystemPtr = nil
     globalState.themeBackground = (0'u8, 0'u8, 0'u8)  # Default to black, will be updated when theme loads
     
+    # URL parameters are parsed in JavaScript (parseAndStoreUrlParams in index.html)
+    # and stored before this function is called
+    
     # Call initStorieContext directly (callback system doesn't work in WASM)
     initStorieContext(globalState)
     
     # Flush any URL params that were set before initialization
     flushWasmParams()
+    
+    # Apply theme parameter if present (will be applied in initStorieContext)
+    # Theme parameter is checked after markdown loads in index.nim
   
   proc emUpdate(deltaMs: float) {.exportc.} =
     let dt = deltaMs / 1000.0
@@ -1968,15 +1974,8 @@ when defined(emscripten):
     if storieCtx.isNil:
       storieCtx = StorieContext()
   
-  proc jsGetUrlParam(name: cstring): cstring {.importc.} =
-    ## Call JavaScript to retrieve a URL parameter
-    ## JavaScript side: window.jsGetUrlParam(name)
-    discard
-  
-  proc emGetUrlParam(name: cstring): cstring {.exportc.} =
-    ## Called from Nim to get URL parameter from JavaScript
-    ## This bridges to window.jsGetUrlParam()
-    return jsGetUrlParam(name)
+  # URL parameters are now parsed directly in Nim via parseUrlParams()
+  # No JS bridge needed for parameter access
   
   proc emLoadGistCode(moduleRef: cstring, code: cstring) {.exportc.} =
     ## Called by JavaScript after fetching a gist file
@@ -2058,9 +2057,22 @@ when defined(emscripten):
         # Also update globalState styleSheet for API access
         globalState.styleSheet = doc.styleSheet
         
+        # Check if theme parameter is set and override the stylesheet
+        if hasParamDirect("theme"):
+          let themeName = getParamDirect("theme")
+          if themeName.len > 0:
+            try:
+              let newStyleSheet = applyThemeByName(themeName)
+              storieCtx.styleSheet = newStyleSheet
+              globalState.styleSheet = newStyleSheet
+              # Re-register canvas bindings with new stylesheet
+              registerCanvasBindings(addr gFgLayer.buffer, addr globalState, addr storieCtx.styleSheet)
+            except:
+              discard
+        
         # Extract theme background color from stylesheet and update globalState
-        if doc.styleSheet.hasKey("body"):
-          storieCtx.themeBackground = doc.styleSheet["body"].bg
+        if storieCtx.styleSheet.hasKey("body"):
+          storieCtx.themeBackground = storieCtx.styleSheet["body"].bg
           globalState.themeBackground = storieCtx.themeBackground
         else:
           storieCtx.themeBackground = (0'u8, 0'u8, 0'u8)
@@ -2109,15 +2121,21 @@ proc showHelp() =
   echo "    getParam(\"name\")     - Get parameter as string"
   echo "    getParamInt(\"name\", default) - Get parameter as integer"
   echo ""
+  echo "  Special parameters:"
+  echo "    theme=<name>       - Override theme from front matter"
+  echo "                         (e.g., theme=nord, theme=dracula)"
+  echo ""
   echo "Examples:"
   echo "  tstorie                              # Run index.md"
   echo "  tstorie depths.md                    # Run depths.md"
   echo "  tstorie examples/dungen.md seed=12345  # Run with seed parameter"
   echo "  tstorie examples/dungen.md --seed=12345  # Same using --option format"
+  echo "  tstorie myfile.md theme=nord         # Override theme to nord"
   echo "  tstorie examples/canvas_demo.md      # Run a demo"
   echo ""
   echo "Web Usage (URL parameters):"
   echo "  https://example.com/?seed=12345      # Parameters passed via URL"
+  echo "  https://example.com/?theme=dracula   # Override theme via URL"
   echo "  tstorie --fps 30 my_story.md         # Run with custom FPS"
   echo ""
 
@@ -2177,6 +2195,13 @@ proc main() =
   # Store custom parameters in nimini stdlib
   for (key, val) in customParams:
     setParam(key, val)
+  
+  # Apply theme parameter if present (before loading markdown)
+  if hasParamDirect("theme"):
+    let themeName = getParamDirect("theme")
+    if themeName.len > 0:
+      # Will be applied when storieCtx is initialized
+      discard  # Theme will be checked after markdown loads
   
   # Set the markdown file if specified
   if mdFile.len > 0:

@@ -199,24 +199,39 @@
             }
         }
         
-        // Set up URL parameter store BEFORE Module loads
-        // This must be available when WASM initializes
-        // Use quoted property access to prevent Closure Compiler mangling
-        window['urlParamStore'] = {};
-        const specialParams = ['gist', 'demo', 'font', 'shader'];
-        for (const [key, value] of urlParams.entries()) {
-            if (!specialParams.includes(key)) {
-                window['urlParamStore'][key] = value;
-                console.log('Pre-initialized URL param:', key, '=', value);
+        // Parse and store all URL parameters by calling into WASM
+        // This must happen after Module is loaded but before initialization
+        function parseAndStoreUrlParams() {
+            if (!Module._emscripten_setParam_internal) {
+                console.error('Module._emscripten_setParam_internal not found');
+                return;
+            }
+            
+            const specialParams = ['gist', 'demo', 'font', 'shader'];
+            
+            for (const [key, value] of urlParams.entries()) {
+                if (!specialParams.includes(key)) {
+                    try {
+                        // Allocate strings in WASM memory and call Nim function
+                        const keyLen = lengthBytesUTF8(key) + 1;
+                        const keyPtr = Module._malloc(keyLen);
+                        stringToUTF8(key, keyPtr, keyLen);
+                        
+                        const valueLen = lengthBytesUTF8(value) + 1;
+                        const valuePtr = Module._malloc(valueLen);
+                        stringToUTF8(value, valuePtr, valueLen);
+                        
+                        // Call the exported Nim function
+                        Module._emscripten_setParam_internal(keyPtr, valuePtr);
+                        
+                        Module._free(keyPtr);
+                        Module._free(valuePtr);
+                    } catch (e) {
+                        console.error('Error setting param', key, ':', e);
+                    }
+                }
             }
         }
-        
-        // Provide getter function for Nim to call (MUST exist before WASM loads)
-        window['jsGetUrlParam'] = function(name) {
-            const value = window['urlParamStore'][name] || '';
-            console.log('[JS] jsGetUrlParam(' + name + ') returning:', value);
-            return value;
-        };
         
         var Module = {
             waitingForGist: (gistId || demoName) ? true : false,
@@ -238,6 +253,10 @@
             },
             onRuntimeInitialized: async function() {
                 moduleReady = true;
+                
+                // Parse URL parameters and store them in WASM (before initialization)
+                console.log('Parsing URL parameters...');
+                parseAndStoreUrlParams();
                 
                 // Set waiting flag if gist or demo is present (must be done before init)
                 if (gistId || demoName) {

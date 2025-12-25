@@ -1241,6 +1241,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
   initStdlib()  # Register standard library functions (add, len, etc.)
+  registerParamFuncs(runtimeEnv)  # Register parameter functions (getParam, hasParam, etc.)
   
   # Register core framework APIs (state accessors, colors, etc.) from tstorie.nim
   registerTstorieApis(runtimeEnv, cast[pointer](state))
@@ -1577,12 +1578,40 @@ proc initStorieContext(state: AppState) =
   # Create nimini context first (initializes runtime)
   storieCtx.niminiContext = createNiminiContext(state)
   
+  # Flush pending parameters (URL params that were set before runtime was initialized)
+  flushPendingParams()
+  
   # Now register module bindings (must be after runtime init)
   registerSectionManagerBindings(addr storieCtx.sectionMgr)
   registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   
   # Expose front matter to user scripts as global variables
   exposeFrontMatterVariables()
+  
+  # Check for theme parameter and apply if present (overrides front matter theme)
+  if hasParamDirect("theme"):
+    let themeName = getParamDirect("theme")
+    if themeName.len > 0:
+      when not defined(emscripten):
+        echo "Applying theme from parameter: ", themeName
+      try:
+        let newStyleSheet = applyThemeByName(themeName)
+        # Update storieCtx and state with new stylesheet
+        storieCtx.styleSheet = newStyleSheet
+        state.styleSheet = newStyleSheet
+        # Update theme background
+        if newStyleSheet.hasKey("body"):
+          storieCtx.themeBackground = newStyleSheet["body"].bg
+          state.themeBackground = storieCtx.themeBackground
+        # Re-register canvas bindings with new stylesheet pointer
+        # (necessary because styleSheet is a value type, not ref)
+        registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+        # Clear and redraw all layers with new theme background
+        for layer in state.layers:
+          layer.buffer.clear(state.themeBackground)
+      except:
+        when not defined(emscripten):
+          echo "Warning: Theme '", themeName, "' not found"
   
   # Execute init code blocks
   when not defined(emscripten):
