@@ -66,6 +66,9 @@ type
     width*, height*: int
     index*: int
   
+  # Callback type for executing code blocks (lifecycle hooks)
+  ExecuteCodeBlockCallback* = proc(codeBlock: CodeBlock, lifecycle: string): bool
+  
   CanvasState* = ref object
     camera*: Camera
     sections*: seq[SectionLayout]
@@ -80,6 +83,7 @@ type
     lastRenderTime*: float
     lastViewportWidth*: int
     lastViewportHeight*: int
+    executeCallback*: ExecuteCodeBlockCallback  # Callback to execute lifecycle hooks
 
 # Global canvas state
 var canvasState*: CanvasState
@@ -177,16 +181,32 @@ proc findSectionByReference*(reference: string): SectionLayout =
   
   return SectionLayout()
 
+proc executeLifecycleHooks(section: Section, lifecycle: string) =
+  ## Execute lifecycle hooks (on:enter, on:exit) for a section
+  if canvasState.isNil or canvasState.executeCallback.isNil:
+    return
+  
+  # Find and execute all code blocks with the specified lifecycle
+  for contentBlock in section.blocks:
+    if contentBlock.kind == CodeBlock_Content:
+      let codeBlock = contentBlock.codeBlock
+      if codeBlock.lifecycle == lifecycle:
+        # Execute via callback (will be set by main application)
+        discard canvasState.executeCallback(codeBlock, lifecycle)
+
 proc navigateToSection*(sectionIdx: int) =
   ## Navigate to a section by index
   if canvasState.isNil or sectionIdx < 0 or sectionIdx >= canvasState.sections.len:
     return
   
-  # Check if leaving a section that should be removed after visit
   let previousIdx = canvasState.currentSectionIdx
+  
+  # Execute on:exit hooks for the previous section
   if previousIdx >= 0 and previousIdx < canvasState.sections.len and previousIdx != sectionIdx:
     let previousSection = canvasState.sections[previousIdx].section
-    # Check if the previous section has removeAfterVisit metadata set to true
+    executeLifecycleHooks(previousSection, "exit")
+    
+    # Check if leaving a section that should be removed after visit
     if previousSection.metadata.hasKey("removeAfterVisit"):
       let removeValue = previousSection.metadata["removeAfterVisit"].toLowerAscii()
       if removeValue == "true" or removeValue == "1":
@@ -194,6 +214,11 @@ proc navigateToSection*(sectionIdx: int) =
   
   canvasState.currentSectionIdx = sectionIdx
   canvasState.focusedLinkIdx = 0
+  
+  # Execute on:enter hooks for the new section
+  if sectionIdx >= 0 and sectionIdx < canvasState.sections.len:
+    let newSection = canvasState.sections[sectionIdx].section
+    executeLifecycleHooks(newSection, "enter")
   
   # Center camera on new section with smooth easing (if viewport is initialized)
   if gViewportWidth > 0 and gViewportHeight > 0:
@@ -479,6 +504,12 @@ proc disableMouse*() =
   ## Disable mouse input for the canvas
   if not canvasState.isNil:
     canvasState.mouseEnabled = false
+
+proc setExecuteCallback*(callback: ExecuteCodeBlockCallback) =
+  ## Set the callback function for executing lifecycle hooks
+  ## This should be called after canvas initialization to enable on:enter and on:exit hooks
+  if not canvasState.isNil:
+    canvasState.executeCallback = callback
 
 # ================================================================
 # PUBLIC API EXPORTS
@@ -1100,4 +1131,4 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
 
 # Export rendering functions
 export canvasRender, canvasUpdate, canvasHandleKey, canvasHandleMouse, getSectionCount
-export registerCanvasBindings
+export registerCanvasBindings, setExecuteCallback, ExecuteCodeBlockCallback

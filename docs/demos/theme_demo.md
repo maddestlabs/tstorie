@@ -1,22 +1,94 @@
 ---
-theme: "catppuccin"
 title: "Theme Demo"
+author: "Maddest Labs"
 minWidth: 80
 minHeight: 24
+theme: "catpuccin"
 ---
 
 ```nim on:init
-print "Theme system demo initialized"
+# Canvas-based Presentation System using Nimini
+# Navigate with arrow keys: Left/Right for main topics, Up/Down for subtopics
+
+# Get available themes
+var themes = nimini_getThemes()
+var currentThemeIndex = 0
+var message = "YO!"
+
+# Find index of current theme
+var currentTheme = nimini_getCurrentTheme()
+if currentTheme == "":
+  currentTheme = "catppuccin"
+
+var i = 0
+while i < len(themes):
+  if themes[i] == currentTheme:
+    currentThemeIndex = i
+  i = i + 1
+
+# Initialize canvas in presentation mode
+# Second parameter = starting section (1 for first real section)
+# Third parameter = presentation mode (true)
+nimini_initCanvas(1, true)
+```
+
+```nim on:input
+# Handle keyboard and mouse input for canvas navigation
+
+if event.type == "key":
+  lastKeyCode = event.keyCode
+  lastKey = str(lastKeyCode)
+  lastAction = event.action
+  if lastKeyCode == 9:
+    currentThemeIndex = (currentThemeIndex + 1) % len(themes)
+    var newTheme = themes[currentThemeIndex]
+    nimini_switchTheme(newTheme)
+    message = "Not Yo no more!"
+    return true
+    
+    # Pass key events to canvas system
+    var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    if handled:
+      return true
+  return false
+
+elif event.type == "mouse":
+  if event.action == "press":
+    # Pass mouse events to canvas system (only on press, not release)
+    var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+    if handled:
+      return true
+  return false
+
+return false
 ```
 
 ```nim on:render
 bgClear()
 fgClear()
+
+nimini_canvasRender()
+
+# Show current theme name in top-right corner
+var style = defaultStyle()
+style.fg = rgb(255, 255, 100)
+style.bold = true
+var themeName = themes[currentThemeIndex]
+fgWriteText(termWidth - len(themeName) - 15, 1, "Theme: " & themeName, style)
+fgWriteText(termWidth - 15, 2, "Press TAB to cycle", style)
+fgWriteText(termWidth - 15, 4, message, style)
+```
+
+```nim on:update
+nimini_canvasUpdate()
 ```
 
 # 🎨 Theme System Demo
 
-Welcome to the TStorie theme system! This demo uses the **Catppuccin Mocha** theme.
+Welcome to the TStorie theme system! This demo uses the **Catppuccin Mocha** theme by default.
+
+**✨ NEW: Live Theme Switching! ✨**  
+Press **T** to cycle through all available themes in real-time!
 
 ## What Are Themes?
 
@@ -30,14 +102,37 @@ And you get beautiful, accessible colors automatically!
 
 ## Available Themes
 
-Try these in your own documents:
+Try these in your own documents (or press **T** to see them live!):
 
 - **catppuccin** - Soft, modern (current theme!)
 - **nord** - Cool Arctic palette
 - **dracula** - Vibrant developer favorite
 - **miami-vice** - Bold 80s cyberpunk
+- **outrun** - Neon synthwave aesthetic
 - **cyberpunk** - Classic duotone
 - **terminal** - Classic green CRT
+- **solarized-dark** - Elegant Solarized
+
+## Live Theme Switching API
+
+You can switch themes at runtime using Nimini functions:
+
+```nim
+# Get list of available themes
+var themes = nimini_getThemes()
+
+# Switch to a specific theme
+nimini_switchTheme("nord")
+
+# Get current theme name
+var current = nimini_getCurrentTheme()
+```
+
+This enables:
+- Interactive theme pickers
+- Dynamic theme changes based on user input
+- Theme cycling in presentations
+- Context-aware theming
 
 ## Features
 

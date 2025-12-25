@@ -100,6 +100,19 @@ const
     accent3:      (0x85'u8, 0x99'u8, 0x00'u8)   # Green
   )
 
+proc getAvailableThemes*(): seq[string] =
+  ## Get list of all available theme names
+  result = @[
+    "catppuccin",
+    "nord",
+    "dracula",
+    "miami-vice",
+    "outrun",
+    "cyberpunk",
+    "terminal",
+    "solarized-dark"
+  ]
+
 proc getTheme*(name: string): ThemeColors =
   ## Get theme colors by name (case-insensitive)
   case name.toLowerAscii():
@@ -248,7 +261,196 @@ proc applyTheme*(theme: ThemeColors): StyleSheet =
     dim: false
   )
 
+proc applyEditorStyles*(theme: ThemeColors): StyleSheet =
+  ## Generate editor-specific UI styles for tstoried
+  ## These extend the base theme with editor chrome elements
+  result = initTable[string, StyleConfig]()
+  
+  # Editor background
+  result["editor.background"] = StyleConfig(
+    fg: theme.fgPrimary,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Line numbers gutter
+  result["editor.linenumber"] = StyleConfig(
+    fg: theme.fgSecondary,
+    bg: theme.bgSecondary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: true
+  )
+  
+  # Current line number (highlighted)
+  result["editor.linenumber.active"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgSecondary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Cursor
+  result["editor.cursor"] = StyleConfig(
+    fg: theme.bgPrimary,
+    bg: theme.accent1,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Text selection
+  result["editor.selection"] = StyleConfig(
+    fg: theme.fgPrimary,
+    bg: theme.accent2,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Status bar
+  result["editor.statusbar"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgSecondary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Status bar - modified indicator
+  result["editor.statusbar.modified"] = StyleConfig(
+    fg: theme.accent3,
+    bg: theme.bgSecondary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Border/divider
+  result["editor.border"] = StyleConfig(
+    fg: theme.accent2,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # File browser list - normal item
+  result["browser.item"] = StyleConfig(
+    fg: theme.fgPrimary,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # File browser list - selected item
+  result["browser.item.selected"] = StyleConfig(
+    fg: theme.bgPrimary,
+    bg: theme.accent1,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # File browser list - directory
+  result["browser.directory"] = StyleConfig(
+    fg: theme.accent2,
+    bg: theme.bgPrimary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # File browser list - gist item
+  result["browser.gist"] = StyleConfig(
+    fg: theme.accent3,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Markdown syntax highlighting in editor
+  result["markdown.heading"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgPrimary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  result["markdown.code"] = StyleConfig(
+    fg: theme.accent3,
+    bg: theme.bgSecondary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  result["markdown.link"] = StyleConfig(
+    fg: theme.accent2,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: true,
+    dim: false
+  )
+  
+  result["markdown.emphasis"] = StyleConfig(
+    fg: theme.fgPrimary,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: true,
+    underline: false,
+    dim: false
+  )
+  
+  result["markdown.strong"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgPrimary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  result["markdown.listmarker"] = StyleConfig(
+    fg: theme.accent2,
+    bg: theme.bgPrimary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+
 proc applyThemeByName*(name: string): StyleSheet =
   ## Convenience function to get and apply a theme by name
   let theme = getTheme(name)
   return applyTheme(theme)
+
+proc applyFullTheme*(themeName: string): StyleSheet =
+  ## Apply both base and editor styles for a complete themed editor
+  let theme = getTheme(themeName)
+  result = applyTheme(theme)
+  
+  # Merge in editor-specific styles
+  for key, style in applyEditorStyles(theme):
+    result[key] = style

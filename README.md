@@ -5,10 +5,10 @@ Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with
 Check it out live: ► [Demo](https://maddestlabs.github.io/tstorie/)
 
 Demos:
-- [clock.md](https://maddestlabs.github.io/tstorie?demo=clock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
-- [dungen.md](https://maddestlabs.github.io/tstorie?demo=dungen) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
-- [depths.md](https://maddestlabs.github.io/tstorie?demo=depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 - [slides.md](https://maddestlabs.github.io/tstorie?demo=slides&shader=crt&font=Kode+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
+- [depths.md](https://maddestlabs.github.io/tstorie?demo=depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie?demo=dungen) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
+- [clock.md](https://maddestlabs.github.io/tstorie?demo=clock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
 
 Core examples:
 - [layout.md](https://maddestlabs.github.io/tstorie?demo=layout) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
@@ -21,9 +21,12 @@ The engine is built around GitHub features. No need to actually install Nim, or 
 
 ## Features
 
-Core engine features:
+Features inherited from Nim:
 - **Cross-Platform** - Runs natively in terminals and in web browsers via WebAssembly.
-- **Minimal Filesize** - Compiled games/apps average from maybe 600KB to 2MB.
+- **Minimal Filesize** - Compiled games/apps average from maybe 600KB to 1MB.
+- **Single-file Executable** - Bundle everything into one, compact binary.
+
+Engine features:
 - **Input Handling** - Comprehensive keyboard, mouse, and special key support.
 - **Optimized Rendering** - Double-buffered rendering of only recent changes for optimal FPS.
 - **Color Support** - True color (24-bit), 256-color, and 8-color terminal support.
@@ -50,6 +53,10 @@ Native compilation:
 - On Linux: `./build.sh`. Windows: `build-win.bat`. For web: `./build-web.sh`
 
 You'll get a native compiled binary in just moments, Nim compiles super fast.
+
+## Classroom Setup
+
+For educators who want to provie GitHub token access for classroom Gist creation with improved rate limits, see the [Educational Use Guide](https://maddestlabs.github.io/tstorie/md/CLASSROOM_SETUP.md).
 
 ## History
 

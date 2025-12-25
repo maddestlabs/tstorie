@@ -431,6 +431,42 @@ proc nimini_getStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
   # Fallback to default style
   return styleConfigToValue(getDefaultStyleConfig())
 
+proc nimini_getThemes(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get list of available theme names. Returns array of strings
+  let themes = getAvailableThemes()
+  var themeValues: seq[Value] = @[]
+  for theme in themes:
+    themeValues.add(valString(theme))
+  return valArray(themeValues)
+
+proc nimini_switchTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Switch to a different theme at runtime. Args: themeName (string)
+  ## Returns: bool (true if successful)
+  if args.len == 0 or storieCtx.isNil:
+    return valBool(false)
+  
+  let themeName = args[0].s
+  
+  # Apply the new theme
+  let newStyleSheet = applyThemeByName(themeName)
+  
+  # Update the stored stylesheet
+  storieCtx.styleSheet = newStyleSheet
+  
+  # Also need to update the canvas stylesheet pointer if canvas is active
+  if not canvasState.isNil:
+    # Re-register canvas bindings to update the stylesheet pointer
+    registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+  
+  return valBool(true)
+
+proc nimini_getCurrentTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the currently active theme name (if set in front matter)
+  ## Returns string or empty string if no theme was set
+  if storieCtx.isNil or not storieCtx.frontMatter.hasKey("theme"):
+    return valString("")
+  return valString(storieCtx.frontMatter["theme"])
+
 # Nimini wrapper functions
 proc nimini_registerGlobalRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Register a global render handler. Args: name (string), callback (function), [priority (int)]
@@ -823,6 +859,43 @@ proc nimini_initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let presentationMode = if args.len > 1: valueToBool(args[1]) else: false
   let sections = storieCtx.sectionMgr.getAllSections()
   initCanvas(sections, currentIdx, presentationMode)
+  
+  # Set up the execution callback for on:enter and on:exit lifecycle hooks
+  setExecuteCallback(proc(codeBlock: CodeBlock, lifecycle: string): bool =
+    # Create a temporary AppState with current values
+    # Note: We can't easily access the real AppState from here, so we create a minimal one
+    # The executeCodeBlock will inject state variables from the actual state
+    if not storieCtx.isNil and not storieCtx.niminiContext.isNil:
+      # Execute in a child scope to avoid polluting global namespace
+      try:
+        let tokens = tokenizeDsl(codeBlock.code)
+        let program = parseDsl(tokens)
+        let execEnv = newEnv(storieCtx.niminiContext.env)
+        execProgram(program, execEnv)
+        return true
+      except Exception as e:
+        when not defined(emscripten):
+          echo "Error in on:", lifecycle, " block: ", e.msg
+        return false
+    return false
+  )
+  
+  # Execute on:enter hook for the initial section
+  if currentIdx >= 0 and currentIdx < sections.len:
+    let initialSection = sections[currentIdx]
+    for contentBlock in initialSection.blocks:
+      if contentBlock.kind == CodeBlock_Content:
+        let codeBlock = contentBlock.codeBlock
+        if codeBlock.lifecycle == "enter":
+          try:
+            let tokens = tokenizeDsl(codeBlock.code)
+            let program = parseDsl(tokens)
+            let execEnv = newEnv(storieCtx.niminiContext.env)
+            execProgram(program, execEnv)
+          except Exception as e:
+            when not defined(emscripten):
+              echo "Error in initial on:enter block: ", e.msg
+  
   return valBool(true)
 
 proc encodeInputEvent(event: InputEvent): Value =
@@ -1189,6 +1262,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_enableMouse, nimini_disableMouse,
     nimini_initCanvas,
     nimini_defaultStyle, nimini_getStyle,
+    nimini_getThemes, nimini_switchTheme, nimini_getCurrentTheme,
     # TUI widget system
     nimini_tuiTest, nimini_newWidgetManager,
     nimini_newLabel, nimini_newButton, nimini_newCheckBox, nimini_newRadioButton, nimini_newSlider,
