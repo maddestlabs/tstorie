@@ -652,6 +652,134 @@ proc parseGistReference*(moduleRef: string): tuple[gistId: string, filename: str
   else:
     return ("", moduleRef, false)
 
+type
+  ContentSource* = enum
+    csNone
+    csGist
+    csDemo
+    csFile
+
+proc parseContentReference*(contentRef: string): tuple[source: ContentSource, id: string] =
+  ## Parse a content reference into its source type and identifier
+  ## Formats:
+  ##   "gist:abc123" -> (csGist, "abc123")
+  ##   "demo:clock" -> (csDemo, "clock")
+  ##   "file:path/to/file.md" -> (csFile, "path/to/file.md")
+  ##   "https://gist.github.com/user/abc123" -> (csGist, "abc123")
+  ##   "abc123" (if looks like gist ID) -> (csGist, "abc123")
+  ##   "clock.md" (default) -> (csDemo, "clock")
+  
+  if contentRef.len == 0:
+    return (csNone, "")
+  
+  # Check for explicit prefix
+  if contentRef.startsWith("gist:"):
+    return (csGist, contentRef[5..^1])
+  elif contentRef.startsWith("demo:"):
+    return (csDemo, contentRef[5..^1])
+  elif contentRef.startsWith("file:"):
+    return (csFile, contentRef[5..^1])
+  
+  # Check for full GitHub gist URL
+  if "gist.github.com/" in contentRef:
+    let parts = contentRef.split('/')
+    for i, part in parts:
+      if part == "gist.github.com" and i + 2 < parts.len:
+        # Could be gist.github.com/user/id or gist.github.com/id
+        let potentialId = parts[i + 2]
+        if potentialId.len > 0:
+          return (csGist, potentialId)
+  
+  # Check if it looks like a gist ID (32 hex chars)
+  if contentRef.len == 32:
+    var isHex = true
+    for c in contentRef:
+      if c notin {'0'..'9', 'a'..'f', 'A'..'F'}:
+        isHex = false
+        break
+    if isHex:
+      return (csGist, contentRef)
+  
+  # Check if it's a file path
+  if fileExists(contentRef):
+    return (csFile, contentRef)
+  
+  # Default to demo
+  return (csDemo, contentRef)
+
+proc loadContentFromSource*(contentRef: string): string =
+  ## Load markdown content from various sources
+  let (source, id) = parseContentReference(contentRef)
+  
+  case source
+  of csGist:
+    # Fetch gist and find first .md file
+    when not defined(emscripten):
+      let client = newHttpClient()
+      let apiUrl = "https://api.github.com/gists/" & id
+      try:
+        let jsonStr = client.getContent(apiUrl)
+        # Simple JSON parsing - look for first .md file
+        # Format: "filename.md":{"content":"..."}
+        let mdStart = jsonStr.find(".md")
+        if mdStart < 0:
+          raise newException(IOError, "No .md file found in gist " & id)
+        
+        # Find the content field
+        let contentStart = jsonStr.find("\"content\":", mdStart)
+        if contentStart < 0:
+          raise newException(IOError, "Could not parse gist content")
+        
+        # Extract content (simplified - doesn't handle all edge cases)
+        let valueStart = jsonStr.find("\"", contentStart + 10) + 1
+        var valueEnd = valueStart
+        var escaped = false
+        while valueEnd < jsonStr.len:
+          let c = jsonStr[valueEnd]
+          if escaped:
+            escaped = false
+          elif c == '\\':
+            escaped = true
+          elif c == '"':
+            break
+          inc valueEnd
+        
+        let content = jsonStr[valueStart..<valueEnd]
+        # Unescape basic sequences
+        return content.multiReplace([("\\n", "\n"), ("\\t", "\t"), ("\\\"", "\""), ("\\\\", "\\")])
+      except:
+        raise newException(IOError, "Failed to fetch gist: " & id)
+    else:
+      raise newException(IOError, "Gist loading not supported in WASM CLI mode")
+  
+  of csDemo:
+    # Load from demos/ directory
+    var demoPath = id
+    if not demoPath.endsWith(".md"):
+      demoPath.add(".md")
+    
+    # Try multiple paths
+    let paths = [
+      "demos/" & demoPath,
+      "docs/demos/" & demoPath,
+      "../demos/" & demoPath,
+      demoPath
+    ]
+    
+    for path in paths:
+      if fileExists(path):
+        return readFile(path)
+    
+    raise newException(IOError, "Demo not found: " & demoPath)
+  
+  of csFile:
+    if not fileExists(id):
+      raise newException(IOError, "File not found: " & id)
+    return readFile(id)
+  
+  of csNone:
+    return ""
+
 proc requireModule*(moduleRef: string, env: ref Env = nil): ref Env =
   ## Load and compile a .nim module from a gist or local file
   ## Returns a ref Env with the module's exported functions and variables
@@ -2111,9 +2239,17 @@ proc showHelp() =
   echo "Options:"
   echo "  -h, --help            Show this help message"
   echo "  -v, --version         Show version information"
+  echo "  -c, --content <ref>   Load content from source (see Content Sources below)"
   echo "  --fps <num>           Set target FPS (default 60; Windows non-WT default 30)"
   echo "                        Can also use STORIE_TARGET_FPS env var"
   echo "  --<key>=<value>       Custom parameter (accessible via getParam/hasParam)"
+  echo ""
+  echo "Content Sources:"
+  echo "  The --content option supports multiple sources:"
+  echo "    gist:<ID>           - Load from GitHub Gist"
+  echo "    demo:<name>         - Load from demos/ folder"
+  echo "    file:<path>         - Load from file path"
+  echo "    <URL>               - Full GitHub Gist URL"
   echo ""
   echo "Custom Parameters:"
   echo "  Scripts can access custom parameters using:"
@@ -2128,6 +2264,8 @@ proc showHelp() =
   echo "Examples:"
   echo "  tstorie                              # Run index.md"
   echo "  tstorie depths.md                    # Run depths.md"
+  echo "  tstorie --content demo:clock         # Run clock demo"
+  echo "  tstorie --content gist:abc123        # Run from GitHub Gist"
   echo "  tstorie examples/dungen.md seed=12345  # Run with seed parameter"
   echo "  tstorie examples/dungen.md --seed=12345  # Same using --option format"
   echo "  tstorie myfile.md theme=nord         # Override theme to nord"
@@ -2143,6 +2281,7 @@ proc main() =
   var p = initOptParser()
   var cliFps: float = 0.0
   var mdFile: string = ""
+  var contentRef: string = ""
   var customParams: seq[(string, string)] = @[]
   
   for kind, key, val in p.getopt():
@@ -2168,6 +2307,11 @@ proc main() =
         except:
           echo "Invalid --fps value: " & val
           quit(1)
+      of "content", "c":
+        if val.len == 0:
+          echo "--content requires a value (e.g., --content gist:abc123 or --content demo:clock)"
+          quit(1)
+        contentRef = val
       else:
         # Custom parameter (e.g., --seed=12345 or --width=100)
         if val.len > 0:
@@ -2177,8 +2321,8 @@ proc main() =
           echo "Use --help for usage information"
           quit(1)
     of cmdArgument:
-      # First positional argument is the markdown file
-      if mdFile.len == 0:
+      # First positional argument is the markdown file (unless content is specified)
+      if mdFile.len == 0 and contentRef.len == 0:
         mdFile = key
       else:
         # Additional arguments as key=value pairs (e.g., seed=12345)
@@ -2196,16 +2340,32 @@ proc main() =
   for (key, val) in customParams:
     setParam(key, val)
   
+  # Load content from specified source
+  if contentRef.len > 0:
+    when not defined(emscripten):
+      try:
+        echo "Loading content from: ", contentRef
+        let content = loadContentFromSource(contentRef)
+        # Write to temp file
+        let tmpFile = "/tmp/tstorie_content.md"
+        writeFile(tmpFile, content)
+        gMarkdownFile = tmpFile
+        echo "Content loaded successfully"
+      except Exception as e:
+        echo "Error loading content: ", e.msg
+        quit(1)
+    else:
+      echo "Content loading not supported in WASM mode"
+      quit(1)
+  elif mdFile.len > 0:
+    gMarkdownFile = mdFile
+  
   # Apply theme parameter if present (before loading markdown)
   if hasParamDirect("theme"):
     let themeName = getParamDirect("theme")
     if themeName.len > 0:
       # Will be applied when storieCtx is initialized
       discard  # Theme will be checked after markdown loads
-  
-  # Set the markdown file if specified
-  if mdFile.len > 0:
-    gMarkdownFile = mdFile
   
   when not defined(emscripten):
     var state = new(AppState)

@@ -573,7 +573,7 @@ proc handleInput(ch: char): bool =
 proc main() =
   # Parse command line
   var filename = ""
-  var gistId = ""
+  var contentRef = ""
   
   var p = initOptParser()
   while true:
@@ -582,12 +582,23 @@ proc main() =
     of cmdEnd: break
     of cmdShortOption, cmdLongOption:
       case p.key
+      of "content", "c":
+        contentRef = p.val
       of "gist", "g":
-        gistId = p.val
+        # Legacy support - convert to content format
+        contentRef = "gist:" & p.val
       of "help", "h":
         echo "TStoried - TStorie Editor"
         echo "Usage: tstoried [file.md]"
-        echo "       tstoried --gist ID"
+        echo "       tstoried --content <ref>"
+        echo ""
+        echo "Content Sources:"
+        echo "  --content gist:<ID>     - Load from GitHub Gist"
+        echo "  --content demo:<name>   - Load from demos/ folder"
+        echo "  --content file:<path>   - Load from file path"
+        echo ""
+        echo "Legacy:"
+        echo "  --gist <ID>             - Load from GitHub Gist (deprecated)"
         echo ""
         echo "Keyboard Shortcuts:"
         echo "  Ctrl+Q - Quit"
@@ -610,8 +621,35 @@ proc main() =
   initApp()
   
   # Load initial content
-  if gistId != "":
-    loadGistById(gistId)
+  if contentRef != "":
+    # Parse content reference and load appropriately
+    if contentRef.startsWith("gist:"):
+      let gistId = contentRef[5..^1]
+      loadGistById(gistId)
+    elif contentRef.startsWith("demo:"):
+      let demoName = contentRef[5..^1]
+      var demoPath = demoName
+      if not demoPath.endsWith(".md"):
+        demoPath.add(".md")
+      # Try multiple demo paths
+      let paths = ["demos/" & demoPath, "docs/demos/" & demoPath, demoPath]
+      var loaded = false
+      for path in paths:
+        if fileExists(path):
+          loadFile(path)
+          loaded = true
+          break
+      if not loaded:
+        app.statusMsg = "Error: Demo not found: " & demoName
+    elif contentRef.startsWith("file:"):
+      let filePath = contentRef[5..^1]
+      loadFile(filePath)
+    else:
+      # Try as file first, then gist ID
+      if fileExists(contentRef):
+        loadFile(contentRef)
+      else:
+        loadGistById(contentRef)
   elif filename != "":
     loadFile(filename)
   

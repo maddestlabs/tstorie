@@ -93,8 +93,69 @@
         
         // Parse URL parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const gistId = urlParams.get('gist');
-        const demoName = urlParams.get('demo');
+        
+        // Parse unified content parameter
+        // Supports: ?content=gist:ID, ?content=demo:name, ?content=browser:key, ?content=https://gist.github.com/...
+        // Also supports legacy: ?gist=ID, ?demo=name for backwards compatibility
+        const contentParam = urlParams.get('content');
+        const legacyGistId = urlParams.get('gist');
+        const legacyDemoName = urlParams.get('demo');
+        
+        let gistId = null;
+        let demoName = null;
+        let localStorageKey = null;
+        
+        // Parse unified content parameter
+        if (contentParam) {
+            console.log('Content parameter detected:', contentParam);
+            
+            // Check for browser:/local: prefix (localStorage)
+            if (contentParam.startsWith('browser:') || contentParam.startsWith('local:')) {
+                const prefix = contentParam.startsWith('browser:') ? 'browser:' : 'local:';
+                localStorageKey = contentParam.substring(prefix.length);
+                console.log('Parsed as localStorage key:', localStorageKey);
+            }
+            // Check for gist: prefix
+            else if (contentParam.startsWith('gist:')) {
+                gistId = contentParam.substring(5);
+                console.log('Parsed as gist:', gistId);
+            }
+            // Check for demo: prefix
+            else if (contentParam.startsWith('demo:')) {
+                demoName = contentParam.substring(5);
+                console.log('Parsed as demo:', demoName);
+            }
+            // Check for full GitHub gist URL
+            else if (contentParam.includes('gist.github.com/')) {
+                const gistMatch = contentParam.match(/gist\.github\.com\/(?:[^\/]+\/)?([a-f0-9]+)/);
+                if (gistMatch) {
+                    gistId = gistMatch[1];
+                    console.log('Parsed gist ID from URL:', gistId);
+                } else {
+                    console.error('Could not parse gist ID from URL:', contentParam);
+                }
+            }
+            // Check if it looks like a 32-char hex gist ID
+            else if (/^[a-f0-9]{32}$/i.test(contentParam)) {
+                gistId = contentParam;
+                console.log('Detected as gist ID:', gistId);
+            }
+            // Default to demo if no prefix and doesn't look like gist ID
+            else {
+                demoName = contentParam;
+                console.log('Defaulting to demo:', demoName);
+            }
+        }
+        // Fall back to legacy parameters for backwards compatibility
+        else if (legacyGistId) {
+            gistId = legacyGistId;
+            console.log('Using legacy gist parameter:', gistId);
+        }
+        else if (legacyDemoName) {
+            demoName = legacyDemoName;
+            console.log('Using legacy demo parameter:', demoName);
+        }
+        
         const fontUrl = urlParams.get('font');
         const shaderGistId = urlParams.get('shader');
         
@@ -105,12 +166,38 @@
         let shaderCode = null;
         let shaderReady = false;
         
+        // Load from localStorage if specified
+        if (localStorageKey) {
+            console.log('Loading from localStorage:', localStorageKey);
+            try {
+                // Try with tstorie_ prefix first
+                let storedContent = localStorage.getItem('tstorie_' + localStorageKey);
+                // Fall back to raw key if not found
+                if (!storedContent) {
+                    storedContent = localStorage.getItem(localStorageKey);
+                }
+                
+                if (storedContent) {
+                    console.log('Found content in localStorage (' + storedContent.length + ' bytes)');
+                    gistMarkdown = storedContent;
+                    gistReady = true;
+                    progress.textContent = 'Loaded from browser storage';
+                } else {
+                    console.error('No content found in localStorage for key:', localStorageKey);
+                    progress.textContent = 'Error: Content not found in browser storage';
+                }
+            } catch (e) {
+                console.error('Error reading from localStorage:', e);
+                progress.textContent = 'Error: Could not access browser storage';
+            }
+        }
+        
         if (gistId) {
-            console.log('Gist parameter detected:', gistId);
+            console.log('Loading gist:', gistId);
         }
         
         if (demoName) {
-            console.log('Demo parameter detected:', demoName);
+            console.log('Loading demo:', demoName);
         }
         
         if (shaderGistId) {
@@ -207,7 +294,7 @@
                 return;
             }
             
-            const specialParams = ['gist', 'demo', 'font', 'shader'];
+            const specialParams = ['gist', 'demo', 'content', 'font', 'shader'];
             
             for (const [key, value] of urlParams.entries()) {
                 if (!specialParams.includes(key)) {
@@ -234,7 +321,7 @@
         }
         
         var Module = {
-            waitingForGist: (gistId || demoName) ? true : false,
+            waitingForGist: (gistId || demoName || localStorageKey) ? true : false,
             customFontFamily: window.customFontFamily || null,
             canvas: canvas,
             print: function(text) {
@@ -258,8 +345,8 @@
                 console.log('Parsing URL parameters...');
                 parseAndStoreUrlParams();
                 
-                // Set waiting flag if gist or demo is present (must be done before init)
-                if (gistId || demoName) {
+                // Set waiting flag if gist, demo, or localStorage is present (must be done before init)
+                if (gistId || demoName || localStorageKey) {
                     console.log('Setting wait flag for content before initialization');
                     try {
                         if (typeof Module._emSetWaitingForGist === 'function') {
@@ -285,7 +372,7 @@
                 }
                 
                 // Try loading content if it's ready
-                if (gistId || demoName) {
+                if (gistId || demoName || localStorageKey) {
                     tryLoadGist();
                 } else {
                     Module.setStatus('');

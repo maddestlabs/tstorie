@@ -5,17 +5,17 @@ Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with
 Check it out live: ► [Demo](https://maddestlabs.github.io/tstorie/)
 
 Demos:
-- [slides.md](https://maddestlabs.github.io/tstorie?demo=slides&shader=crt&font=Kode+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
-- [depths.md](https://maddestlabs.github.io/tstorie?demo=depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
-- [dungen.md](https://maddestlabs.github.io/tstorie?demo=dungen) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
-- [clock.md](https://maddestlabs.github.io/tstorie?demo=clock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
+- [slides.md](https://maddestlabs.github.io/tstorie?content=demo:slides&shader=crt&font=Kode+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
+- [depths.md](https://maddestlabs.github.io/tstorie?content=demo:depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
+- [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
 
 Core examples:
-- [layout.md](https://maddestlabs.github.io/tstorie?demo=layout) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
-- [tui_simple.md](https://maddestlabs.github.io/tstorie?demo=tui_simple) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
+- [layout.md](https://maddestlabs.github.io/tstorie?content=demo:layout) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
+- [tui_simple.md](https://maddestlabs.github.io/tstorie?content=demo:tui_simple) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
 
 Gist Example:
-- [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie?gist=863a4175989370857ccd67cb5492ac11&shader=4e90c8ee277103230272d64294675049&font=Monofett) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
+- [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie?content=gist:863a4175989370857ccd67cb5492ac11&shader=4e90c8ee277103230272d64294675049&font=Monofett) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the TStorie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 
@@ -37,9 +37,83 @@ Engine features:
 
 ## Getting Started
 
+### Web Usage
+
+**Quick Start with Content Parameter:**
+```
+# Load from GitHub Gist
+https://maddestlabs.github.io/tstorie?content=gist:abc123
+
+# Load a local demo
+https://maddestlabs.github.io/tstorie?content=demo:clock
+
+# Load from browser localStorage (drafts, offline work)
+https://maddestlabs.github.io/tstorie?content=browser:my-draft
+
+# Load from full Gist URL
+https://maddestlabs.github.io/tstorie?content=https://gist.github.com/user/abc123
+```
+
+**Browser localStorage Support:**
+
+Save and load content directly in the browser for offline work and drafts:
+
+```javascript
+// In browser console or your own page
+<script src="https://maddestlabs.github.io/tstorie/localStorage-helper.js"></script>
+
+// Save content
+TStorie.saveLocal('my-draft', '# My Story\n\nContent here...');
+
+// List saved items
+TStorie.listLocal();
+
+// Load it
+window.location.href = '?content=browser:my-draft';
+
+// Delete when done
+TStorie.deleteLocal('my-draft');
+```
+
+**Legacy Parameters (still supported):**
+```
+# Gist parameter
+https://maddestlabs.github.io/tstorie?gist=abc123
+
+# Demo parameter
+https://maddestlabs.github.io/tstorie?demo=clock
+```
+
+### Command-Line Usage
+
+**Install and run locally:**
+```bash
+# Install Nim if you haven't already
+curl https://nim-lang.org/choosenim/init.sh -sSf | sh
+
+# Clone and build
+git clone https://github.com/maddestlabs/tstorie.git
+cd tstorie
+./build.sh
+
+# Run with content parameter
+./tstorie --content demo:clock
+./tstorie --content gist:abc123
+
+# Or run a local file
+./tstorie myfile.md
+```
+
+**Content Sources:**
+- `gist:<ID>` - Load from GitHub Gist
+- `demo:<name>` - Load from local demos folder
+- `file:<path>` - Load from file path
+
+### Project Creation
+
 Quick Start:
 - Create a gist using Markdown and Nim code blocks
-- See your gist running live: `https://maddestlabs.github.io/tstorie?gist=gistid`
+- See your gist running live: `https://maddestlabs.github.io/tstorie?content=gist:gistid`
 
 Create your own project:
 - Create a template from Storie and enable GitHub Pages
