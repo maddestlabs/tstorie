@@ -13,7 +13,6 @@ theme: "catpuccin"
 # Get available themes
 var themes = nimini_getThemes()
 var currentThemeIndex = 0
-var message = "YO!"
 
 # Find index of current theme
 var currentTheme = nimini_getCurrentTheme()
@@ -43,7 +42,6 @@ if event.type == "key":
     currentThemeIndex = (currentThemeIndex + 1) % len(themes)
     var newTheme = themes[currentThemeIndex]
     nimini_switchTheme(newTheme)
-    message = "Not Yo no more!"
     return true
     
     # Pass key events to canvas system
@@ -76,7 +74,6 @@ style.bold = true
 var themeName = themes[currentThemeIndex]
 fgWriteText(termWidth - len(themeName) - 15, 1, "Theme: " & themeName, style)
 fgWriteText(termWidth - 15, 2, "Press TAB to cycle", style)
-fgWriteText(termWidth - 15, 4, message, style)
 ```
 
 ```nim on:update
