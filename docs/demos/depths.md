@@ -38,10 +38,11 @@ if event.type == "key":
   return false
 
 elif event.type == "mouse":
-  # Pass mouse events to canvas system
-  var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
-  if handled:
-    return true
+  if event.action == "press":
+    # Pass mouse events to canvas system (only on press, not release)
+    var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+    if handled:
+      return true
   return false
 
 return false

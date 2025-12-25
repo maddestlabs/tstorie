@@ -294,8 +294,15 @@ proc centerOnSection*(sectionIdx: int, viewportWidth, viewportHeight: int) =
     return
   
   let section = canvasState.sections[sectionIdx]
+  
+  # Center horizontally on section's center
   canvasState.camera.targetX = float(section.x + section.width div 2 - viewportWidth div 2)
-  canvasState.camera.targetY = float(section.y + section.height div 2 - viewportHeight div 2)
+  
+  # Center vertically with a bias toward the top of the section
+  # This makes content appear more centered on screen, especially for short sections
+  # Use 1/3 of section height instead of 1/2 to shift content up
+  let sectionVisualCenter = section.y + (section.height div 3)
+  canvasState.camera.targetY = float(sectionVisualCenter - viewportHeight div 2)
 
 # ================================================================
 # LAYOUT CALCULATION
