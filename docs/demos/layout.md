@@ -9,10 +9,9 @@ This demo shows the new layout module capabilities.
 
 ```nim on:render
 # Clear screen
-bgFillRect(0, 0, getTermWidth(), getTermHeight(), " ")
-
 var w = getTermWidth()
 var h = getTermHeight()
+bgFillRect(0, 0, w, h, " ")
 
 # Title bar - centered
 bgWriteTextBox(0, 0, w, 1, title, "AlignCenter", "AlignTop", "WrapNone")
