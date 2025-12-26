@@ -358,7 +358,9 @@ Congratulations! You've explored the TStorie Engine and learned about:
 ✓ Event handling  
 ✓ Advanced features
 ⠀
-**What's Next?**
+➛ [Return to start](welcome)
+
+# whats_next
 ⠀
 Check out these example documents:
 - `docs/demos/depths.md` - Full dungeon adventure
@@ -402,5 +404,5 @@ if explorerLevel > 0:
     stats = stats & "RND "
   if visitedInteractive:
     stats = stats & "INT "
-  bgWriteText(2, getTermHeight() - 2, stats)
+  fgWriteText(2, getTermHeight() - 2, stats)
 ```

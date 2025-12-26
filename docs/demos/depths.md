@@ -3,7 +3,7 @@ title: "The Depths of Khel-Daran"
 author: "Maddest Labs"
 minWidth: 80
 minHeight: 24
-theme: "nord"
+theme: "futurism"
 ---
 
 ```nim on:init

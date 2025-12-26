@@ -6,7 +6,7 @@ Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
 
 Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie?content=demo:slides&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
-- [depths.md](https://maddestlabs.github.io/tstorie?content=demo:depth&shader=crts) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [depths.md](https://maddestlabs.github.io/tstorie?content=demo:depths&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 - [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
 
