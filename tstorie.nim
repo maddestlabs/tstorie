@@ -1726,6 +1726,7 @@ proc setTargetFps*(state: AppState, fps: float) =
 # Global markdown file path (can be set via CLI or from user files)
 var gMarkdownFile*: string = "index.md"
 var gWaitingForGist*: bool = false
+var gShowingDimensionWarning*: bool = false  # Flag to skip layer compositing
 
 when not defined(emscripten):
   var onInit*: proc(state: AppState) = nil
@@ -1778,6 +1779,8 @@ when defined(emscripten):
   var globalState: AppState
   var lastRenderExecutedCount*: int = -1
   var lastError*: string = ""
+  var globalMinWidth*: int = 0  # Minimum required width (0 = no requirement)
+  var globalMinHeight*: int = 0  # Minimum required height (0 = no requirement)
   
   # Store URL params locally until runtime is initialized
   var wasmPendingParams: seq[(string, string)] = @[]
@@ -1906,6 +1909,76 @@ when defined(emscripten):
     # Apply theme parameter if present (will be applied in initStorieContext)
     # Theme parameter is checked after markdown loads in index.nim
   
+  proc checkAndRenderDimensionWarning(): bool =
+    ## Check if dimensions meet requirements and render warning if not.
+    ## Returns true if dimensions are OK, false if too small.
+    
+    # Check if we have requirements (use storieCtx if available, otherwise globals)
+    var minW, minH: int
+    if not storieCtx.isNil:
+      minW = storieCtx.minWidth
+      minH = storieCtx.minHeight
+    else:
+      minW = globalMinWidth
+      minH = globalMinHeight
+    
+    # DEBUG: Always show values in top-left corner
+    var debugStyle = defaultStyle()
+    debugStyle.fg = rgb(255'u8, 100'u8, 100'u8)
+    debugStyle.bold = true
+    let debugMsg = "Check: " & $minW & "x" & $minH & " vs " & $globalState.termWidth & "x" & $globalState.termHeight
+    globalState.currentBuffer.writeText(1, 1, debugMsg, debugStyle)
+    
+    if minW <= 0 and minH <= 0:
+      gShowingDimensionWarning = false
+      return true  # No minimum requirements
+    
+    let needsWidth = minW > 0 and globalState.termWidth < minW
+    let needsHeight = minH > 0 and globalState.termHeight < minH
+    
+    if not needsWidth and not needsHeight:
+      gShowingDimensionWarning = false
+      return true  # Dimensions are sufficient
+    
+    # Set flag to prevent layer compositing
+    gShowingDimensionWarning = true
+    
+    # Clear screen and render centered warning message
+    globalState.currentBuffer.clear((0'u8, 0'u8, 0'u8))
+    
+    # Build the message lines with current dimensions for debugging
+    let reqWidth = if minW > 0: minW else: globalState.termWidth
+    let reqHeight = if minH > 0: minH else: globalState.termHeight
+    
+    let line1 = $reqWidth & " x " & $reqHeight & " dimensions required."
+    let line2 = "Current: " & $globalState.termWidth & " x " & $globalState.termHeight
+    let line3 = "Resize browser window to continue."
+    
+    # Calculate centering
+    let centerY = globalState.termHeight div 2
+    
+    # Render lines centered
+    var warnStyle = defaultStyle()
+    warnStyle.fg = yellow()
+    warnStyle.bold = true
+    
+    let line1X = (globalState.termWidth - line1.len) div 2
+    let line1Y = centerY
+    if line1Y >= 0 and line1Y < globalState.termHeight:
+      globalState.currentBuffer.writeText(line1X, line1Y, line1, warnStyle)
+    
+    let line2X = (globalState.termWidth - line2.len) div 2
+    let line2Y = centerY + 1
+    if line2Y >= 0 and line2Y < globalState.termHeight:
+      globalState.currentBuffer.writeText(line2X, line2Y, line2, warnStyle)
+    
+    let line3X = (globalState.termWidth - line3.len) div 2
+    let line3Y = centerY + 2
+    if line3Y >= 0 and line3Y < globalState.termHeight:
+      globalState.currentBuffer.writeText(line3X, line3Y, line3, warnStyle)
+    
+    return false
+  
   proc emUpdate(deltaMs: float) {.exportc.} =
     let dt = deltaMs / 1000.0
     globalState.totalTime += dt
@@ -1914,6 +1987,18 @@ when defined(emscripten):
     if globalState.totalTime - globalState.lastFpsUpdate >= 0.5:
       globalState.fps = 1.0 / dt
       globalState.lastFpsUpdate = globalState.totalTime
+    
+    # DEBUG: Write something to see if emUpdate is running
+    var testStyle = defaultStyle()
+    testStyle.fg = rgb(255'u8, 0'u8, 255'u8)
+    testStyle.bold = true
+    globalState.currentBuffer.writeText(1, 0, "emUpdate running!", testStyle)
+    
+    # Check if dimensions meet requirements and render warning if not
+    if not checkAndRenderDimensionWarning():
+      # Dimensions insufficient, warning already rendered
+      # Skip normal rendering (no need to composite, warning is in currentBuffer)
+      return
     
     # Call update directly
     if not storieCtx.isNil:
@@ -1934,7 +2019,9 @@ when defined(emscripten):
     renderStorie(globalState)
 
     # Composite layers onto currentBuffer (this will fill with theme background first)
-    compositeLayers(globalState)
+    # Only composite if not showing dimension warning
+    if not gShowingDimensionWarning:
+      compositeLayers(globalState)
 
     # Optional: Show minimal debug info at bottom (can be removed)
     when defined(emscripten):
@@ -1966,6 +2053,9 @@ when defined(emscripten):
     globalState.currentBuffer = newTermBuffer(width, height)
     globalState.previousBuffer = newTermBuffer(width, height)
     resizeLayers(globalState, width, height)
+    
+    # Check dimensions and render warning if needed
+    discard checkAndRenderDimensionWarning()
   
   # Thread-local storage for cell character to ensure cstring stability
   var cellCharBuffer {.threadvar.}: string
@@ -2181,7 +2271,23 @@ when defined(emscripten):
         storieCtx.sectionMgr = newSectionManager(doc.sections)
         storieCtx.frontMatter = doc.frontMatter
         storieCtx.styleSheet = doc.styleSheet
-        
+
+        # Parse minWidth and minHeight from front matter (WASM fix)
+        storieCtx.minWidth = 0
+        storieCtx.minHeight = 0
+        if storieCtx.frontMatter.hasKey("minWidth"):
+          try:
+            storieCtx.minWidth = parseInt(storieCtx.frontMatter["minWidth"])
+            globalMinWidth = storieCtx.minWidth
+          except:
+            discard
+        if storieCtx.frontMatter.hasKey("minHeight"):
+          try:
+            storieCtx.minHeight = parseInt(storieCtx.frontMatter["minHeight"])
+            globalMinHeight = storieCtx.minHeight
+          except:
+            discard
+
         # Also update globalState styleSheet for API access
         globalState.styleSheet = doc.styleSheet
         
@@ -2451,7 +2557,11 @@ proc main() =
         
         swap(state.currentBuffer, state.previousBuffer)
         callOnDraw(state)
-        compositeLayers(state)
+        
+        # Only composite layers if not showing dimension warning
+        # (warning is rendered directly to currentBuffer)
+        if not gShowingDimensionWarning:
+          compositeLayers(state)
         
         state.currentBuffer.display(state.previousBuffer, state.colorSupport)
         

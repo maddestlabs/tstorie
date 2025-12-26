@@ -22,7 +22,7 @@ class TStorieTerminal {
         
         // Font settings
         this.fontSize = 16;
-        this.fontFamily = fontFamily || "'FiraCode', 'Consolas', 'Monaco', monospace";
+        this.fontFamily = fontFamily || "'3270-Regular', 'Consolas', 'Monaco', monospace";
         
         // Performance
         this.lastFrameTime = 0;

@@ -552,11 +552,9 @@ if isGenerating:
     progress = 100
   bgWriteText(0, height + 1, "GENERATING... " & str(progress) & "% complete  Step: " & str(step))
   bgWriteText(0, height + 2, "Seed: " & str(seedValue))
-  bgWriteText(0, height + 3, "DEBUG: hasParam('seed')=" & str(testHasParam) & " getParam('seed')='" & testGetParam & "'")
 else:
   bgWriteText(0, height + 1, "Seed: " & str(seedValue) & "  Steps: " & str(step))
-  bgWriteText(0, height + 2, "Press R to regenerate, Space to step")
-  bgWriteText(0, height + 3, "DEBUG: hasParam('seed')=" & str(testHasParam) & " getParam('seed')='" & testGetParam & "'")
+  bgWriteText(0, height + 2, "Press R to regenerate")
 ```
 
 ```nim on:input
@@ -568,18 +566,6 @@ if event.type == "text":
     isGenerating = true
     return true
   return false
-
-if event.type == "key":
-  # Handle space key (keyCode 32) - only works when generation is complete
-  if event.keyCode == 32 and event.action == "press":
-    if not isGenerating:
-      if not updateDungeon():
-        # Restart if complete
-        initDungeon()
-        isGenerating = true
-      else:
-        step = step + 1
-    return true
 
 return false
 ```

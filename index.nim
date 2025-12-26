@@ -21,8 +21,9 @@ include lib/events            # Event handling system
 include lib/animation         # Animation helpers and easing
 include lib/drawing           # Drawing utilities for layers
 include lib/canvas            # Canvas navigation system
-include lib/tui               # TUI widget system
 include lib/audio             # Audio system
+include lib/tui               # TUI widget system
+include lib/tui_editor
 
 # Helper to convert Value to int (handles both int and float values)
 proc valueToInt(v: Value): int =
@@ -65,6 +66,8 @@ type
     frontMatter: FrontMatter  # Front matter from markdown
     styleSheet: StyleSheet    # Style configurations from front matter
     themeBackground: tuple[r, g, b: uint8]  # Theme's background color for terminal
+    minWidth: int  # Minimum required terminal width (0 = no requirement)
+    minHeight: int  # Minimum required terminal height (0 = no requirement)
     # Pre-compiled layer references
     bgLayer: Layer
     fgLayer: Layer
@@ -605,15 +608,42 @@ proc nimini_newSlider(env: ref Env; args: seq[Value]): Value {.nimini.} =
     gWidgetManager.addWidget(slider)
   return valNil()
 
+proc nimini_newTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a multi-line text editor widget. Args: id, x, y, width, height
+  if args.len >= 5:
+    let id = args[0].s
+    let x = valueToInt(args[1])
+    let y = valueToInt(args[2])
+    let w = valueToInt(args[3])
+    let h = valueToInt(args[4])
+    let textbox = newTextBox(id, x, y, w, h)
+    gWidgetRegistry[id] = textbox
+    gWidgetManager.addWidget(textbox)
+  return valNil()
+
 proc nimini_widgetSetText(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set text on a label widget. Args: id, text
+  ## Set text on a label or textbox widget. Args: id, text
   if args.len >= 2:
     let id = args[0].s
     if gWidgetRegistry.hasKey(id):
       let widget = gWidgetRegistry[id]
       if widget of Label:
         Label(widget).setText(args[1].s)
+      elif widget of TextBox:
+        TextBox(widget).setText(args[1].s)
   return valNil()
+
+proc nimini_widgetGetText(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get text from a label or textbox widget. Args: id
+  if args.len >= 1:
+    let id = args[0].s
+    if gWidgetRegistry.hasKey(id):
+      let widget = gWidgetRegistry[id]
+      if widget of Label:
+        return valString(Label(widget).text)
+      elif widget of TextBox:
+        return valString(TextBox(widget).getText())
+  return valString("")
 
 proc nimini_widgetGetValue(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get value from a widget (checkbox checked state or slider value). Args: id
@@ -837,6 +867,94 @@ proc nimini_widgetManagerHandleInput(env: ref Env; args: seq[Value]): Value {.ni
   # Pass the event to the widget manager
   let consumed = gWidgetManager.handleInput(inputEvent)
   return valBool(consumed)
+
+# ================================================================
+# BROWSER API WRAPPERS (localStorage, window.open)
+# ================================================================
+
+# localStorage functionality temporarily disabled for web build due to FFI issues
+# TODO: Re-enable with proper emscripten bindings
+#
+# The issue is that emscripten doesn't support direct importc with JavaScript object
+# methods like "localStorage.setItem". To fix this, we need to:
+# 1. Add emscripten.h include to get EM_ASM macros
+# 2. Use proper EM_ASM/EM_ASM_PTR syntax for calling JavaScript from C
+# 3. Handle UTF8 string conversion correctly
+# 4. Test that window.open works with the same approach
+#
+# Alternatively, we could create JavaScript wrapper functions that are called
+# via simpler C function names (e.g., js_localstorage_set instead of localStorage.setItem)
+
+when false: # disabled
+  when defined(emscripten):
+    # JavaScript FFI for localStorage using EM_ASM
+    proc js_localStorage_setItem(key: cstring, value: cstring) =
+      {.emit: """
+      EM_ASM({
+        localStorage.setItem(UTF8ToString($0), UTF8ToString($1));
+      }, `key`, `value`);
+      """.}
+    
+    proc js_localStorage_getItem(key: cstring): cstring =
+      var result: cstring
+      {.emit: """
+      `result` = (char*)EM_ASM_PTR({
+        var item = localStorage.getItem(UTF8ToString($0));
+        if (item === null) return 0;
+        var len = lengthBytesUTF8(item) + 1;
+        var str = _malloc(len);
+        stringToUTF8(item, str, len);
+        return str;
+      }, `key`);
+      """.}
+      return result
+    
+    proc js_window_open(url: cstring, target: cstring) =
+      {.emit: """
+      EM_ASM({
+        window.open(UTF8ToString($0), UTF8ToString($1));
+      }, `url`, `target`);
+      """.}
+
+proc nimini_localStorage_setItem(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Save content to browser localStorage. Args: key, value (temporarily disabled)
+  if args.len >= 2:
+    let key = args[0].s
+    let value = args[1].s
+    when false: # disabled
+      when defined(emscripten):
+        js_localStorage_setItem(key.cstring, value.cstring)
+    # Stub - localStorage temporarily disabled
+    when not defined(emscripten):
+      echo "localStorage_setItem (disabled): ", key
+  return valNil()
+
+proc nimini_localStorage_getItem(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Load content from browser localStorage. Args: key (temporarily disabled)
+  if args.len >= 1:
+    let key = args[0].s
+    when false: # disabled
+      when defined(emscripten):
+        let value = js_localStorage_getItem(key.cstring)
+        if not value.isNil:
+          return valString($value)
+    # Stub - localStorage temporarily disabled
+    when not defined(emscripten):
+      echo "localStorage_getItem (disabled): ", key
+  return valString("")
+
+proc nimini_window_open(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Open URL in new browser window/tab. Args: url, target (temporarily disabled)
+  if args.len >= 1:
+    let url = args[0].s
+    let target = if args.len >= 2: args[1].s else: "_blank"
+    when false: # disabled
+      when defined(emscripten):
+        js_window_open(url.cstring, target.cstring)
+    # Stub - window.open temporarily disabled
+    when not defined(emscripten):
+      echo "window_open (disabled): ", url, " in ", target
+  return valNil()
 
 # ================================================================
 # CANVAS SYSTEM WRAPPERS
@@ -1338,9 +1456,12 @@ proc createNiminiContext(state: AppState): NiminiContext =
     # TUI widget system
     nimini_tuiTest, nimini_newWidgetManager,
     nimini_newLabel, nimini_newButton, nimini_newCheckBox, nimini_newRadioButton, nimini_newSlider,
-    nimini_widgetSetText, nimini_widgetGetValue, nimini_widgetSetValue, nimini_widgetSetCallback,
+    nimini_newTextBox,
+    nimini_widgetSetText, nimini_widgetGetText, nimini_widgetGetValue, nimini_widgetSetValue, nimini_widgetSetCallback,
     nimini_widgetWasClicked, nimini_widgetGetLastClicked,
     nimini_widgetManagerUpdate, nimini_widgetManagerRender, nimini_widgetManagerHandleInput,
+    # Browser API
+    nimini_localStorage_setItem, nimini_localStorage_getItem, nimini_window_open,
     # Animation/transition helpers (simple, safe)
     nimini_newTransition, nimini_updateTransition, nimini_transitionProgress,
     nimini_transitionEasedProgress, nimini_transitionIsActive, nimini_resetTransition,
@@ -1620,6 +1741,30 @@ proc initStorieContext(state: AppState) =
       when not defined(emscripten):
         echo "Warning: Invalid targetFPS value in front matter"
   
+  # Parse minWidth and minHeight from front matter
+  storieCtx.minWidth = 0
+  storieCtx.minHeight = 0
+  if storieCtx.frontMatter.hasKey("minWidth"):
+    try:
+      storieCtx.minWidth = parseInt(storieCtx.frontMatter["minWidth"])
+      when defined(emscripten):
+        globalMinWidth = storieCtx.minWidth
+      when not defined(emscripten):
+        echo "Minimum width set from front matter: ", storieCtx.minWidth
+    except:
+      when not defined(emscripten):
+        echo "Warning: Invalid minWidth value in front matter"
+  if storieCtx.frontMatter.hasKey("minHeight"):
+    try:
+      storieCtx.minHeight = parseInt(storieCtx.frontMatter["minHeight"])
+      when defined(emscripten):
+        globalMinHeight = storieCtx.minHeight
+      when not defined(emscripten):
+        echo "Minimum height set from front matter: ", storieCtx.minHeight
+    except:
+      when not defined(emscripten):
+        echo "Warning: Invalid minHeight value in front matter"
+  
   # Create default layers that code blocks can use
   storieCtx.bgLayer = state.addLayer("background", 0)
   storieCtx.fgLayer = state.addLayer("foreground", 10)
@@ -1709,6 +1854,58 @@ proc initStorieContext(state: AppState) =
         when not defined(emscripten):
           echo "WARNING: Init block failed to execute"
 
+proc checkMinimumDimensions*(state: AppState): bool =
+  ## Check if current terminal dimensions meet minimum requirements.
+  ## Returns true if dimensions are OK, false if too small.
+  ## When false, renders a centered warning message.
+  if storieCtx.isNil:
+    gShowingDimensionWarning = false
+    return true  # No requirements if context not initialized
+  
+  # Check if minimum dimensions are required
+  if storieCtx.minWidth <= 0 and storieCtx.minHeight <= 0:
+    gShowingDimensionWarning = false
+    return true  # No minimum requirements
+  
+  let needsWidth = storieCtx.minWidth > 0 and state.termWidth < storieCtx.minWidth
+  let needsHeight = storieCtx.minHeight > 0 and state.termHeight < storieCtx.minHeight
+  
+  if not needsWidth and not needsHeight:
+    gShowingDimensionWarning = false
+    return true  # Dimensions are sufficient
+  
+  # Set flag to prevent layer compositing from overwriting our message
+  gShowingDimensionWarning = true
+  
+  # Clear screen and render centered warning message
+  state.currentBuffer.clear((0'u8, 0'u8, 0'u8))
+  
+  # Build the message lines
+  var lines: seq[string] = @[]
+  let reqWidth = if storieCtx.minWidth > 0: storieCtx.minWidth else: state.termWidth
+  let reqHeight = if storieCtx.minHeight > 0: storieCtx.minHeight else: state.termHeight
+  
+  lines.add($reqWidth & " x " & $reqHeight & " dimensions required.")
+  lines.add("Resize terminal to continue. Press CTRL-C to quit.")
+  
+  # Calculate centering
+  let maxLen = max(lines[0].len, lines[1].len)
+  let centerY = state.termHeight div 2
+  let centerX = (state.termWidth - maxLen) div 2
+  
+  # Render lines centered
+  var warnStyle = defaultStyle()
+  warnStyle.fg = yellow()
+  warnStyle.bold = true
+  
+  for i, line in lines:
+    let lineX = (state.termWidth - line.len) div 2
+    let lineY = centerY + i
+    if lineY >= 0 and lineY < state.termHeight:
+      state.currentBuffer.writeText(lineX, lineY, line, warnStyle)
+  
+  return false
+
 # ================================================================
 # CALLBACK IMPLEMENTATIONS
 # ================================================================
@@ -1736,6 +1933,12 @@ onUpdate = proc(state: AppState, dt: float) =
       discard executeCodeBlock(storieCtx.niminiContext, codeBlock, state, InputEvent(), dt)
 
 onRender = proc(state: AppState) =
+  # Check if dimensions meet requirements first
+  if not checkMinimumDimensions(state):
+    # Warning message already rendered, skip all normal rendering
+    # Note: gShowingDimensionWarning flag prevents compositeLayers from running
+    return
+  
   if storieCtx.isNil:
     when defined(emscripten):
       lastRenderExecutedCount = 0

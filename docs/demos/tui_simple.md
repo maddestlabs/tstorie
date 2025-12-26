@@ -1,5 +1,7 @@
 ---
 title: TUI Test
+minWidth: 80
+minHeight: 25
 styles:
   label: { fg: [200, 200, 200], bg: [20, 20, 20] }
   button.normal: { fg: [255, 255, 255], bg: [50, 50, 150], bold: false }

@@ -6,8 +6,8 @@
     <title>TStorie - Terminal Engine</title>
     <style>
         @font-face {
-            font-family: 'FiraCode';
-            src: url('assets/FiraCodeNerdFont-Regular.ttf') format('truetype');
+            font-family: '3270-Regular';
+            src: url('./assets/3270-Regular.ttf') format('truetype');
         }
         
         * {
@@ -19,13 +19,13 @@
         body {
             background: #000;
             overflow: hidden;
-            font-family: 'FiraCode', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
             width: 100vw;
             height: 100vh;
         }
         
         body.custom-font {
-            font-family: var(--custom-font-family), 'FiraCode', 'Consolas', 'Monaco', monospace;
+            font-family: var(--custom-font-family), '3270-Regular', 'Consolas', 'Monaco', monospace;
         }
         
         #container {
@@ -46,19 +46,39 @@
             font-smooth: never;
             -webkit-font-smoothing: none;
             -moz-osx-font-smoothing: grayscale;
-            font-family: 'FiraCode', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
         }
         
         #terminal.custom-font {
-            font-family: var(--custom-font-family), 'FiraCode', 'Consolas', 'Monaco', monospace;
+            font-family: var(--custom-font-family), '3270-Regular', 'Consolas', 'Monaco', monospace;
         }
         
         #loading {
             position: absolute;
-            color: #0f0;
+            color: #ff0;
             font-size: 16px;
             text-align: center;
             z-index: 10;
+        }
+
+        #cursor {
+            color: #fff;
+            display: inline-block;
+            width: 10px;
+            animation: blink 1s steps(2, start) infinite;
+        }
+
+        #t {
+            color: #f0f;
+        }
+        
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
         }
         
         #loading.hidden {
@@ -78,7 +98,7 @@
 <body>
     <div id="container">
         <div id="loading">
-            <div>Loading TStorie...</div>
+            <div>Loading <span id="t">t</span><span id="cursor">|</span>Storie...</div>
             <div id="progress"></div>
         </div>
         <canvas id="terminal" tabindex="0"></canvas>
@@ -96,10 +116,7 @@
         
         // Parse unified content parameter
         // Supports: ?content=gist:ID, ?content=demo:name, ?content=browser:key, ?content=https://gist.github.com/...
-        // Also supports legacy: ?gist=ID, ?demo=name for backwards compatibility
         const contentParam = urlParams.get('content');
-        const legacyGistId = urlParams.get('gist');
-        const legacyDemoName = urlParams.get('demo');
         
         let gistId = null;
         let demoName = null;
@@ -145,15 +162,6 @@
                 demoName = contentParam;
                 console.log('Defaulting to demo:', demoName);
             }
-        }
-        // Fall back to legacy parameters for backwards compatibility
-        else if (legacyGistId) {
-            gistId = legacyGistId;
-            console.log('Using legacy gist parameter:', gistId);
-        }
-        else if (legacyDemoName) {
-            demoName = legacyDemoName;
-            console.log('Using legacy demo parameter:', demoName);
         }
         
         const fontUrl = urlParams.get('font');
@@ -235,7 +243,7 @@
                     document.body.classList.add('custom-font');
                     canvas.classList.add('custom-font');
                     // Store font family for TStorieTerminal to use
-                    const fullFontFamily = "'" + fontFamily + "', 'FiraCode', 'Consolas', 'Monaco', monospace";
+                    const fullFontFamily = "'" + fontFamily + "', '3270-Regular', 'Consolas', 'Monaco', monospace";
                     if (typeof Module !== 'undefined') {
                         Module.customFontFamily = fullFontFamily;
                     } else {
@@ -512,11 +520,6 @@
                     shaderCode = null;
                 });
         }
-        
-        console.log('Load from gist with URL parameter: ?gist=YOUR_GIST_ID');
-        console.log('Load local demo with URL parameter: ?demo=demo_name (or ?demo=demo_name.md)');
-        console.log('Use custom font with: ?font=Font+Name or ?font=FULL_GOOGLE_FONTS_URL');
-        console.log('Apply shader effect with: ?shader=SHADER_GIST_ID');
     </script>
     
     <!-- Shader system -->
