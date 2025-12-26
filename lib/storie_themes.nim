@@ -18,8 +18,19 @@ type
     accent2*: tuple[r, g, b: uint8]
     accent3*: tuple[r, g, b: uint8]
 
+#     fgPrimary:    (0x00'u8, 0xd9'u8, 0x8e'u8),   # Aquamarine
 # Theme definitions
 const
+  Futurism* = ThemeColors(
+    bgPrimary:    (0x00'u8, 0x1d'u8, 0x20'u8),   # Deep teal (#001d20)
+    bgSecondary:  (0x09'u8, 0x34'u8, 0x3a'u8),   # Slightly lighter teal (#09343a)
+    fgPrimary:    (0xcd'u8, 0xcd'u8, 0xcd'u8),
+    fgSecondary:  (0x80'u8, 0xff'u8, 0xff'u8),   # Soft cyan
+    accent1:      (0x00'u8, 0xd9'u8, 0x8e'u8),   # Aquamarine
+    accent2:      (0xff'u8, 0xff'u8, 0x00'u8),   # Electric yellow
+    accent3:      (0xff'u8, 0x00'u8, 0x6e'u8),   # Neon pink
+  )
+
   CatppuccinMocha* = ThemeColors(
     bgPrimary:    (0x1e'u8, 0x1e'u8, 0x2e'u8),
     bgSecondary:  (0x31'u8, 0x32'u8, 0x44'u8),
@@ -110,7 +121,8 @@ proc getAvailableThemes*(): seq[string] =
     "outrun",
     "cyberpunk",
     "terminal",
-    "solarized-dark"
+    "solarized-dark",
+    "futurism"
   ]
 
 proc getTheme*(name: string): ThemeColors =
@@ -132,6 +144,8 @@ proc getTheme*(name: string): ThemeColors =
     return Terminal
   of "solarized-dark", "solarized":
     return SolarizedDark
+  of "futurism", "future", "retrowave":
+    return Futurism
   else:
     # Default to Catppuccin if theme not found
     return CatppuccinMocha

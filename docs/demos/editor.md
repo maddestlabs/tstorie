@@ -11,7 +11,7 @@ A basic code editor with localStorage save/load and live preview.
 - Arrow keys: Navigate
 - Type to edit
 - Ctrl+S: Save to localStorage
-- Ctrl+L: Load from localStorage  
+- Ctrl+L: Load from localStorage
 - Ctrl+P: Save & open live preview
 - Q: Quit
 
