@@ -249,10 +249,9 @@ proc toFloat*(v: Value): float =
   of vkArray:
     quit "Runtime Error: Cannot convert array to float"
   else:
-    # Print stack trace to help debug
-    echo "DEBUG toFloat: kind=", v.kind, " value=", v
+    # Conversion error: keep behavior but suppress noisy debug prints
     when compileOption("stacktrace"):
-      echo getStackTrace()
+      discard
     quit "Runtime Error: Expected numeric value, got " & $v.kind & " (value: " & $v & ")"
 
 proc toInt*(v: Value): int =
@@ -267,10 +266,9 @@ proc toInt*(v: Value): int =
   of vkArray:
     quit "Runtime Error: Cannot convert array to int"
   else:
-    # Print stack trace to help debug
-    echo "DEBUG toInt: kind=", v.kind, " value=", v
+    # Conversion error: keep behavior but suppress noisy debug prints
     when compileOption("stacktrace"):
-      echo getStackTrace()
+      discard
     quit "Runtime Error: Expected numeric value, got " & $v.kind & " (value: " & $v & ")"
 
 # ------------------------------------------------------------------------------
@@ -383,10 +381,8 @@ proc evalCall(name: string; args: seq[Expr]; env: ref Env): Value =
       if i < argVals.len:
         # Debug: show what we're binding
         if pname == "color" and argVals[i].kind == vkMap:
-          var keys: seq[string] = @[]
-          for k in argVals[i].map.keys:
-            keys.add(k)
-          echo "DEBUG binding param '", pname, "' with map keys: ", keys
+          # Suppress verbose debug output when binding color param
+          discard
         defineVar(callEnv, pname, argVals[i])
       else:
         defineVar(callEnv, pname, valNil())
@@ -527,11 +523,9 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       # Arithmetic and comparison operators need numeric conversion
       let bothInts = (l.kind == vkInt and r.kind == vkInt)
       
-      # Debug: print operands before conversion
+      # Suppress verbose debug output for binary ops with nil operands
       if l.kind == vkNil or r.kind == vkNil:
-        echo "DEBUG: Binary op '", e.op, "' with nil operand:"
-        echo "  Left: kind=", l.kind, " value=", l
-        echo "  Right: kind=", r.kind, " value=", r
+        discard
       
       let lf = toFloat(l)
       let rf = toFloat(r)
@@ -634,6 +628,7 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       if index.s in target.map:
         target.map[index.s]
       else:
+        # Suppress noisy debug output for missing map keys
         valNil()  # Return nil for missing keys
     of vkString:
       let idx = toInt(index)
@@ -669,9 +664,9 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       let fieldValue = evalExpr(field.value, env)
       objMap[field.name] = fieldValue
     
-    # Debug: if this looks like a Color, print the actual values
+    # If this looks like a Color, do not print verbose debug info
     if "r" in objMap and "g" in objMap and "b" in objMap:
-      echo "DEBUG Color constructed: r=", objMap["r"], " g=", objMap["g"], " b=", objMap["b"], " a=", objMap.getOrDefault("a", valInt(255))
+      discard
     
     # Return as a map value
     valMap(objMap)
@@ -708,9 +703,7 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       if target.kind == vkMap:
         if e.dotField in target.map:
           return target.map[e.dotField]
-        # Field not found - print debug info
-        echo "DEBUG: Field '", e.dotField, "' not found in map"
-        echo "  Available keys: ", toSeq(target.map.keys)
+        # Field not found - return nil without verbose debug output
         valNil()
       else:
         # Not a map/object - return nil
@@ -830,16 +823,9 @@ proc execStmt*(s: Stmt; env: ref Env): ExecResult =
       # Field assignment - update the field in the object (map)
       let target = evalExpr(s.assignTarget.dotTarget, env)
       if target.kind == vkMap:
-        # Debug field assignments to color
+        # Suppress verbose debug info for color field assignments
         if s.assignTarget.dotField == "color":
-          echo "DEBUG: Assigning to field 'color'"
-          echo "  Target has ", target.map.len, " keys"
-          echo "  Value kind: ", value.kind
-          if value.kind == vkMap:
-            var keys: seq[string] = @[]
-            for k in value.map.keys:
-              keys.add(k)
-            echo "  Value map keys: ", keys
+          discard
         
         # Update or add the field
         target.map[s.assignTarget.dotField] = value

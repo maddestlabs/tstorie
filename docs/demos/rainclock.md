@@ -3,6 +3,10 @@
 A real-time digital clock with large figlet-style digits that updates every frame.
 
 ```nim on:init
+# Initialize figlet font
+var fontLoaded = nimini_loadFont("jazmine")
+var debugMsg = "Font loaded: " & $fontLoaded
+
 # Initialize rain particles using parallel arrays
 var rainX = []
 var rainY = []
@@ -92,50 +96,884 @@ var hour = time.hour
 var minute = time.minute
 var second = time.second
 
-# Convert time to digits
-var h1 = hour / 10
-var h2 = hour - (h1 * 10)
-var m1 = minute / 10
-var m2 = minute - (m1 * 10)
-var s1 = second / 10
-var s2 = second - (s1 * 10)
+# Format time string
+var timeStr = ""
+if hour < 10:
+  timeStr = timeStr & "0"
+timeStr = timeStr & $hour & ":"
+if minute < 10:
+  timeStr = timeStr & "0"
+timeStr = timeStr & $minute & ":"
+if second < 10:
+  timeStr = timeStr & "0"
+timeStr = timeStr & $second
 
-# Calculate starting position to center the clock
-var clockWidth = 29
-var startX = (termWidth - clockWidth) / 2
-var startY = (termHeight - 5) / 2
+fgWriteText(1, 2, "Time: " & timeStr)
 
-# Draw the digits using the helper function
-var x = startX
-drawFigletDigit(h1, x, startY)
-x = x + 6
-drawFigletDigit(h2, x, startY)
-x = x + 6
-drawFigletDigit(10, x, startY)
-x = x + 2
-drawFigletDigit(m1, x, startY)
-x = x + 6
-drawFigletDigit(m2, x, startY)
-x = x + 6
-drawFigletDigit(10, x, startY)
-x = x + 2
-drawFigletDigit(s1, x, startY)
-x = x + 6
-drawFigletDigit(s2, x, startY)
+# Try to render
+var lines = nimini_render("jazmine", timeStr)
 
-# Show date below the clock
-var dateY = startY + 7
-var year = time.year
-var month = time.month
-var day = time.day
-var dateStr = $year & "-"
-if month < 10:
-  dateStr = dateStr & "0"
-dateStr = dateStr & $month & "-"
-if day < 10:
-  dateStr = dateStr & "0"
-dateStr = dateStr & $day
+# Center and draw
+if len(lines) > 0:
+  var clockWidth = len(lines[0])
+  var clockHeight = len(lines)
+  
+  var startX = 0
+  if clockWidth < termWidth:
+    var diff = termWidth - clockWidth
+    startX = diff / 2
+  
+  var startY = 10
+  if clockHeight < termHeight:
+    var diff = termHeight - clockHeight
+    startY = diff / 2
+  
+  var y = startY
+  for line in lines:
+    fgWriteText(startX, y, line)
+    y = y + 1
+else:
+  fgWriteText(2, 8, "No lines to render!")
+```
 
-var dateX = (termWidth - 10) / 2
-fgWriteText(dateX, dateY, dateStr)
+```figlet:jazmine
+flf2a$ 8 4 14 0 21 0 16256
+Cricket by Leslie Bates        Jan. 1, 1996
+cricket9@aros.net       http://www.aros.net/~cricket9
+I wish to thank Wade Fincher for the SIG that was used as a base for Cricket as
+well as Chris Gill who designed the Square font, some of which was used in 
+Cricket. And finally I wish to thank Paul Burton, who if it was not for his 
+desire to create FIGWin, I may never have had the motivation to create a 
+FIGfont.
+ FIGWin is the Windows clone of FIGlet with a full featured FIGfont editor!
+ Forget about doing the math to figure out the smushmode number.  Just check a
+ few boxes for each smushing rule.  Forget about endmarks -- let the computer
+ figure out how tall and how wide your font is.  Just draw FIGfonts with the
+ mouse and wipe the smudgemarks off your screen from all that counting!
+
+ FIGWin is full of features, but it's designed for use by a complete idiot.  If
+ you qualify, visit the FIGWin website.  Screen shots are shown, and of course
+ you can download it.  (FREE!)
+
+                      http://home.earthlink.net/~solution
+
+ Also see the FIGlet website:  http://st-www.cs.uiuc.edu/users/chai/figlet.html
+
+ $$@
+ $$@
+ $$@
+ $$@
+ $$@
+   @
+   @
+   @@
+  __ @
+ |  |@
+ |__|@
+ |__|@
+     @
+     @
+     @
+     @@
+  ____ @
+ | |  |@
+  |_|_|@
+       @
+       @
+       @
+       @
+       @@
+    _____   @
+  _|  |  |_ @
+ |_       _|@
+ |_       _|@
+   |__|__|  @
+            @
+            @
+            @@
+  __,-,__ @
+ |  ' '__|@
+ |__     |@
+ |_______|@
+    |_|   @
+          @
+          @
+          @@
+  __ ___ @
+ |__|   |@
+ |    __|@
+ |___|__|@
+         @
+         @
+         @
+         @@
+  __,-,__ @
+ |  ' '__|@
+ |     __|@
+ |_______|@
+    |_|   @
+          @
+          @
+          @@
+  __ @
+ |  |@
+  |_|@
+     @
+     @
+     @
+     @
+     @@
+   ___ @
+ ,'  _|@
+ |  |  @
+ |  |_ @
+ `.___|@
+       @
+       @
+       @@
+  ___  @
+ |_  `.@
+   |  |@
+  _|  |@
+ |___,'@
+       @
+       @
+       @@
+  __ _ __ @
+ |  | |  |@
+  >     < @
+ |__|_|__|@
+          @
+          @
+          @
+          @@
+    __   @
+  _|  |_ @
+ |_    _|@
+   |__|  @
+         @
+         @
+         @
+         @@
+     @
+     @
+  __ @
+ |  |@
+  |_|@
+     @
+     @
+     @@
+         @
+  ______ @
+ |______|@
+         @
+         @
+         @
+         @
+         @@
+     @
+     @
+  __ @
+ |__|@
+     @
+     @
+     @
+     @@
+     ___@
+    /  /@
+  ,' ,' @
+ /__/   @
+        @
+        @
+        @
+        @@
+  _______ @
+ |   _   |@
+ |.  |   |@
+ |.  |   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _____ @
+ | _   |@
+ |.|   |@
+ `-|.  |@
+   |:  |@
+   |::.|@
+   `---'@
+        @@
+  _______ @
+ |       |@
+ |___|   |@
+  /  ___/ @
+ |:  1  \ @
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |   _   |@
+ |___|   |@
+  _(__   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  ___ ___ @
+ |   Y   |@
+ |   |   |@
+ |____   |@
+     |:  |@
+     |::.|@
+     `---'@
+          @@
+  _______ @
+ |   _   |@
+ |   1___|@
+ |____   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |   _   |@
+ |   1___|@
+ |.     \ @
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |   _   |@
+ |___|   |@
+    /   / @
+   |   |  @
+   |   |  @
+   `---'  @
+          @@
+  _______ @
+ |   _   |@
+ |.  |   |@
+ |.  _   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |   _   |@
+ |   |   |@
+  \___   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  __ @
+ |__|@
+  __ @
+ |__|@
+     @
+     @
+     @
+     @@
+  __ @
+ |__|@
+  __ @
+ |  |@
+  |_|@
+     @
+     @
+     @@
+    __ @
+  ,' _|@
+ /  /  @
+ \  \_ @
+  `.__|@
+       @
+       @
+       @@
+         @
+  ______ @
+ |______|@
+ |______|@
+         @
+         @
+         @
+         @@
+  __   @
+ |_ `. @
+   \  \@
+  _/  /@
+ |__,' @
+       @
+       @
+       @@
+  _____ @
+ |__   |@
+ ',  ,- @
+  |--|  @
+  '--   @
+        @
+        @
+        @@
+  _________ @
+ |   ___   |@
+ |  |  _   |@
+ |  |______|@
+ |_________|@
+            @
+            @
+            @@
+  _______ @
+ |   _   |@
+ |.  1   |@
+ |.  _   |@
+ |:  |   |@
+ |::.|:. |@
+ `--- ---'@
+          @@
+  _______  @
+ |   _   \ @
+ |.  1   / @
+ |.  _   \ @
+ |:  1    \@
+ |::.. .  /@
+ `-------' @
+           @@
+  _______ @
+ |   _   |@
+ |.  1___|@
+ |.  |___ @
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  ______   @
+ |   _  \  @
+ |.  |   \ @
+ |.  |    \@
+ |:  1    /@
+ |::.. . / @
+ `------'  @
+           @@
+  _______ @
+ |   _   |@
+ |.  1___|@
+ |.  __)_ @
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |   _   |@
+ |.  1___|@
+ |.  __)  @
+ |:  |    @
+ |::.|    @
+ `---'    @
+          @@
+  _______ @
+ |   _   |@
+ |.  |___|@
+ |.  |   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  ___ ___ @
+ |   Y   |@
+ |.  1   |@
+ |.  _   |@
+ |:  |   |@
+ |::.|:. |@
+ `--- ---'@
+          @@
+  ___ @
+ |   |@
+ |.  |@
+ |.  |@
+ |:  |@
+ |::.|@
+ `---'@
+      @@
+  _______ @
+ |   _   |@
+ |___|   |@
+ |.  |   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  ___ ___  @
+ |   Y   ) @
+ |.  1  /  @
+ |.  _  \  @
+ |:  |   \ @
+ |::.| .  )@
+ `--- ---' @
+           @@
+  ___     @
+ |   |    @
+ |.  |    @
+ |.  |___ @
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  ___ ___ @
+ |   Y   |@
+ |.      |@
+ |. \_/  |@
+ |:  |   |@
+ |::.|:. |@
+ `--- ---'@
+          @@
+  ______  @
+ |   _  \ @
+ |.  |   |@
+ |.  |   |@
+ |:  |   |@
+ |::.|   |@
+ `--- ---'@
+          @@
+  _______ @
+ |   _   |@
+ |.  |   |@
+ |.  |   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |   _   |@
+ |.  1   |@
+ |.  ____|@
+ |:  |    @
+ |::.|    @
+ `---'    @
+          @@
+  _______ @
+ |   _   |@
+ |.  |   |@
+ |.  |   |@
+ |:  1   |@
+ |::..   |@
+ `----|:.|@
+      `--'@@
+  _______ @
+ |   _   \@
+ |.  l   /@
+ |.  _   1@
+ |:  |   |@
+ |::.|:. |@
+ `--- ---'@
+          @@
+  _______ @
+ |   _   |@
+ |   1___|@
+ |____   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  _______ @
+ |       |@
+ |.|   | |@
+ `-|.  |-'@
+   |:  |  @
+   |::.|  @
+   `---'  @
+          @@
+  ___ ___ @
+ |   Y   |@
+ |.  |   |@
+ |.  |   |@
+ |:  1   |@
+ |::.. . |@
+ `-------'@
+          @@
+  ___ ___ @
+ |   Y   |@
+ |.  |   |@
+ |.  |   |@
+ |:  1   |@
+  \:.. ./ @
+   `---'  @
+          @@
+  ___ ___ @
+ |   Y   |@
+ |.  |   |@
+ |. / \  |@
+ |:      |@
+ |::.|:. |@
+ `--- ---'@
+          @@
+   ___ ___  @
+  (   Y   ) @
+   \  1  /  @
+   /  _  \  @
+  /:  |   \ @
+ (::. |:.  )@
+  `--- ---' @
+            @@
+  ___ ___ @
+ |   Y   |@
+ |   1   |@
+  \_   _/ @
+   |:  |  @
+   |::.|  @
+   `---'  @
+          @@
+  _______ @
+ |   _   |@
+ |___|   |@
+  /  ___/ @
+ |:  1  \ @
+ |::.. . |@
+ `-------'@
+          @@
+  ____ @
+ |   _|@
+ |  |  @
+ |  |_ @
+ |____|@
+       @
+       @
+       @@
+ ___    @
+ \  \   @
+  `. `. @
+    \__\@
+        @
+        @
+        @
+        @@
+  ____ @
+ |_   |@
+   |  |@
+  _|  |@
+ |____|@
+       @
+       @
+       @@
+  ____ @
+ |    |@
+ |_/\_|@
+       @
+       @
+       @
+       @
+       @@
+         @
+         @
+         @
+  ______ @
+ |______|@
+         @
+         @
+         @@
+  __ @
+ |  |@
+ |_| @
+     @
+     @
+     @
+     @
+     @@
+        @
+ .---.-.@
+ |  _  |@
+ |___._|@
+        @
+        @
+        @
+        @@
+  __    @
+ |  |--.@
+ |  _  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+       @
+ .----.@
+ |  __|@
+ |____|@
+       @
+       @
+       @
+       @@
+     __ @
+ .--|  |@
+ |  _  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+        @
+ .-----.@
+ |  -__|@
+ |_____|@
+        @
+        @
+        @
+        @@
+   ___ @
+ .'  _|@
+ |   _|@
+ |__|  @
+       @
+       @
+       @
+       @@
+        @
+ .-----.@
+ |  _  |@
+ |___  |@
+ |_____|@
+        @
+        @
+        @@
+  __    @
+ |  |--.@
+ |     |@
+ |__|__|@
+        @
+        @
+        @
+        @@
+  __ @
+ |__|@
+ |  |@
+ |__|@
+     @
+     @
+     @
+     @@
+   __ @
+  |__|@
+  |  |@
+  |  |@
+ |___|@
+      @
+      @
+      @@
+  __    @
+ |  |--.@
+ |    < @
+ |__|__|@
+        @
+        @
+        @
+        @@
+  __ @
+ |  |@
+ |  |@
+ |__|@
+     @
+     @
+     @
+     @@
+           @
+ .--------.@
+ |        |@
+ |__|__|__|@
+           @
+           @
+           @
+           @@
+        @
+ .-----.@
+ |     |@
+ |__|__|@
+        @
+        @
+        @
+        @@
+        @
+ .-----.@
+ |  _  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+        @
+ .-----.@
+ |  _  |@
+ |   __|@
+ |__|   @
+        @
+        @
+        @@
+        @
+ .-----.@
+ |  _  |@
+ |__   |@
+    |__|@
+        @
+        @
+        @@
+       @
+ .----.@
+ |   _|@
+ |__|  @
+       @
+       @
+       @
+       @@
+        @
+ .-----.@
+ |__ --|@
+ |_____|@
+        @
+        @
+        @
+        @@
+  __   @
+ |  |_ @
+ |   _|@
+ |____|@
+       @
+       @
+       @
+       @@
+        @
+ .--.--.@
+ |  |  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+        @
+ .--.--.@
+ |  |  |@
+  \___/ @
+        @
+        @
+        @
+        @@
+           @
+ .--.--.--.@
+ |  |  |  |@
+ |________|@
+           @
+           @
+           @
+           @@
+        @
+ .--.--.@
+ |_   _|@
+ |__.__|@
+        @
+        @
+        @
+        @@
+        @
+ .--.--.@
+ |  |  |@
+ |___  |@
+ |_____|@
+        @
+        @
+        @@
+        @
+ .-----.@
+ |-- __|@
+ |_____|@
+        @
+        @
+        @
+        @@
+   ___ @
+  |  _|@
+ /  /  @
+ \  \_ @
+  |___|@
+       @
+       @
+       @@
+  __ @
+ |  |@
+ |  |@
+ |  |@
+ |__|@
+     @
+     @
+     @@
+  ___  @
+ |_  | @
+   \  \@
+  _/  /@
+ |___| @
+       @
+       @
+       @@
+   ___ @
+  | ' |@
+ |_,_| @
+       @
+       @
+       @
+       @
+       @@
+ .--.--.@
+ |-----|@
+ |  -  |@
+ |__|__|@
+        @
+        @
+        @
+        @@
+ .--.--.@
+ |-----|@
+ |  _  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+ .--.--.@
+ |--|--|@
+ |  |  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+ .--.--.@
+ |---.-|@
+ |  _  |@
+ |___._|@
+        @
+        @
+        @
+        @@
+ .--.--.@
+ |-----|@
+ |  _  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+ .--.--.@
+ |--|--|@
+ |  |  |@
+ |_____|@
+        @
+        @
+        @
+        @@
+  _______ @
+ |    __ \@
+ |    __ <@
+ |  |____/@
+ |__|     @
+          @
+          @
+          @@
+
 ```

@@ -10,9 +10,10 @@ when not defined(emscripten):
 import nimini
 
 # Import library modules - customize this list based on what you need
-import lib/storie_md          # Markdown parser
+import lib/storie_md          # Markdown parser (includes gEmbeddedFigletFonts)
 import lib/section_manager    # Section navigation and management (includes nimini bindings)
 import lib/layout             # Text layout utilities
+import lib/figlet             # FIGlet font rendering (for parsing and rendering)
 
 # These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
 # so they must be included to share the same namespace
@@ -28,6 +29,13 @@ proc valueToInt(v: Value): int =
   case v.kind
   of vkInt: return v.i
   of vkFloat: return int(v.f)
+  of vkString:
+    # Try to parse string as integer
+    try:
+      return parseInt(v.s)
+    except:
+      return 0
+  of vkBool: return if v.b: 1 else: 0
   else: return 0
 
 # Helper to convert Value to bool
@@ -309,22 +317,6 @@ proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
       of vkInt: args[0].i.float
       else: 1.0
     return valFloat(rand(globalRng, max))
-
-proc drawFigletDigit(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Draw a figlet digit at x, y position. Args: digit(0-9 or 10 for colon), x, y
-  if args.len >= 3:
-    let digit = valueToInt(args[0])
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    
-    if digit >= 0 and digit <= 9:
-      for line in 0..4:
-        gFgLayer.buffer.writeText(x, y + line, figletDigits[digit][line], gTextStyle)
-    elif digit == 10:  # Colon
-      for line in 0..4:
-        gFgLayer.buffer.writeText(x, y + line, figletColon[line], gTextStyle)
-  
-  return valNil()
 
 # ================================================================
 # GLOBAL EVENT HANDLER MANAGEMENT
@@ -1237,6 +1229,84 @@ const
   DIR_DOWN* = 3
   DIR_CENTER* = 4
 
+# ================================================================
+# FIGLET FONT HELPERS (Nimini wrappers)
+# ================================================================
+
+# Global cache for loaded figlet fonts
+var gFigletFonts = initTable[string, FIGfont]()
+
+proc nimini_loadFont(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Load a figlet font embedded in the markdown. Args: fontName (string)
+  ## Returns: bool (true if loaded successfully)
+  if args.len < 1:
+    return valBool(false)
+  
+  let fontName = args[0].s
+  
+  # Check if already loaded
+  if gFigletFonts.hasKey(fontName):
+    return valBool(true)
+  
+  # Check if font is embedded in markdown
+  if not gEmbeddedFigletFonts.hasKey(fontName):
+    return valBool(false)
+  
+  # Parse the embedded font
+  try:
+    let font = parseFontFromString(fontName, gEmbeddedFigletFonts[fontName])
+    gFigletFonts[fontName] = font
+    return valBool(true)
+  except:
+    # Suppress figlet loading errors to avoid noisy output during demos
+    discard
+    return valBool(false)
+
+proc nimini_isFontLoaded(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if a font is loaded. Args: fontName (string)
+  if args.len < 1:
+    return valBool(false)
+  let fontName = args[0].s
+  return valBool(gFigletFonts.hasKey(fontName))
+
+proc nimini_render(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Render text with a loaded figlet font. Args: fontName (string), text (string), [layoutMode (int)]
+  ## Returns: array of strings (lines)
+  if args.len < 2:
+    return valArray(@[])
+  
+  let fontName = args[0].s
+  if not gFigletFonts.hasKey(fontName):
+    echo "[nimini_render] Font not loaded: ", fontName
+    return valArray(@[])
+  
+  let text = args[1].s
+  let layout = if args.len >= 3: 
+    case valueToInt(args[2])
+    of 1: HorizontalFitting
+    of 2: HorizontalSmushing
+    else: FullWidth
+  else: FullWidth
+  
+  let lines = render(gFigletFonts[fontName], text, layout)
+  # Silent render: return lines without logging to stdout to keep demos clean
+  
+  var result: seq[Value] = @[]
+  for line in lines:
+    result.add(valString(line))
+  return valArray(result)
+
+proc nimini_listAvailableFonts(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get list of embedded figlet fonts
+  var result: seq[Value] = @[]
+  # Debug: check if table has any keys at all
+  try:
+    for fontName in gEmbeddedFigletFonts.keys:
+      result.add(valString(fontName))
+  except:
+    discard
+  return valArray(result)
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -1257,13 +1327,14 @@ proc createNiminiContext(state: AppState): NiminiContext =
     bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect, bgWriteTextBox,
     fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect, fgWriteTextBox,
     randInt, randFloat,
-    drawFigletDigit,
     nimini_registerGlobalRender, nimini_registerGlobalUpdate, nimini_registerGlobalInput,
     nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
     nimini_enableMouse, nimini_disableMouse,
     nimini_initCanvas,
     nimini_defaultStyle, nimini_getStyle,
     nimini_getThemes, nimini_switchTheme, nimini_getCurrentTheme,
+    # Figlet font rendering
+    nimini_loadFont, nimini_isFontLoaded, nimini_render, nimini_listAvailableFonts,
     # TUI widget system
     nimini_tuiTest, nimini_newWidgetManager,
     nimini_newLabel, nimini_newButton, nimini_newCheckBox, nimini_newRadioButton, nimini_newSlider,
@@ -1284,6 +1355,8 @@ proc createNiminiContext(state: AppState): NiminiContext =
     # nimini_hasActiveTransitions, nimini_getTransitionBuffer, nimini_bufferGetCell,
     # nimini_bufferWidth, nimini_bufferHeight
   )
+  
+  # Register platform-specific figlet functions - removed, now unified
   
   # Register transition constants
   defineVar(runtimeEnv, "EASE_LINEAR", valInt(EASE_LINEAR))

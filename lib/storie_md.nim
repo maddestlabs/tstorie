@@ -7,6 +7,9 @@ import strutils, tables
 import storie_types, storie_themes
 export storie_types, storie_themes  # Re-export types so users get them automatically
 
+# Global table to store embedded figlet fonts from markdown
+var gEmbeddedFigletFonts* = initTable[string, string]()
+
 proc parseColor*(colorStr: string): tuple[r, g, b: uint8] =
   ## Parse a color string in various formats:
   ## - "255,0,0" or "255, 0, 0" (RGB values)
@@ -484,6 +487,24 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
         textBuffer = @[]
       
       var headerParts = trimmed[3..^1].strip().split()
+      
+      # Check for figlet:NAME blocks
+      if headerParts.len > 0 and headerParts[0].startsWith("figlet:"):
+        let fontName = headerParts[0][7..^1]  # Extract name after "figlet:"
+        # Extract figlet font content
+        var fontLines: seq[string] = @[]
+        inc i
+        while i < lines.len:
+          if lines[i].strip().startsWith("```"):
+            break
+          fontLines.add(lines[i])
+          inc i
+        # Store in global table
+        let fontContent = fontLines.join("\n")
+        gEmbeddedFigletFonts[fontName] = fontContent
+        inc i
+        continue
+      
       if headerParts.len > 0 and headerParts[0] == "nim":
         var lifecycle = ""
         var language = "nim"
