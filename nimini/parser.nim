@@ -827,8 +827,19 @@ proc parseAssign(p: var Parser; targetExpr: Expr; line, col: int): Stmt =
   let opToken = expect(p, tkOp, "Expected assignment operator")
   let op = opToken.lexeme
   
+  # Check if this is increment or decrement operator (++, --)
+  if op == "++":
+    # Desugar: x++  becomes  x = x + 1
+    let oneVal = newInt(1, line, col, "")
+    let expandedVal = newBinOp("+", targetExpr, oneVal, line, col)
+    return newAssignExpr(targetExpr, expandedVal, line, col)
+  elif op == "--":
+    # Desugar: x--  becomes  x = x - 1
+    let oneVal = newInt(1, line, col, "")
+    let expandedVal = newBinOp("-", targetExpr, oneVal, line, col)
+    return newAssignExpr(targetExpr, expandedVal, line, col)
   # Check if this is a compound assignment operator (+=, -=, *=, /=, %=)
-  if op in ["+=", "-=", "*=", "/=", "%="]:
+  elif op in ["+=", "-=", "*=", "/=", "%="]:
     # Desugar: x += y  becomes  x = x + y
     let baseOp = op[0..0]  # Extract +, -, *, /, or %
     let rightVal = parseExpr(p)
@@ -1266,8 +1277,8 @@ proc parseStmt(p: var Parser): Stmt =
     else:
       # Parse as expression first (could be assignment target or just expression)
       let e = parseExpr(p)
-      # Check if this is an assignment (including compound assignments)
-      if p.cur().kind == tkOp and p.cur().lexeme in ["=", "+=", "-=", "*=", "/=", "%="]:
+      # Check if this is an assignment (including compound assignments and inc/dec)
+      if p.cur().kind == tkOp and p.cur().lexeme in ["=", "+=", "-=", "*=", "/=", "%=", "++", "--"]:
         return parseAssign(p, e, t.line, t.col)
       return newExprStmt(e, t.line, t.col)
 

@@ -22,7 +22,7 @@ type
 # Theme definitions
 const
   Futurism* = ThemeColors(
-    bgPrimary:    (0x00'u8, 0x1d'u8, 0x20'u8),   # Deep teal (#001d20)
+    bgPrimary:    (0x00'u8, 0x11'u8, 0x11'u8),   # Deep teal (#001111)
     bgSecondary:  (0x09'u8, 0x34'u8, 0x3a'u8),   # Slightly lighter teal (#09343a)
     fgPrimary:    (0xcd'u8, 0xcd'u8, 0xcd'u8),
     fgSecondary:  (0x80'u8, 0xff'u8, 0xff'u8),   # Soft cyan

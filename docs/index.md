@@ -1,15 +1,15 @@
 ---
-title: "Welcome to TStorie"
+title: "Welcome to t|Storie"
 author: "Maddest Labs"
-minWidth: 80
-minHeight: 24
+minWidth: 60
+minHeight: 18
 theme: "futurism"
 targetFPS: 60
 ---
 
 ```nim on:init
-# TStorie Interactive Walkthrough
-# Learn about TStorie's features through an interactive journey
+# t|Storie Interactive Walkthrough
+# Learn about features through an interactive journey
 
 # Track progress through the walkthrough
 var visitedMarkdown = false
@@ -19,7 +19,7 @@ var visitedRendering = false
 var visitedInteractive = false
 var explorerLevel = 0
 
-print "TStorie walkthrough initialized"
+print "t|Storie walkthrough initialized"
 
 # Initialize canvas system - start at section 1
 nimini_initCanvas(1)
@@ -58,39 +58,37 @@ nimini_canvasUpdate()
 
 # welcome
 ⠀
-Welcome to **TStorie Engine** - an open canvas for immersive interaction with Markdown documents and interactive stories!
+Welcome to **t|Storie** - the abominable, little terminal engine that could, but probably shouldn't!
 ⠀
-You're currently experiencing TStorie's **canvas-based interactive fiction system**. This walkthrough will guide you through the engine's key features.
+You're currently experiencing t|Storie's **canvas-based interactive fiction system**. This walkthrough will guide you through the engine's key features.
 ⠀
-Think of TStorie as a bridge between traditional text documents and dynamic, interactive experiences. Using simple Markdown syntax combined with embedded code blocks, you can create everything from documentation to full adventure games.
+Using simple Markdown syntax combined with embedded code blocks, you can create everything from documentation and slide presentations to full adventure games.
 ⠀
 **Ready to explore?**
 ⠀
-➛ [Start the tour](tour_start)  
-➛ [Learn about Markdown first](what_is_markdown)  
-➛ [Skip to advanced features](advanced_hub)
+➛ [Start the tour](#tour_start)  
+➛ [Learn about Markdown first](#what_is_markdown)  
+➛ [Skip to advanced features](#advanced_hub)
 
-# what_is_markdown
-⠀
-**What is Markdown?**
+# What is Markdown?
 ⠀
 Markdown is a simple, plain text language that lets you create formatted documents quickly using basic symbols. Think of it like a simpler, more readable version of HTML.
 ⠀
 For example:
 - `# Heading` creates a heading
 - `**bold**` creates **bold** text
-- `[link](url)` creates a clickable link
+- `[link](#url)` creates a clickable link
 ⠀
-TStorie extends Markdown by allowing you to embed executable code blocks that can respond to events, render graphics, and create interactive experiences.
+t|Storie extends Markdown by allowing you to embed executable code blocks that can respond to events, render graphics, and create interactive experiences.
 ⠀
-➛ [Continue the tour](tour_start)  
-➛ [Return to start](welcome)
+➛ [Continue the tour](#tour_start)  
+➛ [Return to start](#welcome)
 
-# tour_start
+# Tour Start
 ⠀
 **The Journey Begins**
 ⠀
-TStorie parses Markdown documents into **sections** (separated by headings) and renders them in a large interactive canvas. You're navigating this document right now using the clickable links!
+t|Storie parses Markdown documents into **sections** (separated by headings) and renders them in a large interactive canvas. You're navigating this document right now using the clickable links!
 ⠀
 Each section can contain:
 - **Rich text content** - Markdown-formatted text
@@ -100,17 +98,15 @@ Each section can contain:
 ⠀
 Let's explore each feature:
 ⠀
-➛ [Front Matter Variables](frontmatter_section)  
-➛ [Markdown Sections](markdown_sections)  
-➛ [Canvas & Rendering](canvas_rendering)  
-➛ [Interactive Code](interactive_code)  
-➛ [Skip to the end](journey_complete)
+➛ [Front Matter Variables](#frontmatter_section)  
+➛ [Markdown Sections](#markdown_sections)  
+➛ [Canvas & Rendering](#canvas_rendering)  
+➛ [Interactive Code](#interactive_code)  
+➛ [Skip to the end](#journey_complete)
 
 # frontmatter_section
 ⠀
-**Front Matter Variables**
-⠀
-At the top of any TStorie document, you can define variables in YAML format:
+At the top of any t|Storie document, you can define variables in YAML format:
 
 ```
 ---
@@ -121,21 +117,19 @@ theme: "nord"
 ---
 ```
 ⠀
-These variables become **global variables** in your code blocks! For example, this document's title is "{title}" and it's running at {targetFPS} FPS.
+These variables become **global variables** in your code blocks! For example, this document's title is `? title` and it's running at `? targetFPS` FPS.
 ⠀
 Front matter is perfect for configuration, game state, or any data you want to access throughout your document.
 ⠀
-➛ [Continue to Markdown sections](markdown_sections)  
-➛ [Back to tour start](tour_start)
+➛ [Continue to Markdown sections](#markdown_sections)  
+➛ [Back to tour start](#tour_start)
 
 ```nim on:enter
 visitedFrontmatter = true
-explorerLevel = explorerLevel + 1
+explorerLevel++
 ```
 
-# markdown_sections
-⠀
-**Markdown Sections**
+# markdown_sections {"hidden": true}
 ⠀
 Each `# Heading` in your document creates a new **section**. Sections are the building blocks of your interactive experience.
 ⠀
@@ -146,20 +140,18 @@ Sections can be:
 ⠀
 Right now, you're in a hidden section that's navigable via links but doesn't appear in the main contents listing. This is perfect for creating branching narratives!
 ⠀
-➛ [Learn about canvas rendering](canvas_rendering)  
-➛ [Jump to interactive code](interactive_code)  
-➛ [Back to tour start](tour_start)
+➛ [Learn about canvas rendering](#canvas_rendering)  
+➛ [Jump to interactive code](#interactive_code)  
+➛ [Back to tour start](#tour_start)
 
 ```nim on:enter
 visitedMarkdown = true
-explorerLevel = explorerLevel + 1
+explorerLevel++
 ```
 
 # canvas_rendering
 ⠀
-**Canvas & Rendering System**
-⠀
-TStorie provides a powerful terminal-based canvas with multiple layers:
+t|Storie provides a powerful terminal-based canvas with multiple layers:
 ⠀
 **Background Layer (bg):**
 - `bgClear()` - Clear the background
@@ -173,18 +165,16 @@ TStorie provides a powerful terminal-based canvas with multiple layers:
 ⠀
 Use `on:render` code blocks to draw each frame!
 ⠀
-➛ [Explore interactive code](interactive_code)  
-➛ [See a rendering example](render_example)  
-➛ [Back to tour](tour_start)
+➛ [Explore interactive code](#interactive_code)  
+➛ [See a rendering example](#render_example)  
+➛ [Back to tour](#tour_start)
 
 ```nim on:enter
 visitedRendering = true
-explorerLevel = explorerLevel + 1
+explorerLevel++
 ```
 
 # render_example
-⠀
-**Rendering Example**
 ⠀
 Here's a simple rendering code block:
 
@@ -201,14 +191,12 @@ This code runs **every frame** and:
 ⠀
 You can combine multiple layers to create complex UIs and graphics!
 ⠀
-➛ [Continue to interactive code](interactive_code)  
-➛ [Back to canvas info](canvas_rendering)
+➛ [Continue to interactive code](#interactive_code)  
+➛ [Back to canvas info](#canvas_rendering)
 
 # interactive_code
 ⠀
-**Interactive Code Blocks**
-⠀
-TStorie supports several event types:
+t|Storie supports several event types:
 ⠀
 **`on:init`** - Runs once when document loads  
 **`on:render`** - Runs every frame for drawing  
@@ -220,33 +208,29 @@ You can track state with variables, respond to player input, and create fully in
 ⠀
 The canvas navigation system you're using right now is built with these code blocks.
 ⠀
-➛ [Learn about advanced features](advanced_hub)  
-➛ [Complete the tour](journey_complete)  
-➛ [Back to tour start](tour_start)
+➛ [Learn about advanced features](#advanced_hub)  
+➛ [Complete the tour](#journey_complete)  
+➛ [Back to tour start](#tour_start)
 
 ```nim on:enter
 visitedInteractive = true
-explorerLevel = explorerLevel + 1
+explorerLevel++
 ```
 
 # advanced_hub
 ⠀
-**Advanced Features Hub**
+Ready to dive deeper? t|Storie includes powerful features for creating sophisticated interactive experiences:
 ⠀
-Ready to dive deeper? TStorie includes powerful features for creating sophisticated interactive experiences:
-⠀
-➛ [Animation & Effects](animation_features)  
-➛ [Audio System](audio_features)  
-➛ [State Management](state_management)  
-➛ [Layout & Themes](layout_themes)  
-➛ [Gist Integration](gist_integration)  
-➛ [Complete the tour](journey_complete)
+➛ [Animation & Effects](#animation_features)  
+➛ [Audio System](#audio_features)  
+➛ [State Management](#state_management)  
+➛ [Layout & Themes](#layout_themes)  
+➛ [Gist Integration](#gist_integration)  
+➛ [Complete the tour](#journey_complete)
 
 # animation_features
 ⠀
-**Animation & Effects**
-⠀
-TStorie includes built-in animation helpers:
+t|Storie includes built-in animation helpers:
 - **Transitions** - Smooth property changes
 - **Easing functions** - Make animations feel natural
 - **Timing controls** - Frame-based or time-based
@@ -259,11 +243,9 @@ Combined with the rendering system, you can create:
 ⠀
 Check out `lib/animation.nim` and `lib/transition_helpers.nim` for the full API.
 ⠀
-➛ [Back to advanced hub](advanced_hub)
+➛ [Back to advanced hub](#advanced_hub)
 
 # audio_features
-⠀
-**Audio System**
 ⠀
 Generate and play audio directly from your code:
 ⠀
@@ -279,11 +261,9 @@ Perfect for:
 ⠀
 See `lib/audio.nim`, `lib/audio_gen.nim`, and `lib/audio_nodes.nim` for details.
 ⠀
-➛ [Back to advanced hub](advanced_hub)
+➛ [Back to advanced hub](#advanced_hub)
 
 # state_management
-⠀
-**State Management**
 ⠀
 Manage complex application state with:
 ⠀
@@ -302,11 +282,9 @@ Manage complex application state with:
 - One-time visits
 - Conditional content
 ⠀
-➛ [Back to advanced hub](advanced_hub)
+➛ [Back to advanced hub](#advanced_hub)
 
 # layout_themes
-⠀
-**Layout & Themes**
 ⠀
 Customize your experience:
 ⠀
@@ -323,7 +301,7 @@ Customize your experience:
 ⠀
 Check `lib/layout.nim` and `lib/storie_themes.nim`.
 ⠀
-➛ [Back to advanced hub](advanced_hub)
+➛ [Back to advanced hub](#advanced_hub)
 
 # gist_integration
 ⠀
@@ -333,7 +311,7 @@ Load and share documents easily:
 ⠀
 - Create a Markdown file in a GitHub Gist
 - Get the Gist ID
-- Load it directly in TStorie
+- Load it directly in t|Storie
 ⠀
 Perfect for:
 - Sharing stories
@@ -343,22 +321,23 @@ Perfect for:
 ⠀
 See `lib/gist_api.nim` for the implementation.
 ⠀
-➛ [Back to advanced hub](advanced_hub)
+➛ [Back to advanced hub](#advanced_hub)
 
 # journey_complete
 ⠀
-**Journey Complete! 🎉**
+Congratulations! You've explored t|Storie and learned about:
 ⠀
-Congratulations! You've explored the TStorie Engine and learned about:
-⠀
-✓ Markdown sections and navigation  
-✓ Front matter variables  
-✓ Canvas rendering system  
-✓ Interactive code blocks  
-✓ Event handling  
+✓ Markdown sections and navigation
+✓ Front matter variables
+✓ Canvas rendering system
+✓ Interactive code blocks
+✓ Event handling
 ✓ Advanced features
 ⠀
-**What's Next?**
+➛ [What's Next](#whats_next)
+➛ [Return to start](#welcome)
+
+# whats_next
 ⠀
 Check out these example documents:
 - `docs/demos/depths.md` - Full dungeon adventure
@@ -366,41 +345,40 @@ Check out these example documents:
 ⠀
 Or dive into the source code in `lib/` to see how it all works!
 ⠀
-➛ [Start over](welcome)  
-➛ [Explore advanced features](advanced_hub)  
-➛ [See your explorer stats](final_stats)
+➛ [Start over](#welcome)  
+➛ [Explore advanced features](#advanced_hub)  
+➛ [See your explorer stats](#final_stats)
 
 # final_stats
 ⠀
 **Your Explorer Stats**
 ⠀
-**Sections Visited:** {explorerLevel}
+**Sections Visited:** `? explorerLevel`
 ⠀
 **Achievements Unlocked:**
 ⠀
-{if visitedFrontmatter}✓ Front Matter Master{endif}  
-{if visitedMarkdown}✓ Markdown Navigator{endif}  
-{if visitedRendering}✓ Canvas Artist{endif}  
-{if visitedInteractive}✓ Code Wizard{endif}
+```nim on:enter
+contentClear()
+if visitedFrontmatter:
+  contentWrite("✓ Front Matter Master")
+if visitedMarkdown:
+  contentWrite("✓ Markdown Navigator")
+if visitedRendering:
+  contentWrite("✓ Canvas Artist")
+if visitedInteractive:
+  contentWrite("✓ Code Wizard")
+```
 ⠀
-You've completed the TStorie walkthrough!
+You've completed the t|Storie walkthrough!
 ⠀
-**Pro Tip:** This entire experience was created with just Markdown and embedded Nim code. You can create similar interactive documents for tutorials, games, presentations, or anything else you can imagine!
+**Pro Tip:** You can create similar interactive documents for tutorials, games, presentations, or anything else you can imagine!
 ⠀
-➛ [Start over](welcome)  
-➛ [Return to journey complete](journey_complete)
+➛ [Start over](#welcome)  
+➛ [Return to journey complete](#journey_complete)
 
 ```nim on:render
 # Display explorer level at the bottom
 if explorerLevel > 0:
-  var stats = "Explorer Level: " & str(explorerLevel) & " | Achievements: "
-  if visitedFrontmatter:
-    stats = stats & "FM "
-  if visitedMarkdown:
-    stats = stats & "MD "
-  if visitedRendering:
-    stats = stats & "RND "
-  if visitedInteractive:
-    stats = stats & "INT "
-  bgWriteText(2, getTermHeight() - 2, stats)
+  var stats = "Explorer Level: " & str(explorerLevel)
+  fgWriteText(2, getTermHeight() - 2, stats)
 ```

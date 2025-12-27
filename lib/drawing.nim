@@ -5,32 +5,6 @@
 ## Note: This module expects Layer and Style types to be available
 ## from the importing/including context.
 
-# Figlet font data for digital clock
-const figletDigits* = [
-  # 0
-  ["+---+", "|   |", "|   |", "|   |", "+---+"],
-  # 1
-  ["    |", "    |", "    |", "    |", "    |"],
-  # 2
-  ["+---+", "    |", "+---+", "|    ", "+---+"],
-  # 3
-  ["+---+", "    |", "+---+", "    |", "+---+"],
-  # 4
-  ["|   |", "|   |", "+---+", "    |", "    |"],
-  # 5
-  ["+---+", "|    ", "+---+", "    |", "+---+"],
-  # 6
-  ["+---+", "|    ", "+---+", "|   |", "+---+"],
-  # 7
-  ["+---+", "    |", "    |", "    |", "    |"],
-  # 8
-  ["+---+", "|   |", "+---+", "|   |", "+---+"],
-  # 9
-  ["+---+", "|   |", "+---+", "    |", "+---+"]
-]
-
-const figletColon* = [" ", "o", " ", "o", " "]
-
 # ================================================================
 # BACKGROUND LAYER OPERATIONS
 # ================================================================
@@ -78,17 +52,3 @@ proc fgWriteText*(layer: Layer, x, y: int, text: string, style: Style) =
 proc fgFillRect*(layer: Layer, x, y, w, h: int, ch: string, style: Style) =
   ## Fill a rectangle on the foreground layer
   layer.buffer.fillRect(x, y, w, h, ch, style)
-
-# ================================================================
-# SPECIAL DRAWING FUNCTIONS
-# ================================================================
-
-proc drawFigletDigit*(layer: Layer, digit, x, y: int, style: Style) =
-  ## Draw a figlet digit at x, y position
-  ## digit: 0-9 for numbers, 10 for colon
-  if digit >= 0 and digit <= 9:
-    for line in 0..4:
-      layer.buffer.writeText(x, y + line, figletDigits[digit][line], style)
-  elif digit == 10:  # Colon
-    for line in 0..4:
-      layer.buffer.writeText(x, y + line, figletColon[line], style)

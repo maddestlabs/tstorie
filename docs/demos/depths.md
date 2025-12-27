@@ -1,8 +1,8 @@
 ---
 title: "The Depths of Khel-Daran"
 author: "Maddest Labs"
-minWidth: 80
-minHeight: 24
+minWidth: 60
+minHeight: 18
 theme: "futurism"
 ---
 

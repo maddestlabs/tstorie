@@ -236,6 +236,43 @@ proc parseMarkdownInline*(text: string): seq[MarkdownElement] =
   var isItalic = false
   
   while i < text.len:
+    # Check for inline code: `text` - content inside should NOT be parsed as markdown
+    if text[i] == '`':
+      # Flush current text
+      if currentText.len > 0:
+        result.add(MarkdownElement(
+          text: currentText,
+          bold: isBold,
+          italic: isItalic,
+          isLink: false,
+          linkUrl: ""
+        ))
+        currentText = ""
+      
+      # Find closing backtick
+      var codeText = ""
+      var j = i + 1
+      while j < text.len and text[j] != '`':
+        codeText.add(text[j])
+        inc j
+      
+      if j < text.len and text[j] == '`':
+        # Found closing backtick - add code content as literal text (no formatting)
+        result.add(MarkdownElement(
+          text: codeText,
+          bold: false,  # Force no formatting for inline code
+          italic: false,
+          isLink: false,
+          linkUrl: ""
+        ))
+        i = j + 1
+        continue
+      else:
+        # No closing backtick found, treat opening backtick as regular character
+        currentText.add('`')
+        i += 1
+        continue
+    
     # Check for links: [text](url) or [text](#anchor)
     if text[i] == '[':
       # Flush current

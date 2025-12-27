@@ -276,6 +276,12 @@ proc tokenizeDsl*(src: string): seq[Token] =
         inc i, 2
         col += 2
         continue
+      of "++", "--":
+        # Increment and decrement operators
+        addToken(res, tkOp, two, line, startCol)
+        inc i, 2
+        col += 2
+        continue
       of "..":
         # Check for ..< (three-char operator)
         if i+2 < src.len and src[i+2] == '<':

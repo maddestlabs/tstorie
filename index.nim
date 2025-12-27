@@ -1621,6 +1621,56 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
 
 # Note: gMarkdownFile and gWaitingForGist are now defined in tstorie.nim
 
+proc expandVariablesInText(text: string, frontMatter: FrontMatter): string =
+  ## Expand `? variable` expressions in text using front matter values
+  ## This is done once at parse time, before rendering
+  ## NOTE: Only expands front matter variables. Nimini variables (like explorerLevel)
+  ## are expanded at render time since they can change.
+  result = text
+  var pos = 0
+  
+  while pos < result.len:
+    # Find backtick-wrapped variable references
+    let btStart = result.find('`', pos)
+    if btStart < 0:
+      break
+    
+    let btEnd = result.find('`', btStart + 1)
+    if btEnd < 0:
+      break
+    
+    # Check if it's a variable reference (starts with ?)
+    let content = result[btStart + 1 ..< btEnd]
+    
+    if content.len > 1 and content[0] == '?' and content[1] == ' ':
+      let varName = content[2..^1].strip()
+      
+      # Look up value in front matter only
+      if frontMatter.hasKey(varName):
+        let value = frontMatter[varName]
+        # Replace the entire backtick expression with the value
+        result = result[0 ..< btStart] & value & result[btEnd + 1 .. ^1]
+        pos = btStart + value.len
+      else:
+        # Not in front matter - leave the `? varName` syntax intact
+        # It will be expanded at render time if it's a nimini variable
+        pos = btEnd + 1
+    else:
+      # Not a variable reference, skip this backtick pair
+      pos = btEnd + 1
+
+proc expandVariablesInSections(sections: var seq[Section], frontMatter: FrontMatter) =
+  ## Expand all `? variable` expressions in section text blocks
+  for section in sections.mitems:
+    for blk in section.blocks.mitems:
+      case blk.kind
+      of TextBlock:
+        blk.text = expandVariablesInText(blk.text, frontMatter)
+      of HeadingBlock:
+        blk.title = expandVariablesInText(blk.title, frontMatter)
+      else:
+        discard
+
 proc loadAndParseMarkdown(): MarkdownDocument =
   ## Load markdown file and parse it for code blocks and front matter
   when defined(emscripten):
@@ -1708,7 +1758,11 @@ proc initStorieContext(state: AppState) =
   storieCtx.codeBlocks = doc.codeBlocks
   storieCtx.frontMatter = doc.frontMatter
   storieCtx.styleSheet = doc.styleSheet
-  storieCtx.sectionMgr = newSectionManager(doc.sections)
+  
+  # Expand `? variable` expressions in section text before creating section manager
+  var sections = doc.sections
+  expandVariablesInSections(sections, doc.frontMatter)
+  storieCtx.sectionMgr = newSectionManager(sections)
   
   # Also store styleSheet in state for API access
   state.styleSheet = doc.styleSheet
@@ -1895,7 +1949,7 @@ proc checkMinimumDimensions*(state: AppState): bool =
   
   # Render lines centered
   var warnStyle = defaultStyle()
-  warnStyle.fg = yellow()
+  #warnStyle.fg = yellow()
   warnStyle.bold = true
   
   for i, line in lines:

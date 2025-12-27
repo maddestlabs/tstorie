@@ -6,6 +6,9 @@
 
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
 
+# Forward declare global for nimini environment (set during rendering)
+var gNiminiEnv {.global.}: pointer = nil
+
 # ================================================================
 # CONFIGURATION CONSTANTS
 # ================================================================
@@ -84,6 +87,7 @@ type
     lastViewportWidth*: int
     lastViewportHeight*: int
     executeCallback*: ExecuteCodeBlockCallback  # Callback to execute lifecycle hooks
+    contentBuffers*: Table[string, seq[string]]  # Per-section buffers for dynamically generated content
 
 # Global canvas state
 var canvasState*: CanvasState
@@ -215,6 +219,8 @@ proc navigateToSection*(sectionIdx: int) =
   canvasState.currentSectionIdx = sectionIdx
   canvasState.focusedLinkIdx = 0
   
+  # Note: Content buffers are per-section, so no need to clear on navigation
+  
   # Execute on:enter hooks for the new section
   if sectionIdx >= 0 and sectionIdx < canvasState.sections.len:
     let newSection = canvasState.sections[sectionIdx].section
@@ -323,11 +329,9 @@ proc centerOnSection*(sectionIdx: int, viewportWidth, viewportHeight: int) =
   # Center horizontally on section's center
   canvasState.camera.targetX = float(section.x + section.width div 2 - viewportWidth div 2)
   
-  # Center vertically with a bias toward the top of the section
-  # This makes content appear more centered on screen, especially for short sections
-  # Use 1/3 of section height instead of 1/2 to shift content up
-  let sectionVisualCenter = section.y + (section.height div 3)
-  canvasState.camera.targetY = float(sectionVisualCenter - viewportHeight div 2)
+  # Center vertically on the section's center
+  let sectionCenter = section.y + section.height div 2
+  canvasState.camera.targetY = float(sectionCenter - viewportHeight div 2)
 
 # ================================================================
 # LAYOUT CALCULATION
@@ -476,7 +480,8 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: 
     presentationMode: presentationMode,
     lastRenderTime: 0.0,
     lastViewportWidth: 0,
-    lastViewportHeight: 0
+    lastViewportHeight: 0,
+    contentBuffers: initTable[string, seq[string]]()
   )
   
   # Initialize section visibility from metadata
@@ -554,36 +559,108 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
                          buffer: var TermBuffer, baseStyle: Style): int =
   ## Render text with inline markdown formatting (bold **, italic *)
   ## Returns number of characters rendered
+  
+  # Process text with markdown formatting
+  var expandedText = text
   var currentX = x
-  var pos = 0
+  var pos = 0  # Position in text
   var isBold = baseStyle.bold
   var isItalic = baseStyle.italic
   
-  while pos < text.len and currentX < x + maxWidth:
+  while pos < expandedText.len and currentX < x + maxWidth:
+    # Check for inline code (backticks) - content inside should be rendered literally
+    if expandedText[pos] == '`':
+      # Find closing backtick
+      let codeStart = pos + 1
+      var codeEnd = codeStart
+      while codeEnd < expandedText.len and expandedText[codeEnd] != '`':
+        codeEnd += 1
+      
+      if codeEnd < expandedText.len:
+        # Found matching backtick - check if it's a variable reference
+        let codeContent = expandedText[codeStart ..< codeEnd]
+        
+        # Check for `? varName` syntax - expand from nimini environment
+        if codeContent.len > 1 and codeContent[0] == '?' and codeContent[1] == ' ':
+          let varName = codeContent[2..^1].strip()
+          var value = ""
+          var found = false
+          
+          # Try to get value from nimini environment (if available)
+          when compiles(getVar):
+            if not gNiminiEnv.isNil:
+              try:
+                let env = cast[ref Env](gNiminiEnv)
+                let nimVal = getVar(env, varName)
+                case nimVal.kind
+                of vkString: 
+                  value = nimVal.s
+                  found = true
+                of vkInt: 
+                  value = $nimVal.i
+                  found = true
+                of vkFloat: 
+                  value = $nimVal.f
+                  found = true
+                of vkBool: 
+                  value = $nimVal.b
+                  found = true
+                else: 
+                  discard
+              except:
+                discard
+          
+          # Render the value or the original text if not found
+          let textToRender = if found: value else: codeContent
+          for ch in textToRender:
+            if currentX >= x + maxWidth:
+              break
+            var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: false, 
+                             underline: baseStyle.underline, italic: false, dim: baseStyle.dim)
+            buffer.writeText(currentX, y, $ch, style)
+            currentX += 1
+          pos = codeEnd + 1
+        else:
+          # Not a variable reference - render the content literally
+          for ch in codeContent:
+            if currentX >= x + maxWidth:
+              break
+            var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: false, 
+                             underline: baseStyle.underline, italic: false, dim: baseStyle.dim)
+            buffer.writeText(currentX, y, $ch, style)
+            currentX += 1
+          pos = codeEnd + 1  # Skip past closing backtick
+      else:
+        # No matching backtick, render the backtick itself
+        var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
+                         underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
+        buffer.writeText(currentX, y, "`", style)
+        currentX += 1
+        pos += 1
     # Check for **bold**
-    if pos + 1 < text.len and text[pos..pos+1] == "**":
+    elif pos + 1 < expandedText.len and expandedText[pos..pos+1] == "**":
       isBold = not isBold
       pos += 2
     # Check for *italic*
-    elif text[pos] == '*':
+    elif expandedText[pos] == '*':
       isItalic = not isItalic
       pos += 1
     else:
       # Properly handle UTF-8 multi-byte characters
-      let b = text[pos].ord
+      let b = expandedText[pos].ord
       var charLen = 1
       var ch = ""
       
       if (b and 0x80) == 0:
-        ch = $text[pos]
-      elif (b and 0xE0) == 0xC0 and pos + 1 < text.len:
-        ch = text[pos..pos+1]
+        ch = $expandedText[pos]
+      elif (b and 0xE0) == 0xC0 and pos + 1 < expandedText.len:
+        ch = expandedText[pos..pos+1]
         charLen = 2
-      elif (b and 0xF0) == 0xE0 and pos + 2 < text.len:
-        ch = text[pos..pos+2]
+      elif (b and 0xF0) == 0xE0 and pos + 2 < expandedText.len:
+        ch = expandedText[pos..pos+2]
         charLen = 3
-      elif (b and 0xF8) == 0xF0 and pos + 3 < text.len:
-        ch = text[pos..pos+3]
+      elif (b and 0xF8) == 0xF0 and pos + 3 < expandedText.len:
+        ch = expandedText[pos..pos+3]
         charLen = 4
       else:
         ch = "?"
@@ -621,6 +698,24 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
   var globalLinkIdx = startLinkIdx
   
   while pos < text.len:
+    # Check if we're inside a backtick (inline code) - if so, skip it
+    if text[pos] == '`':
+      # Find closing backtick
+      let codeStart = pos
+      var codeEnd = pos + 1
+      while codeEnd < text.len and text[codeEnd] != '`':
+        codeEnd += 1
+      
+      if codeEnd < text.len:
+        # Found closing backtick - render entire backticked content as literal text
+        let codeContent = text[codeStart .. codeEnd]  # Include both backticks
+        let charsRendered = renderInlineMarkdown(codeContent, currentX, y,
+                                                maxWidth - (currentX - x),
+                                                buffer, bodyStyle)
+        currentX += charsRendered
+        pos = codeEnd + 1
+        continue
+    
     # Find next link using simple string search
     let linkStart = text.find("[", pos)
     
@@ -693,6 +788,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
 
 proc getSectionRawContent(section: Section): string =
   ## Extract raw text content from a section's blocks
+  ## Code blocks with on:render or on:enter lifecycle are replaced with content buffer markers
   var lines: seq[string] = @[]
   
   for blk in section.blocks:
@@ -700,12 +796,42 @@ proc getSectionRawContent(section: Section): string =
     of TextBlock:
       lines.add(blk.text)
     of HeadingBlock:
+      # Include all headings
       lines.add("#".repeat(blk.level) & " " & blk.title)
     of CodeBlock_Content:
-      # Skip code blocks in content rendering
-      discard
+      # Insert marker for code blocks that generate content (on:render or on:enter)
+      if blk.codeBlock.lifecycle in ["render", "enter"]:
+        lines.add("{{CONTENT_BUFFER}}")
+      # Skip other code blocks in content rendering
   
   return lines.join("\n")
+
+proc hasLinksOutsideBackticks(text: string): bool =
+  ## Check if text contains link syntax [...](...)  that is NOT inside backticks
+  var pos = 0
+  while pos < text.len:
+    # Skip over backtick sections
+    if text[pos] == '`':
+      # Find closing backtick
+      pos += 1
+      while pos < text.len and text[pos] != '`':
+        pos += 1
+      if pos < text.len:
+        pos += 1  # Skip closing backtick
+      continue
+    
+    # Check for link pattern outside backticks
+    if text[pos] == '[':
+      # Look for complete link pattern
+      var j = pos + 1
+      while j < text.len and text[j] != ']':
+        j += 1
+      if j + 1 < text.len and text[j] == ']' and text[j + 1] == '(':
+        return true  # Found link outside backticks
+    
+    pos += 1
+  
+  return false
 
 proc renderSection(layout: SectionLayout, screenX, screenY: int,
                   buffer: var TermBuffer, isCurrent: bool,
@@ -756,6 +882,54 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     if contentY >= screenY + layout.height:
       break
     
+    # Check for content buffer marker
+    if line.strip() == "{{CONTENT_BUFFER}}":
+      # Render content buffer if this section has content
+      if not canvasState.isNil and canvasState.contentBuffers.hasKey(layout.section.title):
+        let sectionBuffer = canvasState.contentBuffers[layout.section.title]
+        for bufferLine in sectionBuffer:
+          if contentY >= screenY + layout.height:
+            break
+          
+          # Process each buffer line the same way as regular content
+          if bufferLine.startsWith("#"):
+            # Heading
+            let formatted = formatHeading(bufferLine)
+            let displayText = if formatted.len > maxContentWidth: 
+                                formatted[0..<maxContentWidth] 
+                              else: 
+                                formatted
+            buffer.writeText(contentX, contentY, displayText, headingStyle)
+          elif hasLinksOutsideBackticks(bufferLine):
+            # Line with links
+            let links = renderTextWithLinks(bufferLine, contentX, contentY, maxContentWidth,
+                                           buffer, isCurrent, currentLinkIdx, styleSheet, bodyStyle)
+            result.add(links)
+            currentLinkIdx += links.len
+          elif "**" in bufferLine or "*" in bufferLine:
+            # Line with markdown formatting
+            let wrapped = wrapText(bufferLine, maxContentWidth)
+            for wLine in wrapped:
+              if contentY >= screenY + layout.height:
+                break
+              discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
+                                          buffer, bodyStyle)
+              contentY += 1
+            contentY -= 1
+          else:
+            # Plain text
+            let wrapped = wrapText(bufferLine, maxContentWidth)
+            for wLine in wrapped:
+              if contentY >= screenY + layout.height:
+                break
+              buffer.writeText(contentX, contentY, wLine, bodyStyle)
+              contentY += 1
+            contentY -= 1
+          
+          contentY += 1
+      # Continue to next line (don't render the marker itself)
+      continue
+    
     # Check line type
     if line.startsWith("#"):
       # Heading
@@ -765,8 +939,8 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                         else: 
                           formatted
       buffer.writeText(contentX, contentY, displayText, headingStyle)
-    elif line.contains("[") and line.contains("]("):
-      # Line with links
+    elif hasLinksOutsideBackticks(line):
+      # Line with links (but not inside backticks)
       let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
                                      buffer, isCurrent, currentLinkIdx, styleSheet, bodyStyle)
       result.add(links)
@@ -1035,6 +1209,26 @@ proc canvasValueToInt(v: Value): int =
 
 # Note: nimini_initCanvas is defined in index.nim since it needs access to storieCtx
 
+proc nimini_contentWrite*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Write a line to the content buffer for the current section. Args: text (string)
+  ## Content buffer is rendered as part of the current section only
+  if args.len > 0 and args[0].kind == vkString:
+    if not canvasState.isNil and canvasState.currentSectionIdx >= 0 and 
+       canvasState.currentSectionIdx < canvasState.sections.len:
+      let sectionTitle = canvasState.sections[canvasState.currentSectionIdx].section.title
+      if not canvasState.contentBuffers.hasKey(sectionTitle):
+        canvasState.contentBuffers[sectionTitle] = @[]
+      canvasState.contentBuffers[sectionTitle].add(args[0].s)
+  return valNil()
+
+proc nimini_contentClear*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Clear the content buffer for the current section
+  if not canvasState.isNil and canvasState.currentSectionIdx >= 0 and 
+     canvasState.currentSectionIdx < canvasState.sections.len:
+    let sectionTitle = canvasState.sections[canvasState.currentSectionIdx].section.title
+    canvasState.contentBuffers[sectionTitle] = @[]
+  return valNil()
+
 proc nimini_hideSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Hide a section by reference. Args: sectionRef (string)
   if args.len == 0:
@@ -1075,6 +1269,7 @@ proc nimini_markVisited*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render the canvas system. No args needed (uses global buffers)
   if not gCanvasAppState.isNil and not gCanvasBuffer.isNil:
+    gNiminiEnv = cast[pointer](env)  # Store env for variable expansion during rendering
     let styleSheet = if not gCanvasStyleSheet.isNil: gCanvasStyleSheet[]
                      else: initTable[string, StyleConfig]()
     canvasRender(gCanvasBuffer[], gCanvasAppState.termWidth, gCanvasAppState.termHeight, styleSheet)
@@ -1128,6 +1323,10 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
     nimini_isVisited, nimini_markVisited, nimini_canvasRender, 
     nimini_canvasUpdate, nimini_canvasHandleKey, nimini_canvasHandleMouse
   )
+  
+  # Register content buffer functions with simple names
+  registerNative("contentWrite", nimini_contentWrite)
+  registerNative("contentClear", nimini_contentClear)
 
 # Export rendering functions
 export canvasRender, canvasUpdate, canvasHandleKey, canvasHandleMouse, getSectionCount
