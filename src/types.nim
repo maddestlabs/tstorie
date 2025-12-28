@@ -1,0 +1,231 @@
+## tStorie Core Runtime Types
+##
+## This module contains all core type definitions for the tStorie runtime.
+## No dependencies on other modules - this is the foundation.
+##
+## Separated from main runtime to enable:
+## - Clean imports in library modules
+## - Selective imports in exported programs
+## - Better code organization and maintainability
+
+import tables
+import ../lib/storie_types  # Import markdown types
+
+# ================================================================
+# INPUT SYSTEM TYPES
+# ================================================================
+
+type
+  InputAction* = enum
+    Press
+    Release
+    Repeat
+
+  MouseButton* = enum
+    Left
+    Middle
+    Right
+    Unknown
+    ScrollUp
+    ScrollDown
+
+  InputEventKind* = enum
+    KeyEvent
+    TextEvent
+    MouseEvent
+    MouseMoveEvent
+    ResizeEvent
+
+  InputEvent* = object
+    case kind*: InputEventKind
+    of KeyEvent:
+      keyCode*: int
+      keyMods*: set[uint8]
+      keyAction*: InputAction
+    of TextEvent:
+      text*: string
+    of MouseEvent:
+      button*: MouseButton
+      mouseX*: int
+      mouseY*: int
+      mods*: set[uint8]
+      action*: InputAction
+    of MouseMoveEvent:
+      moveX*: int
+      moveY*: int
+      moveMods*: set[uint8]
+    of ResizeEvent:
+      newWidth*: int
+      newHeight*: int
+
+# ================================================================
+# COLOR AND STYLE SYSTEM
+# ================================================================
+
+type
+  Color* = object
+    r*, g*, b*: uint8
+
+  Style* = object
+    fg*: Color
+    bg*: Color
+    bold*: bool
+    underline*: bool
+    italic*: bool
+    dim*: bool
+
+# Color constructor helpers
+proc rgb*(r, g, b: uint8): Color =
+  Color(r: r, g: g, b: b)
+
+proc gray*(level: uint8): Color =
+  rgb(level, level, level)
+
+proc black*(): Color = rgb(0, 0, 0)
+proc red*(): Color = rgb(255, 0, 0)
+proc green*(): Color = rgb(0, 255, 0)
+proc yellow*(): Color = rgb(255, 255, 0)
+proc blue*(): Color = rgb(0, 0, 255)
+proc magenta*(): Color = rgb(255, 0, 255)
+proc cyan*(): Color = rgb(0, 255, 255)
+proc white*(): Color = rgb(255, 255, 255)
+
+proc dim*(c: Color): Color =
+  ## Create a dimmed version of a color
+  Color(r: c.r div 2, g: c.g div 2, b: c.b div 2)
+
+proc defaultStyle*(): Style =
+  Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
+
+# ================================================================
+# COLOR UTILITIES FOR ANSI CONVERSION
+# ================================================================
+
+proc toAnsi256*(c: Color): int =
+  ## Convert RGB color to closest ANSI 256 color index
+  let r = int(c.r) * 5 div 255
+  let g = int(c.g) * 5 div 255
+  let b = int(c.b) * 5 div 255
+  return 16 + 36 * r + 6 * g + b
+
+proc toAnsi8*(c: Color): int =
+  ## Convert RGB color to closest ANSI 8 color code (30-37)
+  let bright = (int(c.r) + int(c.g) + int(c.b)) div 3 > 128
+  var code = 30
+  if c.r > 128: code += 1
+  if c.g > 128: code += 2
+  if c.b > 128: code += 4
+  if bright and code == 30: code = 37
+  return code
+
+# ================================================================
+# TERMINAL INPUT PARSER TYPES
+# ================================================================
+
+const
+  INTERMED_MAX* = 16
+  CSI_ARGS_MAX* = 16
+  CSI_LEADER_MAX* = 16
+  CSI_ARG_FLAG_MORE* = 0x80000000'i64
+  CSI_ARG_MASK* = 0x7FFFFFFF'i64
+  CSI_ARG_MISSING* = 0x7FFFFFFF'i64
+
+type
+  StringCsiState* = object
+    leaderlen*: int
+    leader*: array[CSI_LEADER_MAX, char]
+    argi*: int
+    args*: array[CSI_ARGS_MAX, int64]
+
+  ParserState* = enum
+    Normal
+    CSILeader
+    CSIArgs
+    CSIIntermed
+
+  TerminalInputParser* = object
+    prevEsc*: bool
+    inEsc*: bool
+    inEscO*: bool
+    inUtf8*: bool
+    utf8Remaining*: int
+    utf8Buffer*: string
+    state*: ParserState
+    csi*: StringCsiState
+    intermedlen*: int
+    intermed*: array[INTERMED_MAX, char]
+    mouseCol*: int
+    mouseRow*: int
+    width*: int
+    height*: int
+    escTimer*: float
+    endedInEsc*: bool
+    enableEscapeTimeout*: bool
+    escapeTimeout*: int
+
+# ================================================================
+# INPUT PARSER INITIALIZATION
+# ================================================================
+
+proc newTerminalInputParser*(): TerminalInputParser =
+  ## Create a new terminal input parser with default values
+  result.state = Normal
+  result.csi.args[0] = CSI_ARG_MISSING
+  result.enableEscapeTimeout = true
+  result.escapeTimeout = 300
+  result.escTimer = 0.0  # Will be set when first used
+
+# ================================================================
+# RENDERING TYPES
+# ================================================================
+
+type
+  Cell* = object
+    ch*: string
+    style*: Style
+
+  TermBuffer* = object
+    width*, height*: int
+    cells*: seq[Cell]
+    clipX*, clipY*, clipW*, clipH*: int
+    offsetX*, offsetY*: int
+
+  Layer* = ref object
+    id*: string
+    z*: int
+    visible*: bool
+    buffer*: TermBuffer
+
+# ================================================================
+# APPLICATION STATE
+# ================================================================
+
+type
+  AppState* = ref object
+    running*: bool
+    termWidth*, termHeight*: int
+    currentBuffer*: TermBuffer
+    previousBuffer*: TermBuffer
+    frameCount*: int
+    totalTime*: float
+    fps*: float
+    lastFpsUpdate*: float
+    targetFps*: float
+    colorSupport*: int
+    layers*: seq[Layer]
+    inputParser*: TerminalInputParser
+    lastMouseX*, lastMouseY*: int
+    audioSystemPtr*: pointer  ## Points to AudioSystem (to avoid import issues)
+    themeBackground*: tuple[r, g, b: uint8]  ## Theme's background color for terminal
+    styleSheet*: StyleSheet  ## Styles from front matter
+
+# ================================================================
+# CONTENT SOURCE TYPES
+# ================================================================
+
+type
+  ContentSource* = enum
+    csNone
+    csGist
+    csDemo
+    csFile

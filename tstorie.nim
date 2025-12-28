@@ -2,12 +2,16 @@ import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
 import macros
 import nimini
 import src/params
+import src/types  # Core runtime types
+import src/layers  # Layer system and buffer operations
+import src/appstate  # Application state management
 import lib/storie_types
 import lib/audio_gen
 
 when not defined(emscripten):
   import src/platform/terminal
   import std/httpclient
+  import src/export_command  # Export command support
 
 const version = "0.1.0"
 
@@ -53,138 +57,22 @@ const
   ModSuper* = 3'u8
 
 # ================================================================
-# INPUT EVENT TYPES
+# INPUT EVENT TYPES (imported from src/types)
 # ================================================================
-
-type
-  InputAction* = enum
-    Press
-    Release
-    Repeat
-
-  MouseButton* = enum
-    Left
-    Middle
-    Right
-    Unknown
-    ScrollUp
-    ScrollDown
-
-  InputEventKind* = enum
-    KeyEvent
-    TextEvent
-    MouseEvent
-    MouseMoveEvent
-    ResizeEvent
-
-  InputEvent* = object
-    case kind*: InputEventKind
-    of KeyEvent:
-      keyCode*: int
-      keyMods*: set[uint8]
-      keyAction*: InputAction
-    of TextEvent:
-      text*: string
-    of MouseEvent:
-      button*: MouseButton
-      mouseX*: int
-      mouseY*: int
-      mods*: set[uint8]
-      action*: InputAction
-    of MouseMoveEvent:
-      moveX*: int
-      moveY*: int
-      moveMods*: set[uint8]
-    of ResizeEvent:
-      newWidth*: int
-      newHeight*: int
+# Types now defined in src/types.nim:
+# - InputAction, MouseButton, InputEventKind, InputEvent
+# - Color, Style, and color helpers
+# - TerminalInputParser and related types
 
 # ================================================================
-# COLOR AND STYLE SYSTEM
+# TERMINAL INPUT PARSER IMPLEMENTATION
 # ================================================================
 
-type
-  Color* = object
-    r*, g*, b*: uint8
-
-  Style* = object
-    fg*: Color
-    bg*: Color
-    bold*: bool
-    underline*: bool
-    italic*: bool
-    dim*: bool
-
-# Color constructor helpers
-proc rgb*(r, g, b: uint8): Color =
-  Color(r: r, g: g, b: b)
-
-proc gray*(level: uint8): Color =
-  rgb(level, level, level)
-
-proc black*(): Color = rgb(0, 0, 0)
-proc red*(): Color = rgb(255, 0, 0)
-proc green*(): Color = rgb(0, 255, 0)
-proc yellow*(): Color = rgb(255, 255, 0)
-proc blue*(): Color = rgb(0, 0, 255)
-proc magenta*(): Color = rgb(255, 0, 255)
-proc cyan*(): Color = rgb(0, 255, 255)
-proc white*(): Color = rgb(255, 255, 255)
-
-proc defaultStyle*(): Style =
-  Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
-
 # ================================================================
-# TERMINAL INPUT PARSER (sophisticated)
+# INPUT PARSING
 # ================================================================
 
-const
-  INTERMED_MAX = 16
-  CSI_ARGS_MAX = 16
-  CSI_LEADER_MAX = 16
-  CSI_ARG_FLAG_MORE* = 0x80000000'i64
-  CSI_ARG_MASK* = 0x7FFFFFFF'i64
-  CSI_ARG_MISSING* = 0x7FFFFFFF'i64
-
-type
-  StringCsiState = object
-    leaderlen: int
-    leader: array[CSI_LEADER_MAX, char]
-    argi: int
-    args: array[CSI_ARGS_MAX, int64]
-
-  ParserState = enum
-    Normal
-    CSILeader
-    CSIArgs
-    CSIIntermed
-
-  TerminalInputParser* = object
-    prevEsc: bool
-    inEsc: bool
-    inEscO: bool
-    inUtf8: bool
-    utf8Remaining: int
-    utf8Buffer: string
-    state: ParserState
-    csi: StringCsiState
-    intermedlen: int
-    intermed: array[INTERMED_MAX, char]
-    mouseCol: int
-    mouseRow: int
-    width*: int
-    height*: int
-    escTimer: float
-    endedInEsc: bool
-    enableEscapeTimeout*: bool
-    escapeTimeout*: int
-
-proc newTerminalInputParser*(): TerminalInputParser =
-  result.state = Normal
-  result.csi.args[0] = CSI_ARG_MISSING
-  result.enableEscapeTimeout = true
-  result.escapeTimeout = 300
-  result.escTimer = epochTime()
+# newTerminalInputParser is now in src/types.nim
 
 proc csiArg(a: int64): int = int(a and CSI_ARG_MASK)
 proc csiArgHasMore(a: int64): bool = (a and CSI_ARG_FLAG_MORE) != 0
@@ -569,56 +457,28 @@ proc parseInput*(vt: var TerminalInputParser, text: openArray[char]): seq[InputE
 # INTERNAL TYPES (not exposed to plugins)
 # ================================================================
 
-type
-  Cell = object
-    ch: string
-    style: Style
-
-  TermBuffer* = object
-    width*, height*: int
-    cells: seq[Cell]
-    clipX*, clipY*, clipW*, clipH*: int
-    offsetX*, offsetY*: int
-
-  Layer* = ref object
-    id*: string
-    z*: int
-    visible*: bool
-    buffer*: TermBuffer
-
-  AppState* = ref object
-    running*: bool
-    termWidth*, termHeight*: int
-    currentBuffer*: TermBuffer
-    previousBuffer*: TermBuffer
-    frameCount*: int
-    totalTime*: float
-    fps*: float
-    lastFpsUpdate*: float
-    targetFps*: float
-    colorSupport*: int
-    layers*: seq[Layer]
-    inputParser*: TerminalInputParser
-    lastMouseX*, lastMouseY*: int
-    audioSystemPtr*: pointer  ## Points to AudioSystem (to avoid import issues)
-    themeBackground*: tuple[r, g, b: uint8]  ## Theme's background color for terminal
-    styleSheet*: StyleSheet  ## Styles from front matter
+# ================================================================
+# RENDERING TYPES (imported from src/types)
+# ================================================================
+# Types now defined in src/types.nim:
+# - Cell, TermBuffer, Layer, AppState
 
 when not defined(emscripten):
   var globalRunning {.global.} = true
   var globalTerminalState: TerminalState
 
 # ================================================================
-# MODULE LOADING SYSTEM
+# MODULE LOADING TYPES (partially from src/types)
 # ================================================================
+# ContentSource defined in src/types.nim
+# ModuleCache needs to be defined here because it depends on nimini's ref Env
 
-# Module cache for runtime-loaded Nim modules
 type
-  ModuleCache* = ref object
+  ModuleCacheImpl* = ref object
     modules*: Table[string, ref Env]  # moduleRef -> compiled runtime
     sourceCode*: Table[string, string]   # moduleRef -> source code
     
-var globalModuleCache* = ModuleCache(
+var globalModuleCache* = ModuleCacheImpl(
   modules: initTable[string, ref Env](),
   sourceCode: initTable[string, string]()
 )
@@ -652,12 +512,11 @@ proc parseGistReference*(moduleRef: string): tuple[gistId: string, filename: str
   else:
     return ("", moduleRef, false)
 
-type
-  ContentSource* = enum
-    csNone
-    csGist
-    csDemo
-    csFile
+# ================================================================
+# CONTENT SOURCE TYPES (imported from src/types)
+# ================================================================
+# Types now defined in src/types.nim:
+# - ContentSource enum
 
 proc parseContentReference*(contentRef: string): tuple[source: ContentSource, id: string] =
   ## Parse a content reference into its source type and identifier
@@ -857,75 +716,8 @@ proc listCachedModules*(): seq[string] =
 # NIMINI BRIDGE - API Registration
 # ================================================================
 
-# Forward declarations for layer management (defined later in file)
-proc addLayer*(state: AppState, id: string, z: int): Layer
-proc getLayer*(state: AppState, id: string): Layer
-
-# TermBuffer operations - defined here so templates can bind to them
-proc write*(tb: var TermBuffer, x, y: int, ch: string, style: Style) =
-  let screenX = x + tb.offsetX
-  let screenY = y + tb.offsetY
-  
-  if screenX < tb.clipX or screenX >= tb.clipX + tb.clipW:
-    return
-  if screenY < tb.clipY or screenY >= tb.clipY + tb.clipH:
-    return
-  
-  if screenX >= 0 and screenX < tb.width and screenY >= 0 and screenY < tb.height:
-    let idx = screenY * tb.width + screenX
-    tb.cells[idx] = Cell(ch: ch, style: style)
-
-proc writeText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
-  var currentX = x
-  var i = 0
-  while i < text.len:
-    let b = text[i].ord
-    var charLen = 1
-    var ch = ""
-    
-    if (b and 0x80) == 0:
-      ch = $text[i]
-    elif (b and 0xE0) == 0xC0 and i + 1 < text.len:
-      ch = text[i..i+1]
-      charLen = 2
-    elif (b and 0xF0) == 0xE0 and i + 2 < text.len:
-      ch = text[i..i+2]
-      charLen = 3
-    elif (b and 0xF8) == 0xF0 and i + 3 < text.len:
-      ch = text[i..i+3]
-      charLen = 4
-    else:
-      ch = "?"
-    
-    tb.write(currentX, y, ch, style)
-    currentX += 1
-    i += charLen
-
-proc fillRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =
-  for dy in 0 ..< h:
-    for dx in 0 ..< w:
-      tb.write(x + dx, y + dy, ch, style)
-
-proc clear*(tb: var TermBuffer, bgColor: tuple[r, g, b: uint8] = (0'u8, 0'u8, 0'u8)) =
-  let defaultStyle = Style(fg: white(), bg: Color(r: bgColor.r, g: bgColor.g, b: bgColor.b), bold: false)
-  for i in 0 ..< tb.cells.len:
-    tb.cells[i] = Cell(ch: " ", style: defaultStyle)
-
-proc clearTransparent*(tb: var TermBuffer) =
-  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
-  for i in 0 ..< tb.cells.len:
-    tb.cells[i] = Cell(ch: "", style: defaultStyle)
-
-proc getCell*(tb: TermBuffer, x, y: int): tuple[ch: string, style: Style] =
-  ## Get a cell from the buffer (returns default style if out of bounds)
-  if x < 0 or x >= tb.width or y < 0 or y >= tb.height:
-    let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
-    return (" ", defStyle)
-  let idx = y * tb.width + x
-  if idx >= 0 and idx < tb.cells.len:
-    return (tb.cells[idx].ch, tb.cells[idx].style)
-  let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
-  return (" ", defStyle)
+# Buffer operations and layer management now imported from src/layers
+# These helper templates remain for backward compatibility with nimini API calls
 
 # Helper templates to avoid symbol resolution conflicts with File.write
 template tbWrite(layer: Layer, x, y: int, ch: string, style: Style) =
@@ -1458,23 +1250,9 @@ proc require*(moduleRef: string, state: AppState): ref Env =
     raise e
 
 # ================================================================
-# COLOR UTILITIES
+# COLOR UTILITIES - Now in src/types.nim
 # ================================================================
-
-proc toAnsi256*(c: Color): int =
-  let r = int(c.r) * 5 div 255
-  let g = int(c.g) * 5 div 255
-  let b = int(c.b) * 5 div 255
-  return 16 + 36 * r + 6 * g + b
-
-proc toAnsi8*(c: Color): int =
-  let bright = (int(c.r) + int(c.g) + int(c.b)) div 3 > 128
-  var code = 30
-  if c.r > 128: code += 1
-  if c.g > 128: code += 2
-  if c.b > 128: code += 4
-  if bright and code == 30: code = 37
-  return code
+# toAnsi256 and toAnsi8 functions moved to src/types.nim
 
 # ================================================================
 # TERMINAL SETUP
@@ -1505,219 +1283,17 @@ proc getInputEvent*(state: AppState): seq[InputEvent] =
     return @[]
 
 # ================================================================
-# BUFFER OPERATIONS
+# BUFFER AND LAYER OPERATIONS - Now imported from src/layers
 # ================================================================
-
-proc newTermBuffer*(w, h: int): TermBuffer =
-  result.width = w
-  result.height = h
-  result.cells = newSeq[Cell](w * h)
-  result.clipX = 0
-  result.clipY = 0
-  result.clipW = w
-  result.clipH = h
-  result.offsetX = 0
-  result.offsetY = 0
-  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
-  for i in 0 ..< result.cells.len:
-    result.cells[i] = Cell(ch: " ", style: defaultStyle)
-
-proc setClip*(tb: var TermBuffer, x, y, w, h: int) =
-  tb.clipX = max(0, x)
-  tb.clipY = max(0, y)
-  tb.clipW = min(w, tb.width - tb.clipX)
-  tb.clipH = min(h, tb.height - tb.clipY)
-
-proc clearClip*(tb: var TermBuffer) =
-  tb.clipX = 0
-  tb.clipY = 0
-  tb.clipW = tb.width
-  tb.clipH = tb.height
-
-proc setOffset*(tb: var TermBuffer, x, y: int) =
-  tb.offsetX = x
-  tb.offsetY = y
-
-proc compositeBufferOnto*(dest: var TermBuffer, src: TermBuffer) =
-  let w = min(dest.width, src.width)
-  let h = min(dest.height, src.height)
-  for y in 0 ..< h:
-    let dr = y * dest.width
-    let sr = y * src.width
-    for x in 0 ..< w:
-      let s = src.cells[sr + x]
-      # Composite if there's a character OR if there's a non-black background
-      if s.ch.len > 0 or (s.style.bg.r != 0 or s.style.bg.g != 0 or s.style.bg.b != 0):
-        dest.cells[dr + x] = s
+# Buffer operations (newTermBuffer, write, fillRect, clear, etc.)
+# Layer management (addLayer, getLayer, removeLayer, resizeLayers, compositeLayers)
+# Display rendering (display, compositeBufferOnto)
+# All these functions are now in src/layers.nim
 
 # ================================================================
-# DISPLAY
+# FPS CONTROL - Now in src/appstate.nim
 # ================================================================
-
-proc colorsEqual(a, b: Color): bool =
-  a.r == b.r and a.g == b.g and a.b == b.b
-
-proc stylesEqual(a, b: Style): bool =
-  colorsEqual(a.fg, b.fg) and colorsEqual(a.bg, b.bg) and
-  a.bold == b.bold and a.underline == b.underline and
-  a.italic == b.italic and a.dim == b.dim
-
-proc cellsEqual(a, b: Cell): bool =
-  a.ch == b.ch and stylesEqual(a.style, b.style)
-
-proc buildStyleCode(style: Style, colorSupport: int): string =
-  result = "\e["
-  var codes: seq[string] = @["0"]
-  
-  if style.bold: codes.add("1")
-  if style.dim: codes.add("2")
-  if style.italic: codes.add("3")
-  if style.underline: codes.add("4")
-  
-  case colorSupport
-  of 16777216:
-    codes.add("38;2;" & $style.fg.r & ";" & $style.fg.g & ";" & $style.fg.b)
-  of 256:
-    codes.add("38;5;" & $toAnsi256(style.fg))
-  else:
-    codes.add($toAnsi8(style.fg))
-  
-  if not (style.bg.r == 0 and style.bg.g == 0 and style.bg.b == 0):
-    case colorSupport
-    of 16777216:
-      codes.add("48;2;" & $style.bg.r & ";" & $style.bg.g & ";" & $style.bg.b)
-    of 256:
-      codes.add("48;5;" & $toAnsi256(style.bg))
-    else:
-      codes.add($(toAnsi8(style.bg) + 10))
-  
-  result.add(codes.join(";") & "m")
-
-proc display*(tb: var TermBuffer, prev: var TermBuffer, colorSupport: int) =
-  when defined(emscripten):
-    discard
-  else:
-    var output = ""
-    let sizeChanged = prev.width != tb.width or prev.height != tb.height
-    
-    if sizeChanged:
-      output.add("\e[2J")
-      prev = newTermBuffer(tb.width, tb.height)
-    
-    # Pre-allocate string capacity for better performance (Windows consoles benefit)
-    when defined(windows):
-      output = newStringOfCap(tb.width * tb.height * 4)
-    
-    var haveLastStyle = false
-    var lastStyle: Style
-    var haveCursor = false
-    var lastCursorY = -1
-    var lastCursorXEnd = -1
-    
-    for y in 0 ..< tb.height:
-      var x = 0
-      while x < tb.width:
-        let idx = y * tb.width + x
-        let cell = tb.cells[idx]
-        
-        if not sizeChanged and prev.cells.len > 0 and idx < prev.cells.len and
-           cellsEqual(prev.cells[idx], cell):
-          x += 1
-          continue
-        
-        var runLength = 1
-        while x + runLength < tb.width:
-          let nextIdx = idx + runLength
-          let nextCell = tb.cells[nextIdx]
-          
-          if not sizeChanged and prev.cells.len > 0 and nextIdx < prev.cells.len and
-             cellsEqual(prev.cells[nextIdx], nextCell):
-            break
-          
-          if not cellsEqual(cell, nextCell):
-            if stylesEqual(nextCell.style, cell.style):
-              runLength += 1
-            else:
-              break
-          else:
-            runLength += 1
-        
-        if not haveCursor or lastCursorY != y or lastCursorXEnd != x:
-          output.add("\e[" & $(y + 1) & ";" & $(x + 1) & "H")
-        if (not haveLastStyle) or (not stylesEqual(cell.style, lastStyle)):
-          output.add(buildStyleCode(cell.style, colorSupport))
-          lastStyle = cell.style
-          haveLastStyle = true
-        
-        for i in 0 ..< runLength:
-          output.add(tb.cells[idx + i].ch)
-        
-        x += runLength
-        haveCursor = true
-        lastCursorY = y
-        lastCursorXEnd = x
-    
-    # Batch write for better Windows console performance
-    stdout.write(output)
-    stdout.flushFile()
-
-# ================================================================
-# LAYER SYSTEM
-# ================================================================
-
-proc addLayer*(state: AppState, id: string, z: int): Layer =
-  let layer = Layer(
-    id: id,
-    z: z,
-    visible: true,
-    buffer: newTermBuffer(state.termWidth, state.termHeight)
-  )
-  layer.buffer.clearTransparent()
-  state.layers.add(layer)
-  return layer
-
-proc getLayer*(state: AppState, id: string): Layer =
-  for layer in state.layers:
-    if layer.id == id:
-      return layer
-  return nil
-
-proc removeLayer*(state: AppState, id: string) =
-  var i = 0
-  while i < state.layers.len:
-    if state.layers[i].id == id:
-      state.layers.delete(i)
-    else:
-      i += 1
-
-proc resizeLayers*(state: AppState, newWidth, newHeight: int) =
-  ## Resize all layer buffers to match new terminal size
-  for layer in state.layers:
-    layer.buffer = newTermBuffer(newWidth, newHeight)
-    layer.buffer.clearTransparent()
-
-proc compositeLayers*(state: AppState) =
-  if state.layers.len == 0:
-    return
-  
-  # Fill buffer with theme background color first
-  state.currentBuffer.clear(state.themeBackground)
-  
-  for i in 0 ..< state.layers.len:
-    for j in i + 1 ..< state.layers.len:
-      if state.layers[j].z < state.layers[i].z:
-        swap(state.layers[i], state.layers[j])
-  
-  for layer in state.layers:
-    if layer.visible:
-      compositeBufferOnto(state.currentBuffer, layer.buffer)
-
-# ================================================================
-# FPS CONTROL
-# ================================================================
-
-proc setTargetFps*(state: AppState, fps: float) =
-  state.targetFps = fps
+# setTargetFps, updateFpsCounter, getFps, getFrameCount, getTotalTime moved to src/appstate
 
 # ================================================================
 # USER CALLBACKS
@@ -1881,21 +1457,7 @@ when defined(emscripten):
     defineVar(runtimeEnv, "_flush_status", valString("flushed_" & $wasmPendingParams.len))
   
   proc emInit(width, height: int) {.exportc.} =
-    globalState = new(AppState)
-    globalState.termWidth = width
-    globalState.termHeight = height
-    globalState.currentBuffer = newTermBuffer(width, height)
-    globalState.previousBuffer = newTermBuffer(width, height)
-    globalState.colorSupport = 16777216  # Full RGB support in browser
-    globalState.running = true
-    globalState.layers = @[]
-    globalState.targetFps = 60.0
-    globalState.inputParser = newTerminalInputParser()
-    globalState.lastMouseX = 0
-    globalState.lastMouseY = 0
-    globalState.fps = 60.0
-    globalState.audioSystemPtr = nil
-    globalState.themeBackground = (0'u8, 0'u8, 0'u8)  # Default to black, will be updated when theme loads
+    globalState = newAppState(width, height)
     
     # URL parameters are parsed in JavaScript (parseAndStoreUrlParams in index.html)
     # and stored before this function is called
@@ -2337,6 +1899,12 @@ proc showHelp() =
   echo ""
   echo "Usage:"
   echo "  tstorie [OPTIONS] [FILE] [PARAMS...]"
+  echo "  tstorie export [OPTIONS] <file.md>     # Export to native Nim"
+  echo ""
+  echo "Commands:"
+  echo "  (default)             Run a tStorie markdown file"
+  echo "  export                Export markdown to native Nim program"
+  echo "                        Use 'tstorie export --help' for export options"
   echo ""
   echo "Arguments:"
   echo "  FILE                  Markdown file to run (default: index.md)"
@@ -2370,6 +1938,8 @@ proc showHelp() =
   echo "Examples:"
   echo "  tstorie                              # Run index.md"
   echo "  tstorie depths.md                    # Run depths.md"
+  echo "  tstorie export myapp.md              # Export to native Nim"
+  echo "  tstorie export myapp.md -c           # Export and compile"
   echo "  tstorie --content demo:clock         # Run clock demo"
   echo "  tstorie --content gist:abc123        # Run from GitHub Gist"
   echo "  tstorie examples/dungen.md seed=12345  # Run with seed parameter"
@@ -2384,6 +1954,12 @@ proc showHelp() =
   echo ""
 
 proc main() =
+  # Check for export subcommand first (before parsing any options)
+  when not defined(emscripten):
+    if paramCount() > 0 and paramStr(1) == "export":
+      runExport()
+      return
+  
   var p = initOptParser()
   var cliFps: float = 0.0
   var mdFile: string = ""
@@ -2474,12 +2050,10 @@ proc main() =
       discard  # Theme will be checked after markdown loads
   
   when not defined(emscripten):
-    var state = new(AppState)
+    let (w, h) = getTermSize()
+    var state = newAppState(w, h)
     state.colorSupport = detectColorSupport()
-    state.layers = @[]
-    state.inputParser = newTerminalInputParser()
-    state.targetFps = 60.0
-    state.audioSystemPtr = nil
+    
     when defined(windows):
       # If not Windows Terminal (WT_SESSION absent), lower default FPS for performance
       if getEnv("WT_SESSION").len == 0:
@@ -2502,13 +2076,6 @@ proc main() =
     
     setupSignalHandlers(proc(sig: cint) {.noconv.} = globalRunning = false)
     
-    let (w, h) = getTermSize()
-    state.termWidth = w
-    state.termHeight = h
-    state.currentBuffer = newTermBuffer(w, h)
-    state.previousBuffer = newTermBuffer(w, h)
-    state.running = true
-    
     callOnSetup(state)
     
     var lastTime = epochTime()
@@ -2526,11 +2093,7 @@ proc main() =
         let events = getInputEvent(state)
         for event in events:
           if event.kind == ResizeEvent:
-            state.termWidth = event.newWidth
-            state.termHeight = event.newHeight
-            state.currentBuffer = newTermBuffer(event.newWidth, event.newHeight)
-            state.previousBuffer = newTermBuffer(event.newWidth, event.newHeight)
-            state.resizeLayers(event.newWidth, event.newHeight)
+            state.resizeState(event.newWidth, event.newHeight)
             stdout.write("\e[2J\e[H")
             stdout.flushFile()
           else:
@@ -2538,20 +2101,12 @@ proc main() =
         
         let (newW, newH) = getTermSize()
         if newW != state.termWidth or newH != state.termHeight:
-          state.termWidth = newW
-          state.termHeight = newH
-          state.currentBuffer = newTermBuffer(newW, newH)
-          state.previousBuffer = newTermBuffer(newW, newH)
-          state.resizeLayers(newW, newH)
+          state.resizeState(newW, newH)
           stdout.write("\e[2J\e[H")
           stdout.flushFile()
         
-        state.totalTime += deltaTime
-        state.frameCount += 1
-        
-        if state.totalTime - state.lastFpsUpdate >= 0.5:
-          state.fps = 1.0 / deltaTime
-          state.lastFpsUpdate = state.totalTime
+        # Update FPS counter
+        state.updateFpsCounter(deltaTime)
         
         callOnFrame(state, deltaTime)
         

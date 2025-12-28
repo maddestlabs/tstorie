@@ -4,6 +4,10 @@
 ##
 ## Note: This module expects storie_md and layout to be available from the importing context.
 
+# Import core types when used as a module
+when not declared(Style):
+  import ../src/types
+
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
 
 # Forward declare global for nimini environment (set during rendering)

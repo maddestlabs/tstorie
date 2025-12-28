@@ -1103,8 +1103,55 @@ var runtimeEnv*: ref Env
 # Native Function Registration / Globals
 # ------------------------------------------------------------------------------
 
-proc registerNative*(name: string; fn: NativeFunc) =
+type
+  FunctionMetadata* = object
+    ## Metadata about a native function's requirements and documentation
+    imports*: seq[string]              # Nim stdlib imports needed (e.g., "math", "strutils")
+    storieLibs*: seq[string]           # tStorie lib/ modules needed (e.g., "canvas", "layout")
+    dependencies*: seq[string]         # Other nimini functions this calls
+    description*: string               # Human-readable description
+    # Future extensions:
+    # paramTypes*: seq[string]         # Expected parameter types
+    # returnType*: string              # Return type
+    # platforms*: seq[string]          # Supported platforms
+
+# Global metadata registry - exported for use by export system
+var gFunctionMetadata* = initTable[string, FunctionMetadata]()
+
+proc registerNative*(name: string, 
+                    fn: NativeFunc,
+                    imports: seq[string] = @[],
+                    storieLibs: seq[string] = @[],
+                    dependencies: seq[string] = @[],
+                    description: string = "") =
+  ## Register a native function with optional metadata for export system
+  ## All parameters except name and fn are optional with default values
   defineVar(runtimeEnv, name, valNativeFunc(fn))
+  
+  # Only store metadata if any is provided
+  if imports.len > 0 or storieLibs.len > 0 or dependencies.len > 0 or description.len > 0:
+    gFunctionMetadata[name] = FunctionMetadata(
+      imports: imports,
+      storieLibs: storieLibs,
+      dependencies: dependencies,
+      description: description
+    )
+
+proc getImports*(funcName: string): seq[string] =
+  ## Get required stdlib imports for a function
+  if gFunctionMetadata.hasKey(funcName):
+    return gFunctionMetadata[funcName].imports
+  return @[]
+
+proc getStorieLibs*(funcName: string): seq[string] =
+  ## Get required tStorie library modules for a function
+  if gFunctionMetadata.hasKey(funcName):
+    return gFunctionMetadata[funcName].storieLibs
+  return @[]
+
+proc hasMetadata*(funcName: string): bool =
+  ## Check if a function has metadata registered
+  return gFunctionMetadata.hasKey(funcName)
 
 proc initRuntime*() =
   runtimeEnv = newEnv(nil)

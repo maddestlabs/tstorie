@@ -10,6 +10,10 @@
 ## Note: This module is designed to be used alongside tstorie.nim
 ## and requires TermBuffer, Layer, and Style types to be available.
 
+# Import core types when used as a module
+when not declared(Layer):
+  import ../src/types
+
 import unicode
 import strutils
 import sequtils

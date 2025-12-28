@@ -2,8 +2,12 @@
 ## Provides convenient drawing functions for use with Nimini scripts
 ## Works with both background and foreground layers
 ## 
-## Note: This module expects Layer and Style types to be available
-## from the importing/including context.
+## This module can be both included (legacy) or imported (new modular approach)
+
+# Import core types and layers when used as a module
+when not declared(Layer):
+  import ../src/types
+  import ../src/layers
 
 # ================================================================
 # BACKGROUND LAYER OPERATIONS
