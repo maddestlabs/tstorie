@@ -38,34 +38,34 @@ return false
 
 ```nim on:render
 # Clear screen
-bgClear()
+clear()
 
 # Draw title  
-bgWriteText(2, 2, "=== MOUSE EVENT TEST ===")
+draw(0, 2, 2, "=== MOUSE EVENT TEST ===")
 
 # Draw instructions
-bgWriteText(2, 4, "Move your mouse and click buttons to test")
-bgWriteText(2, 5, "Press Q or ESC to quit")
+draw(0, 2, 4, "Move your mouse and click buttons to test")
+draw(0, 2, 5, "Press Q or ESC to quit")
 
 # Display mouse state
-bgWriteText(2, 7, "Mouse Position: (" & str(mouseX) & ", " & str(mouseY) & ")")
-bgWriteText(2, 8, "Last Button: " & lastButton)
-bgWriteText(2, 9, "Last Action: " & lastAction)
-bgWriteText(2, 10, "Click Count: " & str(clickCount))
+draw(0, 2, 7, "Mouse Position: (" & str(mouseX) & ", " & str(mouseY) & ")")
+draw(0, 2, 8, "Last Button: " & lastButton)
+draw(0, 2, 9, "Last Action: " & lastAction)
+draw(0, 2, 10, "Click Count: " & str(clickCount))
 
 # Draw a clickable box
-bgWriteText(10, 13, "+------------------+")
+draw(0, 10, 13, "+------------------+")
 var i = 0
 while i < 5:
-  bgWriteText(10, 14 + i, "|                  |")
+  draw(0, 10, 14 + i, "|                  |")
   i = i + 1
-bgWriteText(10, 19, "+------------------+")
+draw(0, 10, 19, "+------------------+")
 
-bgWriteText(13, 16, "CLICK ME!")
+draw(0, 13, 16, "CLICK ME!")
 
 # Visual feedback if mouse is over the box
 if mouseX >= 10 and mouseX <= 29 and mouseY >= 14 and mouseY <= 18:
-  bgWriteText(11, 16, "  HOVERING  ")
+  draw(0, 11, 16, "  HOVERING  ")
 ```
 
 ```nim on:shutdown

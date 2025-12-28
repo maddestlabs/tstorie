@@ -3,12 +3,12 @@
 A simple digital clock using an embedded FIGlet font.
 
 ```nim on:init
-var fontLoaded = nimini_loadFont("jazmine")
+var fontLoaded = figletLoadFont("jazmine")
 var debugMsg = "Font loaded: " & $fontLoaded
 ```
 
 ```nim on:render
-fgClear()
+clear()
 
 # Get current time
 var time = now()
@@ -28,10 +28,10 @@ if second < 10:
   timeStr = timeStr & "0"
 timeStr = timeStr & $second
 
-fgWriteText(1, 2, "Time: " & timeStr)
+draw(0, 1, 2, "Time: " & timeStr)
 
 # Try to render
-var lines = nimini_render("jazmine", timeStr)
+var lines = figletRender("jazmine", timeStr)
 
 # Center and draw
 if len(lines) > 0:
@@ -50,10 +50,10 @@ if len(lines) > 0:
   
   var y = startY
   for line in lines:
-    fgWriteText(startX, y, line)
+    draw(0, startX, y, line)
     y = y + 1
 else:
-  fgWriteText(2, 8, "No lines to render!")
+  draw(0, 2, 8, "No lines to render!")
 ```
 
 ```figlet:jazmine

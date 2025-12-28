@@ -31,8 +31,7 @@ counter = counter + 1
 ```
 
 ```nim on:render
-bgClear()
-fgClear()
+clear()
 
 # Use predefined styles from front matter
 var h1Style = getStyle("heading1")
@@ -45,30 +44,30 @@ var mutedStyle = getStyle("muted")
 var defaultSty = defaultStyle()
 
 # Title with heading style
-fgWriteText(5, 2, "=== STYLE SYSTEM DEMO ===", h1Style)
+draw(0, 5, 2, "=== STYLE SYSTEM DEMO ===", h1Style)
 
 # Section headings
-fgWriteText(5, 4, "Message Types:", h2Style)
+draw(0, 5, 4, "Message Types:", h2Style)
 
 # Different message styles
-fgWriteText(7, 6, "[SUCCESS] Operation completed", successStyle)
-fgWriteText(7, 7, "[ERROR] Something went wrong", errorStyle)
-fgWriteText(7, 8, "[WARNING] Please check this", warningStyle)
-fgWriteText(7, 9, "[INFO] For your information", infoStyle)
+draw(0, 7, 6, "[SUCCESS] Operation completed", successStyle)
+draw(0, 7, 7, "[ERROR] Something went wrong", errorStyle)
+draw(0, 7, 8, "[WARNING] Please check this", warningStyle)
+draw(0, 7, 9, "[INFO] For your information", infoStyle)
 
 # Normal text
-fgWriteText(5, 11, "Counter with default style: " & $counter, defaultStyle)
+draw(0, 5, 11, "Counter with default style: " & $counter, defaultStyle)
 
 # Muted footer
-fgWriteText(5, 13, "Tip: Edit styles in the front matter!", mutedStyle)
+draw(0, 5, 13, "Tip: Edit styles in the front matter!", mutedStyle)
 
 # Color palette demo
-fgWriteText(5, 15, "Available Colors:", h2Style)
-fgWriteText(7, 17, "Red      ", getStyle("error"))
-fgWriteText(7, 18, "Green    ", getStyle("success"))
-fgWriteText(7, 19, "Yellow   ", getStyle("heading1"))
-fgWriteText(7, 20, "Cyan     ", getStyle("heading2"))
-fgWriteText(7, 21, "Orange   ", getStyle("warning"))
-fgWriteText(7, 22, "Blue     ", getStyle("info"))
-fgWriteText(7, 23, "Gray     ", getStyle("muted"))
+draw(0, 5, 15, "Available Colors:", h2Style)
+draw(0, 7, 17, "Red      ", getStyle("error"))
+draw(0, 7, 18, "Green    ", getStyle("success"))
+draw(0, 7, 19, "Yellow   ", getStyle("heading1"))
+draw(0, 7, 20, "Cyan     ", getStyle("heading2"))
+draw(0, 7, 21, "Orange   ", getStyle("warning"))
+draw(0, 7, 22, "Blue     ", getStyle("info"))
+draw(0, 7, 23, "Gray     ", getStyle("muted"))
 ```

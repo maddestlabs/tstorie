@@ -23,40 +23,40 @@ var frameTime = 1.0 / 60.0
 ```
 
 ```nim on:render
-bgClear()
+clear()
 
 # Title
-bgWriteText(2, 2, "TStorie Procedural Audio Demo")
-bgWriteText(2, 3, "==============================")
-bgWriteText(2, 4, "(Pure code-generated sounds)")
+draw(0, 2, 2, "TStorie Procedural Audio Demo")
+draw(0, 2, 3, "==============================")
+draw(0, 2, 4, "(Pure code-generated sounds)")
 
 # Instructions
 var y = 6
-bgWriteText(2, y, "Procedural audio system:")
+draw(0, 2, y, "Procedural audio system:")
 y = y + 2
-bgWriteText(4, y, "[1-8] Musical scale (sine waves)")
+draw(0, 4, y, "[1-8] Musical scale (sine waves)")
 y = y + 1
-bgWriteText(4, y, "[Q] Quick beep (440Hz)")
+draw(0, 4, y, "[Q] Quick beep (440Hz)")
 y = y + 1
-bgWriteText(4, y, "[W] Laser effect")
+draw(0, 4, y, "[W] Laser effect")
 y = y + 1
-bgWriteText(4, y, "[E] Sawtooth tone")
+draw(0, 4, y, "[E] Sawtooth tone")
 y = y + 1
-bgWriteText(4, y, "[Space] Jump sound")
+draw(0, 4, y, "[Space] Jump sound")
 
 # Show what just played
 y = y + 3
 if soundTimer > 0.0:
   soundTimer = soundTimer - frameTime
-  bgWriteText(2, y, "Playing: " & lastSound)
+  draw(0, 2, y, "Playing: " & lastSound)
 else:
-  bgWriteText(2, y, "Press keys to create sounds...")
+  draw(0, 2, y, "Press keys to create sounds...")
 
 # Info
 y = y + 2
-bgWriteText(2, y, "How it works:")
-bgWriteText(4, y + 1, "Sounds generated in real-time from code")
-bgWriteText(2, y + 3, "No audio files needed!")
+draw(0, 2, y, "How it works:")
+draw(0, 4, y + 1, "Sounds generated in real-time from code")
+draw(0, 2, y + 3, "No audio files needed!")
 ```
 
 ```nim on:input

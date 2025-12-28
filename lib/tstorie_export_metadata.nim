@@ -14,36 +14,15 @@ proc registerTStorieExportMetadata*() =
   ## Maps runtime functions to their lib/ module equivalents
   ## Call this after initStdlib() to add tStorie-specific metadata
   
-  # Core drawing functions -> lib/drawing (these are INCLUDED not imported)
-  # For standalone exports, we need to provide implementations
-  # For integrated exports, these come from lib/drawing
-  gFunctionMetadata["bgClear"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Clear background layer")
+  # Unified drawing API functions (defined in index.nim runtime)
+  gFunctionMetadata["draw"] = FunctionMetadata(
+    description: "Draw text on specified layer")
   
-  gFunctionMetadata["bgClearTransparent"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Clear background to transparent")
+  gFunctionMetadata["clear"] = FunctionMetadata(
+    description: "Clear layer(s)")
   
-  gFunctionMetadata["bgFillRect"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Fill background rectangle")
-  
-  gFunctionMetadata["bgWrite"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Write to background layer")
-  
-  gFunctionMetadata["fgWrite"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Write to foreground layer")
-  
-  gFunctionMetadata["fgWriteText"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Write text to foreground layer")
-  
-  gFunctionMetadata["fgClear"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Clear foreground layer")
+  gFunctionMetadata["fillRect"] = FunctionMetadata(
+    description: "Fill rectangle on specified layer")
   
   # Terminal info functions -> available in runtime context
   # These need special handling in standalone mode
@@ -82,18 +61,6 @@ proc registerTStorieExportMetadata*() =
   gFunctionMetadata["clearLayerTransparent"] = FunctionMetadata(
     storieLibs: @["canvas"],
     description: "Clear layer to transparent")
-  
-  gFunctionMetadata["drawRect"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Draw rectangle outline")
-  
-  gFunctionMetadata["drawLine"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Draw line between two points")
-  
-  gFunctionMetadata["drawBox"] = FunctionMetadata(
-    storieLibs: @["drawing"],
-    description: "Draw box with border characters")
   
   # Layout functions -> lib/layout
   gFunctionMetadata["wrapText"] = FunctionMetadata(

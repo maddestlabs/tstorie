@@ -1211,7 +1211,7 @@ proc canvasValueToInt(v: Value): int =
   of vkFloat: return int(v.f)
   else: return 0
 
-# Note: nimini_initCanvas is defined in index.nim since it needs access to storieCtx
+# Note: initCanvas is defined in index.nim since it needs access to storieCtx
 
 proc nimini_contentWrite*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Write a line to the content buffer for the current section. Args: text (string)
@@ -1270,7 +1270,7 @@ proc nimini_markVisited*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   markVisited(args[0].s)
   return valNil()
 
-proc nimini_canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render the canvas system. No args needed (uses global buffers)
   if not gCanvasAppState.isNil and not gCanvasBuffer.isNil:
     gNiminiEnv = cast[pointer](env)  # Store env for variable expansion during rendering
@@ -1279,7 +1279,7 @@ proc nimini_canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     canvasRender(gCanvasBuffer[], gCanvasAppState.termWidth, gCanvasAppState.termHeight, styleSheet)
   return valNil()
 
-proc nimini_canvasUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc canvasUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Update canvas animations. Args: deltaTime (float)
   let deltaTime = if args.len > 0:
     (if args[0].kind == vkFloat: args[0].f else: float(args[0].i))
@@ -1288,7 +1288,7 @@ proc nimini_canvasUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   canvasUpdate(deltaTime)
   return valNil()
 
-proc nimini_canvasHandleKey*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc canvasHandleKey*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Handle keyboard input for canvas. Args: keyCode (int), mods (int, optional)
   ## Returns: bool (true if handled)
   if args.len == 0:
@@ -1302,7 +1302,7 @@ proc nimini_canvasHandleKey*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if (mods and 4) != 0: modSet.incl(2'u8)  # Alt
   return valBool(canvasHandleKey(keyCode, modSet))
 
-proc nimini_canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Handle mouse input for canvas. Args: x (int), y (int), button (int), isDown (bool)
   ## Returns: bool (true if handled)
   if args.len < 4:
@@ -1324,8 +1324,8 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
   # Export all nimini wrapper functions
   exportNiminiProcs(
     nimini_hideSection, nimini_removeSection, nimini_restoreSection,
-    nimini_isVisited, nimini_markVisited, nimini_canvasRender, 
-    nimini_canvasUpdate, nimini_canvasHandleKey, nimini_canvasHandleMouse
+    nimini_isVisited, nimini_markVisited, canvasRender, 
+    canvasUpdate, canvasHandleKey, canvasHandleMouse
   )
   
   # Register content buffer functions with simple names

@@ -15,7 +15,7 @@ Core examples:
 - [tui_simple.md](https://maddestlabs.github.io/tstorie?content=demo:tui_simple&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
 
 Gist Example:
-- [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie?content=gist:863a4175989370857ccd67cb5492ac11&shader=crt&font=Workbench) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
+- [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie/?content=863a4175989370857ccd67cb5492ac11&shader=crt&font=Zeyada) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
 
 The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the t|Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 

@@ -90,20 +90,20 @@ return false
 
 ```nim on:render
 # Clear screen
-bgClear()
+clear()
 
 # Draw title  
-bgWriteText(2, 2, "=== KEYBOARD EVENT TEST ===")
+draw(0, 2, 2, "=== KEYBOARD EVENT TEST ===")
 
 # Draw instructions
-bgWriteText(2, 4, "Press any key to test keyboard input")
-bgWriteText(2, 5, "Press Q or ESC to quit")
+draw(0, 2, 4, "Press any key to test keyboard input")
+draw(0, 2, 5, "Press Q or ESC to quit")
 
 # Display keyboard state
-bgWriteText(2, 7, "Last Key: " & lastKey)
-bgWriteText(2, 8, "Key Code: " & str(lastKeyCode))
-bgWriteText(2, 9, "Action: " & lastAction)
-bgWriteText(2, 10, "Press Count: " & str(keyPressCount))
+draw(0, 2, 7, "Last Key: " & lastKey)
+draw(0, 2, 8, "Key Code: " & str(lastKeyCode))
+draw(0, 2, 9, "Action: " & lastAction)
+draw(0, 2, 10, "Press Count: " & str(keyPressCount))
 
 # Display modifier states
 var modStr = "Modifiers: "
@@ -117,20 +117,20 @@ if superPressed:
   modStr = modStr & "[SUPER] "
 if not (shiftPressed or ctrlPressed or altPressed or superPressed):
   modStr = modStr & "(none)"
-bgWriteText(2, 11, modStr)
+draw(0, 2, 11, modStr)
 
 # Draw a visual keyboard hint
-bgWriteText(2, 14, "Common Keys:")
-bgWriteText(4, 16, "Arrows: UP/DOWN/LEFT/RIGHT")
-bgWriteText(4, 17, "Special: ESC, ENTER, SPACE, TAB")
-bgWriteText(4, 18, "Letters: a-z, A-Z")
-bgWriteText(4, 19, "Numbers: 0-9")
-bgWriteText(4, 20, "Try: Press 'T' or 'Shift+T' to see character detection!")
+draw(0, 2, 14, "Common Keys:")
+draw(0, 4, 16, "Arrows: UP/DOWN/LEFT/RIGHT")
+draw(0, 4, 17, "Special: ESC, ENTER, SPACE, TAB")
+draw(0, 4, 18, "Letters: a-z, A-Z")
+draw(0, 4, 19, "Numbers: 0-9")
+draw(0, 4, 20, "Try: Press 'T' or 'Shift+T' to see character detection!")
 
 # Show a press counter box
-bgWriteText(50, 7, "+-------------------+")
-bgWriteText(50, 8, "| Total Key Presses |")
-bgWriteText(50, 9, "|                   |")
+draw(0, 50, 7, "+-------------------+")
+draw(0, 50, 8, "| Total Key Presses |")
+draw(0, 50, 9, "|                   |")
 var countStr = str(keyPressCount)
 var padding = 19 - countStr.len
 var leftPad = padding / 2
@@ -145,18 +145,18 @@ i = 0
 while i < rightPad:
   paddedCount = paddedCount & " "
   i = i + 1
-bgWriteText(50, 10, "| " & paddedCount & " |")
-bgWriteText(50, 11, "+-------------------+")
+draw(0, 50, 10, "| " & paddedCount & " |")
+draw(0, 50, 11, "+-------------------+")
 
 # Visual feedback for last action
 if lastAction == "press":
-  bgWriteText(2, 23, ">>> KEY PRESSED <<<")
+  draw(0, 2, 23, ">>> KEY PRESSED <<<")
 elif lastAction == "release":
-  bgWriteText(2, 23, ">>> KEY RELEASED <<<")
+  draw(0, 2, 23, ">>> KEY RELEASED <<<")
 elif lastAction == "repeat":
-  bgWriteText(2, 23, ">>> KEY REPEATING <<<")
+  draw(0, 2, 23, ">>> KEY REPEATING <<<")
 elif lastAction == "text":
-  bgWriteText(2, 23, ">>> TEXT INPUT <<<")
+  draw(0, 2, 23, ">>> TEXT INPUT <<<")
 ```
 
 ```nim on:shutdown

@@ -4,7 +4,7 @@ A real-time digital clock with large figlet-style digits that updates every fram
 
 ```nim on:init
 # Initialize figlet font
-var fontLoaded = nimini_loadFont("jazmine")
+var fontLoaded = figletLoadFont("jazmine")
 var debugMsg = "Font loaded: " & $fontLoaded
 
 # Initialize rain particles using parallel arrays
@@ -31,7 +31,7 @@ while i < numRainParticles:
 
 ```nim on:render
 # Clear the screen
-fgClear()
+clear()
 
 # Update and draw rain particles
 var i = 0
@@ -40,7 +40,7 @@ while i < numRainParticles:
   var prevPx = rainX[i]
   var prevPy = rainPrevY[i]
   if prevPx >= 0 and prevPx < termWidth and prevPy >= 0 and prevPy < termHeight:
-    fgWrite(prevPx, prevPy, " ", defaultStyle())
+    draw(0, prevPx, prevPy, " ", defaultStyle())
   
   # Save current position as previous
   rainPrevY[i] = rainY[i]
@@ -86,7 +86,7 @@ while i < numRainParticles:
   var px = rainX[i]
   var py = rainY[i]
   if px >= 0 and px < termWidth and py >= 0 and py < termHeight:
-    fgWrite(px, py, pChar, pStyle)
+    draw(0, px, py, pChar, pStyle)
   
   i = i + 1
 
@@ -108,10 +108,10 @@ if second < 10:
   timeStr = timeStr & "0"
 timeStr = timeStr & $second
 
-fgWriteText(1, 2, "Time: " & timeStr)
+draw(0, 1, 2, "Time: " & timeStr)
 
 # Try to render
-var lines = nimini_render("jazmine", timeStr)
+var lines = figletRender("jazmine", timeStr)
 
 # Center and draw
 if len(lines) > 0:
@@ -130,10 +130,10 @@ if len(lines) > 0:
   
   var y = startY
   for line in lines:
-    fgWriteText(startX, y, line)
+    draw(0, startX, y, line)
     y = y + 1
 else:
-  fgWriteText(2, 8, "No lines to render!")
+  draw(0, 2, 8, "No lines to render!")
 ```
 
 ```figlet:jazmine

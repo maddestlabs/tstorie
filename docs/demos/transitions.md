@@ -17,7 +17,7 @@ if not initialized:
   initialized = true
 
 # Clear screen for clean rendering
-fgClear()
+clear()
 
 # Calculate transition progress based on frame count
 # Assuming ~60 FPS: 180 frames = 3 seconds
@@ -66,7 +66,7 @@ while y < termHeight:
   var x = 0
   while x < termWidth:
     if (x + y) % 2 == 0:
-      fgWrite(x, y, ch, blue())
+      draw(0, x, y, ch, blue())
     x = x + 1
   y = y + 1
 
@@ -76,7 +76,7 @@ var phase = "fading in"
 if frameInCycle >= 180:
   phase = "fading out"
 var statusText = "Transition: " & $progressPercent & "% (" & phase & ")"
-fgWriteText(5, 5, statusText)
+draw(0, 5, 5, statusText)
 ```
 
 ```nim on:input

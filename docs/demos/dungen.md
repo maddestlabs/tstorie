@@ -2,7 +2,7 @@
 title: "Dungeon Generator - Nimini Edition"
 author: "Procedural dungeon using nimini scripting"
 minWidth: 80
-minHeight: 26
+minHeight: 20
 ---
 
 # Dungeon Generator
@@ -524,7 +524,7 @@ if isGenerating:
 
 ```nim on:render
 # Draw the dungeon (always show current state)
-bgClear()
+clear()
 
 for y in 0..<height:
   for x in 0..<width:
@@ -540,7 +540,7 @@ for y in 0..<height:
     else:
       ch = "·"
     
-    bgWrite(x, y, ch)
+    draw(0, x, y, ch)
 
 # Show status
 var testHasParam = hasParam("seed")
@@ -550,11 +550,11 @@ if isGenerating:
   var progress = step * 100 / maxSteps
   if progress > 100:
     progress = 100
-  bgWriteText(0, height + 1, "GENERATING... " & str(progress) & "% complete  Step: " & str(step))
-  bgWriteText(0, height + 2, "Seed: " & str(seedValue))
+  draw(0, 0, height + 1, "GENERATING... " & str(progress) & "% complete  Step: " & str(step))
+  draw(0, 0, height + 2, "Seed: " & str(seedValue))
 else:
-  bgWriteText(0, height + 1, "Seed: " & str(seedValue) & "  Steps: " & str(step))
-  bgWriteText(0, height + 2, "Press R to regenerate")
+  draw(0, 0, height + 1, "Seed: " & str(seedValue) & "  Steps: " & str(step))
+  draw(0, 0, height + 2, "Press R to regenerate")
 ```
 
 ```nim on:input

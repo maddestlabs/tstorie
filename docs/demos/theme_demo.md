@@ -28,7 +28,7 @@ while i < len(themes):
 # Initialize canvas in presentation mode
 # Second parameter = starting section (1 for first real section)
 # Third parameter = presentation mode (true)
-nimini_initCanvas(1, true)
+initCanvas(1, true)
 ```
 
 ```nim on:input
@@ -45,7 +45,7 @@ if event.type == "key":
     return true
     
     # Pass key events to canvas system
-    var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    var handled = canvasHandleKey(event.keyCode, 0)
     if handled:
       return true
   return false
@@ -53,7 +53,7 @@ if event.type == "key":
 elif event.type == "mouse":
   if event.action == "press":
     # Pass mouse events to canvas system (only on press, not release)
-    var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
     if handled:
       return true
   return false
@@ -62,22 +62,21 @@ return false
 ```
 
 ```nim on:render
-bgClear()
-fgClear()
+clear()
 
-nimini_canvasRender()
+canvasRender()
 
 # Show current theme name in top-right corner
 var style = defaultStyle()
 style.fg = rgb(255, 255, 100)
 style.bold = true
 var themeName = themes[currentThemeIndex]
-fgWriteText(termWidth - len(themeName) - 15, 1, "Theme: " & themeName, style)
-fgWriteText(termWidth - 15, 2, "Press TAB to cycle", style)
+draw(0, termWidth - len(themeName) - 15, 1, "Theme: " & themeName, style)
+draw(0, termWidth - 15, 2, "Press TAB to cycle", style)
 ```
 
 ```nim on:update
-nimini_canvasUpdate()
+canvasUpdate()
 ```
 
 # 🎨 Theme System Demo

@@ -23,7 +23,7 @@ print "State created"
 
 # Initialize canvas system with all sections
 # Start at section 1 (entrance - section 0 is the code blocks)
-nimini_initCanvas(1)
+initCanvas(1)
 ```
 
 ```nim on:input
@@ -32,7 +32,7 @@ nimini_initCanvas(1)
 if event.type == "key":
   if event.action == "press":
     # Pass key events to canvas system
-    var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    var handled = canvasHandleKey(event.keyCode, 0)
     if handled:
       return true
   return false
@@ -40,7 +40,7 @@ if event.type == "key":
 elif event.type == "mouse":
   if event.action == "press":
     # Pass mouse events to canvas system (only on press, not release)
-    var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
     if handled:
       return true
   return false
@@ -49,14 +49,13 @@ return false
 ```
 
 ```nim on:render
-bgClear()
-fgClear()
+clear()
 
-nimini_canvasRender()
+canvasRender()
 ```
 
 ```nim on:update
-nimini_canvasUpdate()
+canvasUpdate()
 ```
 
 # entrance
@@ -308,7 +307,7 @@ The guardian steps aside, revealing a passage to the **Treasure Vault**.
 
 ```nim on:enter
 if visitedLibrary:
-  bgWriteTextBox(h-1, 0, w, 1, "Your knowledge from the library helped you understand!", "AlignCenter", "AlignTop", "WrapNone")
+  draw(0(h-1, 0, w, 1, "Your knowledge from the library helped you understand!", "AlignCenter", "AlignTop", "WrapNone")
 ```
 
 # treasure_vault {"hidden": true}

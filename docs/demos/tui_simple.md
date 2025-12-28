@@ -68,11 +68,10 @@ if sliderValue != 0:
 
 ```nim on:render
 # Clear layers
-bgClear()
-fgClear()
+clear()
 
 # Draw instructions
-bgWriteText(2, 20, "Press I/D/R keys or click widgets")
+draw(0, 2, 20, "Press I/D/R keys or click widgets")
 
 # Render all widgets
 nimini_widgetManagerRender("foreground")

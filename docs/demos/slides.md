@@ -3,7 +3,7 @@ title: "Canvas Presentation Demo"
 author: "Maddest Labs"
 minWidth: 80
 minHeight: 24
-theme: "miami-vice"
+theme: "futurism"
 ---
 
 ```nim on:init
@@ -15,7 +15,7 @@ print "Presentation initialized"
 # Initialize canvas in presentation mode
 # Second parameter = starting section (1 for first real section)
 # Third parameter = presentation mode (true)
-nimini_initCanvas(1, true)
+initCanvas(1, true)
 ```
 
 ```nim on:input
@@ -24,7 +24,7 @@ nimini_initCanvas(1, true)
 if event.type == "key":
   if event.action == "press":
     # Pass key events to canvas system
-    var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    var handled = canvasHandleKey(event.keyCode, 0)
     if handled:
       return true
   return false
@@ -32,7 +32,7 @@ if event.type == "key":
 elif event.type == "mouse":
   if event.action == "press":
     # Pass mouse events to canvas system (only on press, not release)
-    var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
     if handled:
       return true
   return false
@@ -41,14 +41,13 @@ return false
 ```
 
 ```nim on:render
-bgClear()
-fgClear()
+clear()
 
-nimini_canvasRender()
+canvasRender()
 ```
 
 ```nim on:update
-nimini_canvasUpdate()
+canvasUpdate()
 ```
 
 # Welcome to TStorie Presentations
@@ -203,6 +202,6 @@ By adding a simple mode flag, we've created an entirely new use case while prese
 ⠀
 **Thank you for exploring this demo!**
 ⠀
-Feel free to create your own presentations using this system. Just set `nimini_initCanvas(1, true)` in your init block.
+Feel free to create your own presentations using this system. Just set `initCanvas(1, true)` in your init block.
 ⠀
 *Press Left/Right arrows to navigate back through the slides.*

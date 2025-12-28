@@ -155,7 +155,7 @@ bgWriteText(10, 5, "Custom Heading", headingStyle)
 bgWriteText(10, 7, "Custom Link", linkStyle)
 
 # Still render canvas normally
-nimini_canvasRender()
+canvasRender()
 ```
 ```
 

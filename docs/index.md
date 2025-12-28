@@ -22,7 +22,7 @@ var explorerLevel = 0
 print "t|Storie walkthrough initialized"
 
 # Initialize canvas system - start at section 1
-nimini_initCanvas(1)
+initCanvas(1)
 ```
 
 ```nim on:input
@@ -30,14 +30,14 @@ nimini_initCanvas(1)
 
 if event.type == "key":
   if event.action == "press":
-    var handled = nimini_canvasHandleKey(event.keyCode, 0)
+    var handled = canvasHandleKey(event.keyCode, 0)
     if handled:
       return true
   return false
 
 elif event.type == "mouse":
   if event.action == "press":
-    var handled = nimini_canvasHandleMouse(event.x, event.y, event.button, true)
+    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
     if handled:
       return true
   return false
@@ -46,14 +46,12 @@ return false
 ```
 
 ```nim on:render
-bgClear()
-fgClear()
-
-nimini_canvasRender()
+clear()
+canvasRender()
 ```
 
 ```nim on:update
-nimini_canvasUpdate()
+canvasUpdate()
 ```
 
 # welcome
@@ -153,15 +151,14 @@ explorerLevel++
 ⠀
 t|Storie provides a powerful terminal-based canvas with multiple layers:
 ⠀
-**Background Layer (bg):**
-- `bgClear()` - Clear the background
-- `bgFillRect(x, y, w, h, char)` - Fill a rectangle
-- `bgWriteText(x, y, text)` - Write text
+**Unified Drawing API:**
+- `draw(layer, x, y, text)` - Draw text on any layer
+- `clear(layer)` - Clear a layer
+- `fillRect(layer, x, y, w, h, char)` - Fill a rectangle
 ⠀
-**Foreground Layer (fg):**
-- `fgClear()` - Clear the foreground
-- `fgFillRect(x, y, w, h, char)` - Fill with character
-- `fgWriteText(x, y, text)` - Write text
+**Layer names:**
+- `"background"` - Background layer
+- `"foreground"` - Foreground layer
 ⠀
 Use `on:render` code blocks to draw each frame!
 ⠀
@@ -178,16 +175,17 @@ explorerLevel++
 ⠀
 Here's a simple rendering code block:
 
-```nim on:render
-bgClear()
+```nim
+# Example: on:render
+clear()
 var msg = "Hello from t|Storie!"
-fgWriteText(2, 2, msg)
+draw(0, 2, 2, msg)
 ```
 ⠀
-This code runs **every frame** and:
-1. Clears the background
-2. Calculates center position
-3. Draws centered text
+This code would run **every frame** and:
+1. Clear the background
+2. Calculate center position
+3. Draw centered text
 ⠀
 You can combine multiple layers to create complex UIs and graphics!
 ⠀
@@ -380,5 +378,5 @@ You've completed the t|Storie walkthrough!
 # Display explorer level at the bottom
 if explorerLevel > 0:
   var stats = "Explorer Level: " & str(explorerLevel)
-  fgWriteText(2, getTermHeight() - 2, stats)
+  draw(0, 2, getTermHeight() - 2, stats)
 ```

@@ -59,8 +59,8 @@ export seqops
 export FunctionMetadata, gFunctionMetadata, getImports, getStorieLibs, hasMetadata
 
 # Import stdlib modules
-import nimini/stdlib/[mathops, typeconv, collections, random]
-export mathops, typeconv, collections, random
+import nimini/stdlib/[mathops, typeconv, collections, random, stringops]
+export mathops, typeconv, collections, random, stringops
 
 # Initialize standard library - must be called after initRuntime()
 proc initStdlib*() =
@@ -149,6 +149,42 @@ proc initStdlib*() =
     description = "Convert value to boolean")
   registerNative("str", niminiToString,
     description = "Convert value to string")
+  
+  # String operations
+  registerNative("chr", niminiChr,
+    description = "Convert ASCII code to character")
+  registerNative("ord", niminiOrd,
+    description = "Convert character to ASCII code")
+  registerNative("toUpper", niminiToUpper,
+    imports = @["strutils"],
+    description = "Convert string to uppercase")
+  registerNative("toLower", niminiToLower,
+    imports = @["strutils"],
+    description = "Convert string to lowercase")
+  registerNative("startsWith", niminiStartsWith,
+    imports = @["strutils"],
+    description = "Check if string starts with prefix")
+  registerNative("endsWith", niminiEndsWith,
+    imports = @["strutils"],
+    description = "Check if string ends with suffix")
+  registerNative("split", niminiSplit,
+    imports = @["strutils"],
+    description = "Split string by separator into array")
+  registerNative("join", niminiJoin,
+    imports = @["strutils"],
+    description = "Join array elements with separator")
+  registerNative("strip", niminiStrip,
+    imports = @["strutils"],
+    description = "Remove leading and trailing whitespace")
+  registerNative("replace", niminiReplace,
+    imports = @["strutils"],
+    description = "Replace all occurrences of substring")
+  registerNative("findStr", niminiFindStr,
+    imports = @["strutils"],
+    description = "Find index of substring, returns -1 if not found")
+  registerNative("repeat", niminiRepeat,
+    imports = @["strutils"],
+    description = "Repeat string n times")
   
   # Math functions - trigonometric
   registerNative("sin", niminiSin,

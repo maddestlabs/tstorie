@@ -19,7 +19,6 @@ import lib/figlet             # FIGlet font rendering (for parsing and rendering
 # so they must be included to share the same namespace
 include lib/events            # Event handling system
 include lib/animation         # Animation helpers and easing
-include lib/drawing           # Drawing utilities for layers
 include lib/canvas            # Canvas navigation system
 include lib/audio             # Audio system
 include lib/tui               # TUI widget system
@@ -84,8 +83,7 @@ type
 # ================================================================
 
 # Global references to layers (set in initStorieContext)
-var gBgLayer: Layer
-var gFgLayer: Layer
+var gDefaultLayer: Layer  # Single default layer (layer 0)
 var gTextStyle, gBorderStyle, gInfoStyle: Style
 var gAppState: AppState  # Global reference to app state for state accessors
 
@@ -203,90 +201,108 @@ proc valueToStyle(v: Value): Style =
     result.dim = v.map["dim"].b
 
 # ================================================================
-# DOCUMENT-SPECIFIC DRAWING HELPERS
+# UNIFIED DRAWING API
 # ================================================================
-# These are convenience wrappers for THIS document's background and foreground layers.
-# For general layer-aware drawing, use the core APIs from tstorie.nim:
-#   write(layerId, x, y, ch)
-#   writeText(layerId, x, y, text)
-#   fillRect(layerId, x, y, w, h, ch)
-#   clearLayer(layerId)
-#   clearLayerTransparent(layerId)
+# Simplified drawing API that takes layer as first parameter
+# Supports both "foreground"/"background" and custom layers created with addLayer()
 
-proc bgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.buffer.clear(storieCtx.themeBackground)
+proc draw(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## draw(layer: string|int, x: int, y: int, text: string, [style])
+  ## Unified drawing function that works with any layer
+  ## Layer 0 is the default layer. Use addLayer() to create additional layers.
+  if args.len < 4:
+    return valNil()
+  
+  # Determine layer from first arg (supports both string and int)
+  let layer = if args[0].kind == vkInt:
+                let idx = args[0].i
+                if idx == 0: gDefaultLayer
+                else:
+                  # Try to get by z-order index from app state
+                  if idx < gAppState.layers.len: gAppState.layers[idx]
+                  else: return valNil()
+              elif args[0].kind == vkString:
+                let layerId = args[0].s
+                let foundLayer = getLayer(gAppState, layerId)
+                if foundLayer.isNil: return valNil()
+                foundLayer
+              else:
+                return valNil()
+  
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let text = args[3].s
+  let style = if args.len >= 5: valueToStyle(args[4]) else: gTextStyle
+  
+  layer.buffer.writeText(x, y, text, style)
   return valNil()
 
-proc bgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gBgLayer.buffer.clearTransparent()
+proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## clear([layer: string|int], [transparent: bool])
+  ## Clear layer(s). With no args, clears all layers.
+  ## Layer 0 is the default layer.
+  
+  # No args - clear all layers
+  if args.len == 0:
+    for layer in gAppState.layers:
+      layer.buffer.clear(storieCtx.themeBackground)
+    return valNil()
+  
+  # Determine layer from first arg (supports both string and int)
+  let layer = if args[0].kind == vkInt:
+                let idx = args[0].i
+                if idx == 0: gDefaultLayer
+                else:
+                  # Try to get by z-order index from app state
+                  if idx < gAppState.layers.len: gAppState.layers[idx]
+                  else: return valNil()
+              elif args[0].kind == vkString:
+                let layerId = args[0].s
+                let foundLayer = getLayer(gAppState, layerId)
+                if foundLayer.isNil: return valNil()
+                foundLayer
+              else:
+                return valNil()
+  
+  let transparent = if args.len >= 2: valueToBool(args[1]) else: false
+  
+  if transparent:
+    layer.buffer.clearTransparent()
+  else:
+    layer.buffer.clear(storieCtx.themeBackground)
   return valNil()
 
-proc fgClear(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.buffer.clear(storieCtx.themeBackground)
-  return valNil()
-
-proc fgClearTransparent(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  gFgLayer.buffer.clearTransparent()
-  return valNil()
-
-proc bgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  if args.len >= 3:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let ch = args[2].s
-    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
-    # Use writeText to properly handle multi-character strings
-    gBgLayer.buffer.writeText(x, y, ch, style)
-  return valNil()
-
-proc fgWrite(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  if args.len >= 3:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let ch = args[2].s
-    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
-    # Use writeText to properly handle multi-character strings
-    gFgLayer.buffer.writeText(x, y, ch, style)
-  return valNil()
-
-proc bgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  if args.len >= 3:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let text = args[2].s
-    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
-    gBgLayer.buffer.writeText(x, y, text, style)
-  return valNil()
-
-proc fgWriteText(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  if args.len >= 3:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let text = args[2].s
-    let style = if args.len >= 4: valueToStyle(args[3]) else: gTextStyle
-    gFgLayer.buffer.writeText(x, y, text, style)
-  return valNil()
-
-proc bgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  if args.len >= 5:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let w = valueToInt(args[2])
-    let h = valueToInt(args[3])
-    let ch = args[4].s
-    let style = if args.len >= 6: valueToStyle(args[5]) else: gTextStyle
-    gBgLayer.buffer.fillRect(x, y, w, h, ch, style)
-  return valNil()
-
-proc fgFillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  if args.len >= 5:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let w = valueToInt(args[2])
-    let h = valueToInt(args[3])
-    let ch = args[4].s
-    let style = if args.len >= 6: valueToStyle(args[5]) else: gTextStyle
-    gFgLayer.buffer.fillRect(x, y, w, h, ch, style)
+proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## fillRect(layer: string|int, x: int, y: int, w: int, h: int, char: string, [style])
+  ## Fill a rectangle on the specified layer
+  ## Layer 0 is the default layer. Use addLayer() to create additional layers.
+  if args.len < 6:
+    return valNil()
+  
+  # Determine layer from first arg (supports both string and int)
+  let layer = if args[0].kind == vkInt:
+                let idx = args[0].i
+                if idx == 0: gDefaultLayer
+                else:
+                  # Try to get by z-order index from app state
+                  if idx < gAppState.layers.len: gAppState.layers[idx]
+                  else: return valNil()
+              elif args[0].kind == vkString:
+                let layerId = args[0].s
+                let foundLayer = getLayer(gAppState, layerId)
+                if foundLayer.isNil: return valNil()
+                foundLayer
+              else:
+                return valNil()
+  
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  let h = valueToInt(args[4])
+  let ch = args[5].s
+  let style = if args.len >= 7: valueToStyle(args[6]) else: gTextStyle
+  
+  layer.buffer.fillRect(x, y, w, h, ch, style)
   return valNil()
 
 # Random number generator - consistent across WASM and native
@@ -451,7 +467,7 @@ proc nimini_switchTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
   # Also need to update the canvas stylesheet pointer if canvas is active
   if not canvasState.isNil:
     # Re-register canvas bindings to update the stylesheet pointer
-    registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+    registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   
   return valBool(true)
 
@@ -960,7 +976,7 @@ proc nimini_window_open(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # CANVAS SYSTEM WRAPPERS
 # ================================================================
 
-proc nimini_initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Initialize canvas system with all sections. 
   ## Args: currentIdx (int, optional, default 0), presentationMode (bool, optional, default false)
   if storieCtx.isNil:
@@ -1095,96 +1111,68 @@ proc encodeInputEvent(event: InputEvent): Value =
 # LAYOUT MODULE WRAPPERS
 # ================================================================
 
-proc bgWriteTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Write text in a box with alignment and wrapping on background layer
-  ## Args: x, y, width, height, text, hAlign, vAlign, wrapMode, style
-  if args.len >= 5:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let width = valueToInt(args[2])
-    let height = valueToInt(args[3])
-    let text = args[4].s
-    
-    # Default alignment and wrap mode
-    var hAlign = AlignLeft
-    var vAlign = AlignTop
-    var wrapMode = WrapWord
-    
-    # Parse optional hAlign parameter (arg 5)
-    if args.len >= 6:
-      case args[5].s
-      of "AlignLeft": hAlign = AlignLeft
-      of "AlignCenter": hAlign = AlignCenter
-      of "AlignRight": hAlign = AlignRight
-      of "AlignJustify": hAlign = AlignJustify
-      else: discard
-    
-    # Parse optional vAlign parameter (arg 6)
-    if args.len >= 7:
-      case args[6].s
-      of "AlignTop": vAlign = AlignTop
-      of "AlignMiddle": vAlign = AlignMiddle
-      of "AlignBottom": vAlign = AlignBottom
-      else: discard
-    
-    # Parse optional wrapMode parameter (arg 7)
-    if args.len >= 8:
-      case args[7].s
-      of "WrapNone": wrapMode = WrapNone
-      of "WrapWord": wrapMode = WrapWord
-      of "WrapChar": wrapMode = WrapChar
-      of "WrapEllipsis": wrapMode = WrapEllipsis
-      of "WrapJustify": wrapMode = WrapJustify
-      else: discard
-    
-    discard writeTextBox(gBgLayer.buffer, x, y, width, height, text, 
-                         hAlign, vAlign, wrapMode, gTextStyle)
-  return valNil()
-
-proc fgWriteTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Write text in a box with alignment and wrapping on foreground layer
-  ## Args: x, y, width, height, text, hAlign, vAlign, wrapMode, style
-  if args.len >= 5:
-    let x = valueToInt(args[0])
-    let y = valueToInt(args[1])
-    let width = valueToInt(args[2])
-    let height = valueToInt(args[3])
-    let text = args[4].s
-    
-    # Default alignment and wrap mode
-    var hAlign = AlignLeft
-    var vAlign = AlignTop
-    var wrapMode = WrapWord
-    
-    # Parse optional hAlign parameter (arg 5)
-    if args.len >= 6:
-      case args[5].s
-      of "AlignLeft": hAlign = AlignLeft
-      of "AlignCenter": hAlign = AlignCenter
-      of "AlignRight": hAlign = AlignRight
-      of "AlignJustify": hAlign = AlignJustify
-      else: discard
-    
-    # Parse optional vAlign parameter (arg 6)
-    if args.len >= 7:
-      case args[6].s
-      of "AlignTop": vAlign = AlignTop
-      of "AlignMiddle": vAlign = AlignMiddle
-      of "AlignBottom": vAlign = AlignBottom
-      else: discard
-    
-    # Parse optional wrapMode parameter (arg 7)
-    if args.len >= 8:
-      case args[7].s
-      of "WrapNone": wrapMode = WrapNone
-      of "WrapWord": wrapMode = WrapWord
-      of "WrapChar": wrapMode = WrapChar
-      of "WrapEllipsis": wrapMode = WrapEllipsis
-      of "WrapJustify": wrapMode = WrapJustify
-      else: discard
-    
-    discard writeTextBox(gFgLayer.buffer, x, y, width, height, text, 
-                         hAlign, vAlign, wrapMode, gTextStyle)
+proc writeTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Write text in a box with alignment and wrapping
+  ## Args: layer, x, y, width, height, text, [hAlign], [vAlign], [wrapMode], [style]
+  if args.len < 6:
+    return valNil()
+  
+  # Determine layer from first arg (supports both string and int)
+  let layer = if args[0].kind == vkInt:
+                let idx = args[0].i
+                if idx == 0: gDefaultLayer
+                else:
+                  # Try to get by z-order index from app state
+                  if idx < gAppState.layers.len: gAppState.layers[idx]
+                  else: return valNil()
+              elif args[0].kind == vkString:
+                let layerId = args[0].s
+                let foundLayer = getLayer(gAppState, layerId)
+                if foundLayer.isNil: return valNil()
+                foundLayer
+              else:
+                return valNil()
+  
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let width = valueToInt(args[3])
+  let height = valueToInt(args[4])
+  let text = args[5].s
+  
+  # Default alignment and wrap mode
+  var hAlign = AlignLeft
+  var vAlign = AlignTop
+  var wrapMode = WrapWord
+  
+  # Parse optional hAlign parameter (arg 6)
+  if args.len >= 7:
+    case args[6].s
+    of "AlignLeft": hAlign = AlignLeft
+    of "AlignCenter": hAlign = AlignCenter
+    of "AlignRight": hAlign = AlignRight
+    of "AlignJustify": hAlign = AlignJustify
+    else: discard
+  
+  # Parse optional vAlign parameter (arg 7)
+  if args.len >= 8:
+    case args[7].s
+    of "AlignTop": vAlign = AlignTop
+    of "AlignMiddle": vAlign = AlignMiddle
+    of "AlignBottom": vAlign = AlignBottom
+    else: discard
+  
+  # Parse optional wrapMode parameter (arg 8)
+  if args.len >= 9:
+    case args[8].s
+    of "WrapNone": wrapMode = WrapNone
+    of "WrapWord": wrapMode = WrapWord
+    of "WrapChar": wrapMode = WrapChar
+    of "WrapEllipsis": wrapMode = WrapEllipsis
+    of "WrapJustify": wrapMode = WrapJustify
+    else: discard
+  
+  discard layout.writeTextBox(layer.buffer, x, y, width, height, text, 
+                       hAlign, vAlign, wrapMode, gTextStyle)
   return valNil()
 
 # ================================================================
@@ -1354,7 +1342,7 @@ const
 # Global cache for loaded figlet fonts
 var gFigletFonts = initTable[string, FIGfont]()
 
-proc nimini_loadFont(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc figletLoadFont(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Load a figlet font embedded in the markdown. Args: fontName (string)
   ## Returns: bool (true if loaded successfully)
   if args.len < 1:
@@ -1380,14 +1368,14 @@ proc nimini_loadFont(env: ref Env; args: seq[Value]): Value {.nimini.} =
     discard
     return valBool(false)
 
-proc nimini_isFontLoaded(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc figletIsFontLoaded(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Check if a font is loaded. Args: fontName (string)
   if args.len < 1:
     return valBool(false)
   let fontName = args[0].s
   return valBool(gFigletFonts.hasKey(fontName))
 
-proc nimini_render(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc figletRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render text with a loaded figlet font. Args: fontName (string), text (string), [layoutMode (int)]
   ## Returns: array of strings (lines)
   if args.len < 2:
@@ -1395,7 +1383,7 @@ proc nimini_render(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   let fontName = args[0].s
   if not gFigletFonts.hasKey(fontName):
-    echo "[nimini_render] Font not loaded: ", fontName
+    echo "[figletRender] Font not loaded: ", fontName
     return valArray(@[])
   
   let text = args[1].s
@@ -1414,7 +1402,7 @@ proc nimini_render(env: ref Env; args: seq[Value]): Value {.nimini.} =
     result.add(valString(line))
   return valArray(result)
 
-proc nimini_listAvailableFonts(env: ref Env; args: seq[Value]): Value {.nimini.} =
+proc figletListAvailableFonts(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get list of embedded figlet fonts
   var result: seq[Value] = @[]
   # Debug: check if table has any keys at all
@@ -1442,17 +1430,16 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Auto-register all {.nimini.} pragma functions from index.nim
   exportNiminiProcs(
     print,
-    bgClear, bgClearTransparent, bgWrite, bgWriteText, bgFillRect, bgWriteTextBox,
-    fgClear, fgClearTransparent, fgWrite, fgWriteText, fgFillRect, fgWriteTextBox,
+    draw, clear, fillRect, writeTextBox,
     randInt, randFloat,
     nimini_registerGlobalRender, nimini_registerGlobalUpdate, nimini_registerGlobalInput,
     nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
     nimini_enableMouse, nimini_disableMouse,
-    nimini_initCanvas,
+    initCanvas,
     nimini_defaultStyle, nimini_getStyle,
     nimini_getThemes, nimini_switchTheme, nimini_getCurrentTheme,
     # Figlet font rendering
-    nimini_loadFont, nimini_isFontLoaded, nimini_render, nimini_listAvailableFonts,
+    figletLoadFont, figletIsFontLoaded, figletRender, figletListAvailableFonts,
     # TUI widget system
     nimini_tuiTest, nimini_newWidgetManager,
     nimini_newLabel, nimini_newButton, nimini_newCheckBox, nimini_newRadioButton, nimini_newSlider,
@@ -1819,9 +1806,8 @@ proc initStorieContext(state: AppState) =
       when not defined(emscripten):
         echo "Warning: Invalid minHeight value in front matter"
   
-  # Create default layers that code blocks can use
-  storieCtx.bgLayer = state.addLayer("background", 0)
-  storieCtx.fgLayer = state.addLayer("foreground", 10)
+  # Create single default layer (layer 0)
+  gDefaultLayer = state.addLayer("default", 0)
   
   # Initialize styles
   var textStyle = defaultStyle()
@@ -1835,8 +1821,6 @@ proc initStorieContext(state: AppState) =
   infoStyle.fg = yellow()
   
   # Set global references for Nimini wrappers
-  gBgLayer = storieCtx.bgLayer
-  gFgLayer = storieCtx.fgLayer
   gTextStyle = textStyle
   gBorderStyle = borderStyle
   gInfoStyle = infoStyle
@@ -1855,7 +1839,7 @@ proc initStorieContext(state: AppState) =
   
   # Now register module bindings (must be after runtime init)
   registerSectionManagerBindings(addr storieCtx.sectionMgr)
-  registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+  registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   
   # Expose front matter to user scripts as global variables
   exposeFrontMatterVariables()
@@ -1877,7 +1861,7 @@ proc initStorieContext(state: AppState) =
           state.themeBackground = storieCtx.themeBackground
         # Re-register canvas bindings with new stylesheet pointer
         # (necessary because styleSheet is a value type, not ref)
-        registerCanvasBindings(addr gFgLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+        registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
         # Clear and redraw all layers with new theme background
         for layer in state.layers:
           layer.buffer.clear(state.themeBackground)
@@ -2067,7 +2051,7 @@ onRender = proc(state: AppState) =
     var debugStyle = defaultStyle()
     debugStyle.fg = green()
     debugStyle.bold = true
-    storieCtx.fgLayer.buffer.writeText(2, 2, "Blocks: " & $storieCtx.codeBlocks.len & " Render: " & $renderBlockCount & " Exec: " & $executedCount, debugStyle)
+    gDefaultLayer.buffer.writeText(2, 2, "Blocks: " & $storieCtx.codeBlocks.len & " Render: " & $renderBlockCount & " Exec: " & $executedCount, debugStyle)
 
     # Publish executedCount to WASM HUD
     lastRenderExecutedCount = executedCount
@@ -2076,15 +2060,15 @@ onRender = proc(state: AppState) =
       var errorStyle = defaultStyle()
       errorStyle.fg = red()
       errorStyle.bold = true
-      storieCtx.fgLayer.buffer.writeText(2, 3, "Render execution FAILED!", errorStyle)
+      gDefaultLayer.buffer.writeText(2, 3, "Render execution FAILED!", errorStyle)
       # Also show last error if available
       if lastError.len > 0:
-        storieCtx.fgLayer.buffer.writeText(2, 4, "Error: " & lastError, errorStyle)
+        gDefaultLayer.buffer.writeText(2, 4, "Error: " & lastError, errorStyle)
     
     # Also show frame count to verify rendering is happening
     var fpsStyle = defaultStyle()
     fpsStyle.fg = yellow()
-    storieCtx.fgLayer.buffer.writeText(2, 0, "Frame: " & $state.frameCount, fpsStyle)
+    gDefaultLayer.buffer.writeText(2, 0, "Frame: " & $state.frameCount, fpsStyle)
 
 # Define input handler as a separate proc, then assign
 proc inputHandler(state: AppState, event: InputEvent): bool =

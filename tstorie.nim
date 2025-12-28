@@ -1861,8 +1861,9 @@ when defined(emscripten):
               let newStyleSheet = applyThemeByName(themeName)
               storieCtx.styleSheet = newStyleSheet
               globalState.styleSheet = newStyleSheet
-              # Re-register canvas bindings with new stylesheet
-              registerCanvasBindings(addr gFgLayer.buffer, addr globalState, addr storieCtx.styleSheet)
+              # Re-register canvas bindings with new stylesheet (use default layer)
+              if globalState.layers.len > 0:
+                registerCanvasBindings(addr globalState.layers[0].buffer, addr globalState, addr storieCtx.styleSheet)
             except:
               discard
         
