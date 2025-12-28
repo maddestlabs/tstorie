@@ -17,13 +17,13 @@ Core examples:
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie?content=gist:863a4175989370857ccd67cb5492ac11&shader=crt&font=Workbench) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
 
-The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the TStorie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
+The engine is built around GitHub features. No need to actually install Nim, or anything for that matter. Just create a new repo from the t|Storie template, update index.md with your own content and it'll auto-compile for the web. Enable GitHub Pages and you'll see that content served live within moments. GitHub Actions take care of the full compilation process.
 
 ## Features
 
 Features inherited from Nim:
 - **Cross-Platform** - Runs natively in terminals and in web browsers via WebAssembly.
-- **Minimal Filesize** - Compiled games/apps average from maybe 700KB to 1MB.
+- **Minimal Filesize** - Compiled games/apps average from maybe 200KB to 1MB.
 - **Single-file Executable** - Bundle everything into one, compact binary.
 
 Engine features:
@@ -33,9 +33,26 @@ Engine features:
 - **Layer System** - Z-ordered layers with transparency support.
 - **Terminal Resizing** - All layers automatically resize when terminal or browser window changes size.
 - **Nim-based scripting** - Code with executable code blocks. Powered by [Nimini](https://github.com/maddestlabs/nimini).
-- **Reusable Libraries** - Helper modules for advanced events, animations, TUI, transitions and more.
+- **Reusable Libraries** - [Helper modules](https://github.com/maddestlabs/tstorie/tree/main/lib) for advanced events, animations, TUI, transitions and more.
 
 ## Getting Started
+
+Quick Start:
+- Create a gist using Markdown and Nim code blocks
+- See your gist running live: `https://maddestlabs.github.io/tstorie?content=gist:gistid`
+
+Create your own project:
+- Create a project from t|Storie template and enable GitHub Pages
+- Update index.md with your content and commit the change
+- See your content running live in moments
+
+Native compilation:
+- In your repo, go to Actions -> Export Code and get the exported code
+- Install Nim locally
+- Replace index.nim with your exported code
+- On Linux: `./build.sh`. Windows: `build-win.bat`. For web: `./build-web.sh`
+
+You'll get a native compiled binary in just moments, Nim compiles super fast.
 
 ### Web Usage
 
@@ -49,39 +66,6 @@ https://maddestlabs.github.io/tstorie?content=demo:clock
 
 # Load from browser localStorage (drafts, offline work)
 https://maddestlabs.github.io/tstorie?content=browser:my-draft
-
-# Load from full Gist URL
-https://maddestlabs.github.io/tstorie?content=https://gist.github.com/user/abc123
-```
-
-**Browser localStorage Support:**
-
-Save and load content directly in the browser for offline work and drafts:
-
-```javascript
-// In browser console or your own page
-<script src="https://maddestlabs.github.io/tstorie/localStorage-helper.js"></script>
-
-// Save content
-TStorie.saveLocal('my-draft', '# My Story\n\nContent here...');
-
-// List saved items
-TStorie.listLocal();
-
-// Load it
-window.location.href = '?content=browser:my-draft';
-
-// Delete when done
-TStorie.deleteLocal('my-draft');
-```
-
-**Legacy Parameters (still supported):**
-```
-# Gist parameter
-https://maddestlabs.github.io/tstorie?gist=abc123
-
-# Demo parameter
-https://maddestlabs.github.io/tstorie?demo=clock
 ```
 
 ### Command-Line Usage
@@ -108,25 +92,6 @@ cd tstorie
 - `gist:<ID>` - Load from GitHub Gist
 - `demo:<name>` - Load from local demos folder
 - `file:<path>` - Load from file path
-
-### Project Creation
-
-Quick Start:
-- Create a gist using Markdown and Nim code blocks
-- See your gist running live: `https://maddestlabs.github.io/tstorie?content=gist:gistid`
-
-Create your own project:
-- Create a template from Storie and enable GitHub Pages
-- Update index.md with your content and commit the change
-- See your content running live in moments
-
-Native compilation:
-- In your repo, go to Actions -> Export Code and get the exported code
-- Install Nim locally
-- Replace index.nim with your exported code
-- On Linux: `./build.sh`. Windows: `build-win.bat`. For web: `./build-web.sh`
-
-You'll get a native compiled binary in just moments, Nim compiles super fast.
 
 ## Classroom Setup
 

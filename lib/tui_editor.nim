@@ -365,38 +365,38 @@ method handleInput*(tb: TextBox, event: InputEvent): bool =
   if event.kind == KeyEvent and event.keyAction == Press:
     # Navigation keys
     case event.keyCode
-    of 263:  # Left arrow
+    of 1002:  # Left arrow (JS: ArrowLeft)
       tb.moveCursor(0, -1)
       tb.ensureCursorVisible()
       return true
-    of 262:  # Right arrow
+    of 1003:  # Right arrow (JS: ArrowRight)
       tb.moveCursor(0, 1)
       tb.ensureCursorVisible()
       return true
-    of 265:  # Up arrow
+    of 1000:  # Up arrow (JS: ArrowUp)
       tb.moveCursor(-1, 0)
       tb.ensureCursorVisible()
       return true
-    of 264:  # Down arrow
+    of 1001:  # Down arrow (JS: ArrowDown)
       tb.moveCursor(1, 0)
       tb.ensureCursorVisible()
       return true
-    of 268:  # Home
+    of 1004:  # Home
       tb.moveCursorToLineStart()
       tb.ensureCursorVisible()
       return true
-    of 269:  # End
+    of 1005:  # End
       tb.moveCursorToLineEnd()
       tb.ensureCursorVisible()
       return true
-    of 259:  # Backspace
+    of 127:  # Backspace
       tb.deleteChar()
       tb.ensureCursorVisible()
       return true
-    of 261:  # Delete
+    of 46:  # Delete
       tb.deleteCharForward()
       return true
-    of 257:  # Enter
+    of 13:  # Enter
       tb.insertNewline()
       tb.ensureCursorVisible()
       return true
@@ -408,6 +408,29 @@ method handleInput*(tb: TextBox, event: InputEvent): bool =
       tb.insertChar(ch)
     tb.ensureCursorVisible()
     return true
+  elif event.kind == MouseEvent and event.action == Press:
+    # Handle mouse clicks to position cursor
+    # Convert mouse coordinates to text position
+    let gutterWidth = if tb.showLineNumbers: tb.lineNumberWidth + 1 else: 0
+    let textStartX = tb.x + gutterWidth
+    
+    # Check if click is within the text area
+    if event.mouseX >= textStartX and event.mouseX < tb.x + tb.width and
+       event.mouseY >= tb.y and event.mouseY < tb.y + tb.height:
+      
+      # Calculate row (accounting for scroll)
+      let clickRow = (event.mouseY - tb.y) + tb.scroll
+      if clickRow >= 0 and clickRow < tb.lines.len:
+        # Calculate column (accounting for horizontal scroll)
+        let clickCol = (event.mouseX - textStartX) + tb.scrollX
+        let lineLen = tb.lines[clickRow].len
+        
+        # Set cursor position (clamp to line length)
+        tb.cursor.row = clickRow
+        tb.cursor.col = min(clickCol, lineLen)
+        tb.ensureCursorVisible()
+        
+        return true
   
   return false
 

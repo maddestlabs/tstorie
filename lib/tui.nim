@@ -392,6 +392,9 @@ proc handleInput*(wm: WidgetManager, event: InputEvent): bool =
     if widget.visible and widget.enabled:
       if widget != wm.focusedWidget and widget != wm.activeWidget:
         if widget.handleInput(event):
+          # If a widget handled a mouse click and is focusable, focus it
+          if event.kind == MouseEvent and event.action == Press and widget.focusable:
+            wm.focusWidget(widget)
           return true
   
   return false

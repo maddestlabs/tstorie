@@ -155,23 +155,101 @@
         // Also check periodically in case WASM changes it
         setInterval(resizeCanvasToViewport, 100);
         
+        // Compression/Decompression utilities for URL sharing
+        async function compress(string) {
+            const byteArray = new TextEncoder().encode(string);
+            const stream = new CompressionStream('deflate-raw');
+            const writer = stream.writable.getWriter();
+            writer.write(byteArray);
+            writer.close();
+            const buffer = await new Response(stream.readable).arrayBuffer();
+            return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        async function decompress(b64) {
+            // Convert base64url to base64
+            let base64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+            // Add padding
+            while (base64.length % 4) {
+                base64 += '=';
+            }
+            
+            const binaryString = atob(base64);
+            const byteArray = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                byteArray[i] = binaryString.charCodeAt(i);
+            }
+            
+            const stream = new DecompressionStream('deflate-raw');
+            const writer = stream.writable.getWriter();
+            writer.write(byteArray);
+            writer.close();
+            const buffer = await new Response(stream.readable).arrayBuffer();
+            return new TextDecoder().decode(buffer);
+        }
+        
+        // Helper function to generate shareable URL from content
+        // Usage in console: generateShareableUrl("# My Story\n...")
+        window.generateShareableUrl = async function(content) {
+            try {
+                const compressed = await compress(content);
+                const baseUrl = window.location.origin + window.location.pathname;
+                const shareUrl = baseUrl + '?content=decode:' + compressed;
+                console.log('Shareable URL (' + shareUrl.length + ' chars):');
+                console.log(shareUrl);
+                console.log('\nOriginal size: ' + content.length + ' bytes');
+                console.log('Compressed size: ' + compressed.length + ' bytes');
+                console.log('Compression ratio: ' + (compressed.length / content.length * 100).toFixed(1) + '%');
+                return shareUrl;
+            } catch (e) {
+                console.error('Error generating shareable URL:', e);
+                return null;
+            }
+        };
+        
+        // Helper to copy the generated URL to clipboard
+        window.copyShareableUrl = async function(content) {
+            const url = await window.generateShareableUrl(content);
+            if (url) {
+                try {
+                    await navigator.clipboard.writeText(url);
+                    console.log('✓ URL copied to clipboard!');
+                    return url;
+                } catch (e) {
+                    console.error('Failed to copy to clipboard:', e);
+                    console.log('Please copy the URL manually from above.');
+                    return url;
+                }
+            }
+            return null;
+        };
+        
         // Parse URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         
         // Parse unified content parameter
-        // Supports: ?content=gist:ID, ?content=demo:name, ?content=browser:key, ?content=https://gist.github.com/...
+        // Supports: ?content=gist:ID, ?content=demo:name, ?content=browser:key, ?content=decode:xxx, ?content=https://gist.github.com/...
         const contentParam = urlParams.get('content');
         
         let gistId = null;
         let demoName = null;
         let localStorageKey = null;
+        let compressedContent = null;
         
         // Parse unified content parameter
         if (contentParam) {
             console.log('Content parameter detected:', contentParam);
             
+            // Check for decode: prefix (compressed content)
+            if (contentParam.startsWith('decode:')) {
+                compressedContent = contentParam.substring(7);
+                console.log('Parsed as compressed content (' + compressedContent.length + ' chars)');
+            }
             // Check for browser:/local: prefix (localStorage)
-            if (contentParam.startsWith('browser:') || contentParam.startsWith('local:')) {
+            else if (contentParam.startsWith('browser:') || contentParam.startsWith('local:')) {
                 const prefix = contentParam.startsWith('browser:') ? 'browser:' : 'local:';
                 localStorageKey = contentParam.substring(prefix.length);
                 console.log('Parsed as localStorage key:', localStorageKey);
@@ -209,6 +287,7 @@
         }
         
         const fontUrl = urlParams.get('font');
+        const fontSizeParam = urlParams.get('fontsize');
         const shaderGistId = urlParams.get('shader');
         
         // Gist/demo loading state
@@ -242,6 +321,27 @@
                 console.error('Error reading from localStorage:', e);
                 progress.textContent = 'Error: Could not access browser storage';
             }
+        }
+        
+        // Decompress content if specified
+        if (compressedContent) {
+            console.log('Decompressing content from URL...');
+            progress.textContent = 'Decompressing content...';
+            decompress(compressedContent)
+                .then(function(decompressed) {
+                    console.log('Successfully decompressed content (' + decompressed.length + ' bytes)');
+                    gistMarkdown = decompressed;
+                    gistReady = true;
+                    progress.textContent = 'Decompressed content, starting...';
+                    
+                    // Try loading if module is ready
+                    tryLoadGist();
+                })
+                .catch(function(error) {
+                    console.error('Error decompressing content:', error);
+                    progress.textContent = 'Error: Failed to decompress content';
+                    gistMarkdown = null;
+                });
         }
         
         if (gistId) {
@@ -298,6 +398,22 @@
                 }
             } catch (e) {
                 console.error('Error loading custom font:', e);
+            }
+        }
+        
+        // Parse and store custom font size if specified
+        if (fontSizeParam) {
+            console.log('Custom font size parameter detected:', fontSizeParam);
+            try {
+                const parsedSize = parseInt(fontSizeParam, 10);
+                if (!isNaN(parsedSize) && parsedSize >= 8 && parsedSize <= 72) {
+                    window.customFontSize = parsedSize;
+                    console.log('Applied custom font size:', parsedSize, 'px');
+                } else {
+                    console.warn('Font size out of range (8-72):', parsedSize, '- using default');
+                }
+            } catch (e) {
+                console.error('Error parsing font size:', e);
             }
         }
         
@@ -373,8 +489,9 @@
         }
         
         var Module = {
-            waitingForGist: (gistId || demoName || localStorageKey) ? true : false,
+            waitingForGist: (gistId || demoName || localStorageKey || compressedContent) ? true : false,
             customFontFamily: window.customFontFamily || null,
+            customFontSize: window.customFontSize || null,
             canvas: canvas,
             print: function(text) {
                 console.log(text);
@@ -397,8 +514,8 @@
                 console.log('Parsing URL parameters...');
                 parseAndStoreUrlParams();
                 
-                // Set waiting flag if gist, demo, or localStorage is present (must be done before init)
-                if (gistId || demoName || localStorageKey) {
+                // Set waiting flag if gist, demo, localStorage, or compressed content is present (must be done before init)
+                if (gistId || demoName || localStorageKey || compressedContent) {
                     console.log('Setting wait flag for content before initialization');
                     try {
                         if (typeof Module._emSetWaitingForGist === 'function') {
@@ -424,7 +541,7 @@
                 }
                 
                 // Try loading content if it's ready
-                if (gistId || demoName || localStorageKey) {
+                if (gistId || demoName || localStorageKey || compressedContent) {
                     tryLoadGist();
                 } else {
                     Module.setStatus('');

@@ -2,7 +2,7 @@
 // Handles terminal rendering, input, and WASM module integration
 
 class TStorieTerminal {
-    constructor(canvasElement, fontFamily = null) {
+    constructor(canvasElement, fontFamily = null, fontSize = null) {
         this.canvas = canvasElement;
         this.ctx = canvasElement.getContext('2d', { 
             alpha: false,
@@ -21,7 +21,7 @@ class TStorieTerminal {
         this.charHeight = 20;
         
         // Font settings
-        this.fontSize = 16;
+        this.fontSize = fontSize || 16;
         this.fontFamily = fontFamily || "'3270-Regular', 'Consolas', 'Monaco', monospace";
         
         // Performance
@@ -54,6 +54,20 @@ class TStorieTerminal {
         // Use fontSize directly for height to avoid gaps
         // This matches how terminals render without inter-line spacing
         this.charHeight = this.fontSize;
+    }
+    
+    setFontSize(newSize) {
+        // Validate font size
+        if (newSize < 8 || newSize > 72) {
+            console.warn('Font size out of range (8-72):', newSize);
+            return;
+        }
+        
+        this.fontSize = newSize;
+        // Reinitialize font metrics
+        this.initFont();
+        // Trigger resize to recalculate terminal dimensions
+        this.resize();
     }
     
     setupCanvas() {
@@ -373,10 +387,14 @@ async function inittstorie() {
         
         const canvas = document.getElementById('terminal');
         const customFont = Module.customFontFamily || null;
+        const customFontSize = Module.customFontSize || null;
         if (customFont) {
             console.log('Using custom font:', customFont);
         }
-        terminal = new TStorieTerminal(canvas, customFont);
+        if (customFontSize) {
+            console.log('Using custom font size:', customFontSize, 'px');
+        }
+        terminal = new TStorieTerminal(canvas, customFont, customFontSize);
         
         console.log('Terminal created:', terminal.cols, 'x', terminal.rows);
         
