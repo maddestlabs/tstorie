@@ -42,7 +42,6 @@ return false
 
 ```nim on:render
 clear()
-
 canvasRender()
 ```
 

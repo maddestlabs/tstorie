@@ -49,10 +49,15 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
   ## Theme is applied first, then individual overrides
   result = initTable[string, StyleConfig]()
   
-  # Check if a theme is specified
+  # Check if a theme is specified and get theme colors for defaults
+  var themeColors: ThemeColors
   if frontMatter.hasKey("theme"):
     let themeName = frontMatter["theme"]
-    result = applyThemeByName(themeName)
+    themeColors = getTheme(themeName)
+    result = applyTheme(themeColors)
+  else:
+    # Use default theme (Catppuccin) for colors even if no theme specified
+    themeColors = getTheme("catppuccin")
   
   var styleData = initTable[string, Table[string, string]]()
   
@@ -73,13 +78,13 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
   
   # Convert collected data into StyleConfig objects (overriding theme if set)
   for styleName, properties in styleData:
-    # Start with existing style if theme was applied, otherwise use defaults
+    # Start with existing style if theme was applied, otherwise use theme defaults
     var style = if result.hasKey(styleName):
       result[styleName]
     else:
       StyleConfig(
-        fg: (255'u8, 255'u8, 255'u8),  # Default white
-        bg: (0'u8, 0'u8, 0'u8),         # Default black
+        fg: themeColors.fgPrimary,      # Use theme's foreground
+        bg: themeColors.bgPrimary,      # Use theme's background
         bold: false,
         italic: false,
         underline: false,

@@ -14,7 +14,6 @@ styles.lines.bold: "true"
 # Status display (Morale, etc)
 styles.status.fg: "#00ffff"
 styles.status.bold: "true"
-styles.status.bg: "#0a1929"
 
 # Location text
 styles.location.fg: "#ffeb3b"

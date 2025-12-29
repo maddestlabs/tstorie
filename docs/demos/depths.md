@@ -3,7 +3,9 @@ title: "The Depths of Khel-Daran"
 author: "Maddest Labs"
 minWidth: 60
 minHeight: 18
-theme: "futurism"
+theme: "nord"
+styles.lines.fg: "#ffffff"
+styles.lines.bold: "true"
 ---
 
 ```nim on:init
@@ -18,8 +20,6 @@ var hasEssence = false
 var hasWeapon = false
 var visitedLibrary = false
 var torchQuality = "dim"
-
-print "State created"
 
 # Initialize canvas system with all sections
 # Start at section 1 (entrance - section 0 is the code blocks)
@@ -50,8 +50,101 @@ return false
 
 ```nim on:render
 clear()
-
 canvasRender()
+
+# Draw cracked, branch-like ASCII art borders ON TOP using layer 1
+var borderStyle = getStyle("lines")
+
+# Top border with cracks
+var x = 0
+while x < termWidth:
+  var char = "─"
+  # Add random cracks and branches
+  if x % 7 == 3:
+    char = "╌"
+  elif x % 11 == 5:
+    char = "┬"
+  elif x % 13 == 2:
+    char = "╥"
+  elif x % 17 == 8:
+    char = "┴"
+  draw(0, x, 0, char, borderStyle)
+  x = x + 1
+
+# Bottom border with cracks
+x = 0
+while x < termWidth:
+  var char = "─"
+  # Different crack pattern on bottom
+  if x % 8 == 2:
+    char = "╌"
+  elif x % 12 == 7:
+    char = "┴"
+  elif x % 15 == 4:
+    char = "╨"
+  elif x % 19 == 11:
+    char = "┬"
+  draw(0, x, termHeight - 1, char, borderStyle)
+  x = x + 1
+
+# Left border with vertical cracks
+var y = 1
+while y < termHeight - 1:
+  var char = "│"
+  # Add cracks and branches
+  if y % 6 == 2:
+    char = "╎"
+  elif y % 9 == 4:
+    char = "├"
+  elif y % 13 == 7:
+    char = "╞"
+  elif y % 16 == 10:
+    char = "┤"
+  draw(0, 0, y, char, borderStyle)
+  y = y + 1
+
+# Right border with vertical cracks
+y = 1
+while y < termHeight - 1:
+  var char = "│"
+  # Different crack pattern on right
+  if y % 7 == 3:
+    char = "╎"
+  elif y % 10 == 5:
+    char = "┤"
+  elif y % 14 == 8:
+    char = "╡"
+  elif y % 17 == 11:
+    char = "├"
+  draw(0, termWidth - 1, y, char, borderStyle)
+  y = y + 1
+
+# Corner pieces - weathered and broken
+draw(0, 0, 0, "╔", borderStyle)
+draw(0, termWidth - 1, 0, "╗", borderStyle)
+draw(0, 0, termHeight - 1, "╚", borderStyle)
+draw(0, termWidth - 1, termHeight - 1, "╝", borderStyle)
+
+# Add some additional crack details
+# Top left area cracks
+if termWidth > 10:
+  draw(0, 5, 0, "┯", borderStyle)
+  draw(0, 5, 1, "╽", borderStyle)
+  
+# Top right area cracks
+if termWidth > 10:
+  draw(0, termWidth - 6, 0, "┯", borderStyle)
+  draw(0, termWidth - 6, 1, "╽", borderStyle)
+
+# Bottom left area cracks
+if termHeight > 5:
+  draw(0, 4, termHeight - 1, "┷", borderStyle)
+  draw(0, 4, termHeight - 2, "╿", borderStyle)
+
+# Bottom right area cracks
+if termWidth > 10 and termHeight > 5:
+  draw(0, termWidth - 7, termHeight - 1, "┷", borderStyle)
+  draw(0, termWidth - 7, termHeight - 2, "╿", borderStyle)
 ```
 
 ```nim on:update
@@ -307,8 +400,10 @@ The guardian steps aside, revealing a passage to the **Treasure Vault**.
 
 ```nim on:enter
 if visitedLibrary:
-  draw(0(h-1, 0, w, 1, "Your knowledge from the library helped you understand!", "AlignCenter", "AlignTop", "WrapNone")
+  draw(0, h-1, 0, w, 1, "Your knowledge from the library helped you understand!", "AlignCenter", "AlignTop", "WrapNone")
 ```
+
+➛ [Enter the vault](treasure_vault)
 
 # treasure_vault {"hidden": true}
 ⠀
