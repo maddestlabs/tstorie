@@ -274,6 +274,46 @@ proc applyTheme*(theme: ThemeColors): StyleSheet =
     underline: false,
     dim: false
   )
+  
+  # Default/fallback style (commonly used in scripts)
+  result["default"] = StyleConfig(
+    fg: theme.fgPrimary,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Border/frame elements
+  result["border"] = StyleConfig(
+    fg: theme.accent2,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Info/label text
+  result["info"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Button/interactive elements
+  result["button"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgSecondary,
+    bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
 
 proc applyEditorStyles*(theme: ThemeColors): StyleSheet =
   ## Generate editor-specific UI styles for tstoried

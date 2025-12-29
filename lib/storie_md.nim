@@ -56,8 +56,8 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
     themeColors = getTheme(themeName)
     result = applyTheme(themeColors)
   else:
-    # Use default theme (Catppuccin) for colors even if no theme specified
-    themeColors = getTheme("catppuccin")
+    # Use default theme (Futurism) for colors even if no theme specified
+    themeColors = getTheme("futurism")
   
   var styleData = initTable[string, Table[string, string]]()
   

@@ -1,14 +1,15 @@
 ---
-title: "Comprehensive TUI Demo - Nimini"
+title: "Scripted TUI Demo"
 minWidth: 60
 minHeight: 35
+theme: "catppuccin"
 styles.highlight.fg: "#FFFF00"
 styles.highlight.dim: "false"
 ---
 
 # Comprehensive TUI System
 
-A full-featured UI widget system built with scripting of core drawing function. Demonstrating textboxes, buttons, sliders, and checkboxes with focus management and keyboard/mouse navigation.
+A full-featured UI widget system built with scripting of core drawing functions. Demonstrating textboxes, buttons, sliders, and checkboxes with focus management and keyboard/mouse navigation.
 
 ```nim on:init
 # ===================================================================
@@ -137,13 +138,13 @@ while i < widgetCount:
     draw(0, x + 2, y + 1, tbTexts[tbIndex], textStyle)
     
     if focused:
-      let cursorStyle = getStyle("warning")
+      let cursorStyle = getStyle("highlight")
       draw(0, x + 2 + tbCursors[tbIndex], y + 1, "_", cursorStyle)
   
   # Button
   elif wType == 1:
     let btnIndex = i - 6
-    let btnStyle = if focused: getStyle("highlight") else: getStyle("border")
+    let btnStyle = if focused: getStyle("info") else: getStyle("border")
     
     if btnPressed[btnIndex]:
       let fillStyle = getStyle("button")
