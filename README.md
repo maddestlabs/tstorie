@@ -1,6 +1,6 @@
 # t|Storie
 
-Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms.
+Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms. It's the abominable tech stack no one asked for!
 
 Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 

@@ -1878,6 +1878,10 @@ when defined(emscripten):
         # Expose front matter variables to Nimini environment
         exposeFrontMatterVariables()
         
+        # Update browser tab title if title is defined in frontmatter
+        if storieCtx.frontMatter.hasKey("title"):
+          setDocumentTitle(storieCtx.frontMatter["title"])
+        
         # Clear all layer buffers with theme background
         for layer in globalState.layers:
           layer.buffer.clear(globalState.themeBackground)

@@ -172,7 +172,7 @@ proc valueToInt(v: Value): int =
   else: return 0
 
 # Global reference to the section manager (set by registerSectionManagerBindings)
-var gSectionMgr: ptr SectionManager
+var gSectionMgr*: ptr SectionManager
 
 proc registerSectionManagerBindings*(mgr: ptr SectionManager) =
   ## Register the section manager instance for nimini bindings to use

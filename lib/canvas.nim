@@ -9,9 +9,16 @@ when not declared(Style):
   import ../src/types
 
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
+import section_manager
 
 # Forward declare global for nimini environment (set during rendering)
 var gNiminiEnv {.global.}: pointer = nil
+
+# Helper to get current section index from section manager (source of truth)
+proc getCurrentSectionIdx*(): int =
+  if not gSectionMgr.isNil:
+    return gSectionMgr[].currentIndex
+  return 0
 
 # ================================================================
 # CONFIGURATION CONSTANTS
@@ -79,7 +86,6 @@ type
   CanvasState* = ref object
     camera*: Camera
     sections*: seq[SectionLayout]
-    currentSectionIdx*: int
     links*: seq[Link]
     focusedLinkIdx*: int
     visitedSections*: HashSet[string]
@@ -92,6 +98,7 @@ type
     lastViewportHeight*: int
     executeCallback*: ExecuteCodeBlockCallback  # Callback to execute lifecycle hooks
     contentBuffers*: Table[string, seq[string]]  # Per-section buffers for dynamically generated content
+    frontMatter*: FrontMatter  # Document front matter for global settings like hideHeadings
 
 # Global canvas state
 var canvasState*: CanvasState
@@ -207,7 +214,7 @@ proc navigateToSection*(sectionIdx: int) =
   if canvasState.isNil or sectionIdx < 0 or sectionIdx >= canvasState.sections.len:
     return
   
-  let previousIdx = canvasState.currentSectionIdx
+  let previousIdx = getCurrentSectionIdx()
   
   # Execute on:exit hooks for the previous section
   if previousIdx >= 0 and previousIdx < canvasState.sections.len and previousIdx != sectionIdx:
@@ -220,7 +227,10 @@ proc navigateToSection*(sectionIdx: int) =
       if removeValue == "true" or removeValue == "1":
         removeSection(previousSection.title)
   
-  canvasState.currentSectionIdx = sectionIdx
+  # Update section manager (source of truth)
+  if not gSectionMgr.isNil and sectionIdx >= 0 and sectionIdx < gSectionMgr[].sections.len:
+    gSectionMgr[].currentIndex = sectionIdx
+  
   canvasState.focusedLinkIdx = 0
   
   # Note: Content buffers are per-section, so no need to clear on navigation
@@ -403,6 +413,7 @@ proc getSectionLevel*(section: Section): int =
 proc getNextSectionAtLevel*(currentIdx: int, level: int, forward: bool = true): int =
   ## Find next/previous section at specified heading level
   ## Returns -1 if no section found at that level
+  ## Automatically skips Section 0 if it has no title (lifecycle hooks only)
   if canvasState.isNil or currentIdx < 0:
     return -1
   
@@ -410,6 +421,11 @@ proc getNextSectionAtLevel*(currentIdx: int, level: int, forward: bool = true): 
   var idx = currentIdx + step
   
   while idx >= 0 and idx < canvasState.sections.len:
+    # Skip Section 0 if it has no title (it's just lifecycle hooks/init code)
+    if idx == 0 and canvasState.sections[0].section.title.len == 0:
+      idx += step
+      continue
+    
     if getSectionLevel(canvasState.sections[idx].section) == level:
       return idx
     idx += step
@@ -465,16 +481,16 @@ proc stripMarkdownFormatting*(text: string): string =
 # INITIALIZATION
 # ================================================================
 
-proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: bool = false) =
+proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: bool = false, frontMatter: FrontMatter = initTable[string, string]()) =
   ## Initialize the canvas system (idempotent - only initializes if not already done)
   ## Set presentationMode=true for slide-style navigation where all sections are visible
+  ## frontMatter: Document front matter containing global settings like hideHeadings
   if not canvasState.isNil:
     return  # Already initialized
   
   canvasState = CanvasState(
     camera: Camera(x: 0.0, y: 0.0, targetX: 0.0, targetY: 0.0),
     sections: calculateSectionPositions(sections),
-    currentSectionIdx: currentIdx,
     links: @[],
     focusedLinkIdx: 0,
     visitedSections: initHashSet[string](),
@@ -485,21 +501,33 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: 
     lastRenderTime: 0.0,
     lastViewportWidth: 0,
     lastViewportHeight: 0,
-    contentBuffers: initTable[string, seq[string]]()
+    contentBuffers: initTable[string, seq[string]](),
+    frontMatter: frontMatter
   )
   
   # Initialize section visibility from metadata
+  # Check if all sections should be hidden by default (from front matter)
+  let hideSectionsDefault = frontMatter.hasKey("hideSections") and 
+                            frontMatter["hideSections"].toLowerAscii() in ["true", "yes", "1"]
+  
   for layout in canvasState.sections:
+    # Determine if this section should be hidden
+    var shouldHide = hideSectionsDefault  # Start with document default
+    
+    # Check for explicit section-level override
     if layout.section.metadata.hasKey("hidden"):
-      if layout.section.metadata["hidden"].toLowerAscii() in ["true", "yes", "1"]:
-        hideSection(layout.section.title)
+      let hiddenValue = layout.section.metadata["hidden"].toLowerAscii()
+      shouldHide = hiddenValue in ["true", "yes", "1"]
+    
+    if shouldHide:
+      hideSection(layout.section.title)
   
   # In presentation mode, make all sections visible by default
   if presentationMode:
     for layout in canvasState.sections:
       markVisited(layout.section.title)
   
-  # Mark starting section as visited
+  # Mark starting section as visited (always visible)
   if currentIdx >= 0 and currentIdx < sections.len:
     markVisited(sections[currentIdx].title)
     # Note: Initial camera centering happens during first render when viewport is known
@@ -793,15 +821,32 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
 proc getSectionRawContent(section: Section): string =
   ## Extract raw text content from a section's blocks
   ## Code blocks with on:render or on:enter lifecycle are replaced with content buffer markers
+  ## Respects front matter "hideHeadings" setting and section-level "showHeading" metadata
+  ## Logic: hideHeadings sets default, showHeading overrides per section
   var lines: seq[string] = @[]
+  
+  # Determine if headings should be shown by default (from front matter)
+  let hideHeadingsDefault = if not canvasState.isNil and canvasState.frontMatter.hasKey("hideHeadings"):
+                              canvasState.frontMatter["hideHeadings"].toLowerAscii() in ["true", "yes", "1"]
+                            else:
+                              false
+  
+  # Check section-level override, or use document default
+  let showHeading = if section.metadata.hasKey("showHeading"):
+                      # Section explicitly sets showHeading - use that value
+                      section.metadata["showHeading"].toLowerAscii() in ["true", "yes", "1"]
+                    else:
+                      # No section override - use inverse of hideHeadings default
+                      not hideHeadingsDefault
   
   for blk in section.blocks:
     case blk.kind
     of TextBlock:
       lines.add(blk.text)
     of HeadingBlock:
-      # Include all headings
-      lines.add("#".repeat(blk.level) & " " & blk.title)
+      # Include heading only if showHeading is true
+      if showHeading:
+        lines.add("#".repeat(blk.level) & " " & blk.title)
     of CodeBlock_Content:
       # Insert marker for code blocks that generate content (on:render or on:enter)
       if blk.codeBlock.lifecycle in ["render", "enter"]:
@@ -998,7 +1043,7 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
   
   # Center camera on current section on first render or viewport resize
   if (canvasState.camera.targetX == 0.0 and canvasState.camera.targetY == 0.0) or viewportChanged:
-    centerOnSection(canvasState.currentSectionIdx, vw, vh)
+    centerOnSection(getCurrentSectionIdx(), vw, vh)
     # Snap camera immediately on first render (no animation for initial position)
     if canvasState.lastViewportWidth == 0:
       canvasState.camera.x = canvasState.camera.targetX
@@ -1008,9 +1053,9 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
     canvasState.lastViewportHeight = vh
   
   # Update current section as visited
-  if canvasState.currentSectionIdx >= 0 and 
-     canvasState.currentSectionIdx < canvasState.sections.len:
-    let currentSection = canvasState.sections[canvasState.currentSectionIdx]
+  let currentIdx = getCurrentSectionIdx()
+  if currentIdx >= 0 and currentIdx < canvasState.sections.len:
+    let currentSection = canvasState.sections[currentIdx]
     markVisited(currentSection.section.title)
   
   # Clear links for current frame
@@ -1039,7 +1084,7 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
     #  continue
     
     renderedCount += 1
-    let isCurrent = (layout.index == canvasState.currentSectionIdx)
+    let isCurrent = (layout.index == getCurrentSectionIdx())
     let links = renderSection(layout, screenX, screenY, buffer, isCurrent, styleSheet)
     
     if isCurrent:
@@ -1068,17 +1113,18 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
   
   # PRESENTATION MODE: Arrow keys navigate sections by heading level
   if canvasState.presentationMode:
+    let currentIdx = getCurrentSectionIdx()
     case keyCode
     of INPUT_LEFT:
       # Navigate to previous main heading (level 1)
-      let prevIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, false)
+      let prevIdx = getNextSectionAtLevel(currentIdx, 1, false)
       if prevIdx >= 0:
         navigateToSection(prevIdx)
         return true
     
     of INPUT_RIGHT:
       # Navigate to next main heading (level 1)
-      let nextIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, true)
+      let nextIdx = getNextSectionAtLevel(currentIdx, 1, true)
       if nextIdx >= 0:
         navigateToSection(nextIdx)
         return true
@@ -1087,7 +1133,7 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
       # Navigate to previous sub-heading (level 2+)
       # Try level 2 first, then 3, etc.
       for level in 2..6:
-        let prevIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, level, false)
+        let prevIdx = getNextSectionAtLevel(currentIdx, level, false)
         if prevIdx >= 0:
           navigateToSection(prevIdx)
           return true
@@ -1096,7 +1142,7 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
     of INPUT_DOWN:
       # Navigate to next sub-heading (level 2+)
       for level in 2..6:
-        let nextIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, level, true)
+        let nextIdx = getNextSectionAtLevel(currentIdx, level, true)
         if nextIdx >= 0:
           navigateToSection(nextIdx)
           return true
@@ -1156,18 +1202,19 @@ proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
   
   # PRESENTATION MODE: Screen-region navigation
   if canvasState.presentationMode:
+    let currentIdx = getCurrentSectionIdx()
     # Divide screen into left and right halves
     let halfWidth = gViewportWidth div 2
     
     if mouseX < halfWidth:
       # Left side clicked - go to previous main heading
-      let prevIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, false)
+      let prevIdx = getNextSectionAtLevel(currentIdx, 1, false)
       if prevIdx >= 0:
         navigateToSection(prevIdx)
         return true
     else:
       # Right side clicked - go to next main heading
-      let nextIdx = getNextSectionAtLevel(canvasState.currentSectionIdx, 1, true)
+      let nextIdx = getNextSectionAtLevel(currentIdx, 1, true)
       if nextIdx >= 0:
         navigateToSection(nextIdx)
         return true
@@ -1217,9 +1264,9 @@ proc nimini_contentWrite*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Write a line to the content buffer for the current section. Args: text (string)
   ## Content buffer is rendered as part of the current section only
   if args.len > 0 and args[0].kind == vkString:
-    if not canvasState.isNil and canvasState.currentSectionIdx >= 0 and 
-       canvasState.currentSectionIdx < canvasState.sections.len:
-      let sectionTitle = canvasState.sections[canvasState.currentSectionIdx].section.title
+    let currentIdx = getCurrentSectionIdx()
+    if not canvasState.isNil and currentIdx >= 0 and currentIdx < canvasState.sections.len:
+      let sectionTitle = canvasState.sections[currentIdx].section.title
       if not canvasState.contentBuffers.hasKey(sectionTitle):
         canvasState.contentBuffers[sectionTitle] = @[]
       canvasState.contentBuffers[sectionTitle].add(args[0].s)
@@ -1227,9 +1274,9 @@ proc nimini_contentWrite*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc nimini_contentClear*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Clear the content buffer for the current section
-  if not canvasState.isNil and canvasState.currentSectionIdx >= 0 and 
-     canvasState.currentSectionIdx < canvasState.sections.len:
-    let sectionTitle = canvasState.sections[canvasState.currentSectionIdx].section.title
+  let currentIdx = getCurrentSectionIdx()
+  if not canvasState.isNil and currentIdx >= 0 and currentIdx < canvasState.sections.len:
+    let sectionTitle = canvasState.sections[currentIdx].section.title
     canvasState.contentBuffers[sectionTitle] = @[]
   return valNil()
 

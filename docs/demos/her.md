@@ -1,10 +1,32 @@
 ---
-title: "Edge of the City"
+title: "t|HΞR"
 author: "Maddest Labs"
-minWidth: 60
-minHeight: 20
-targetFPS: 60
+minWidth: 50
+minHeight: 14
 theme: "futurism"
+hideHeadings: "true"
+hideSections: "true"
+
+# Border/Frame styles
+styles.lines.fg: "#ff00ff"
+styles.lines.bold: "true"
+
+# Status display (Morale, etc)
+styles.status.fg: "#00ffff"
+styles.status.bold: "true"
+styles.status.bg: "#0a1929"
+
+# Location text
+styles.location.fg: "#ffeb3b"
+styles.location.italic: "true"
+
+# Accent/highlight
+styles.accent.fg: "#0ff4c6"
+styles.accent.bold: "true"
+
+# Warning/critical
+styles.warning.fg: "#ff5722"
+styles.warning.bold: "true"
 ---
 
 ```nim on:init
@@ -14,8 +36,6 @@ var met_elder = false
 var station_breached = false
 var aria_awakened = false
 
-print "=== EDGE OF THE CITY ==="
-print "Crew status: Stranded"
 initCanvas(1)
 
 # Initialize rain particles using parallel arrays
@@ -80,9 +100,32 @@ while i < visibleRain:
   
   i = i + 1
 
-# Draw main content on top
-draw(0, 2, 1, "Morale: " & str(crewMorale) & "%")
-draw(0, 2, getTermHeight() - 1, "Edge of the City")
+# ═══ ASCII ART FRAME OVERLAY ═══
+var frameStyle = getStyle("lines")
+var statusStyle = getStyle("status")
+var locStyle = getStyle("location")
+
+# Title - Get current section name dynamically
+var section = getCurrentSection()
+var sectionTitle = section["title"]
+
+var titleDecorated = "-=| " & sectionTitle & " |=-"
+var titleLen = len(titleDecorated)
+draw(0, (termWidth / 2) - titleLen/2, 1, titleDecorated, statusStyle)
+
+# Draw left and right borders
+var y = 0
+while y < termHeight:
+  # Outer border
+  draw(0, 0, y, "-", locStyle)
+  draw(0, termWidth - 1, y, "-", locStyle)
+  # Inner border
+  draw(0, 1, y, "║", statusStyle)
+  draw(0, termWidth - 2, y, "║", statusStyle)
+  y = y + 1
+
+# Draw status info inside frame
+draw(0, 3, termHeight - 2, "> Morale: " & str(crewMorale) & "%", statusStyle)
 ```
 
 ```nim on:update
@@ -107,7 +150,7 @@ while i < numRainParticles:
 canvasUpdate()
 ```
 
-# entrance
+# Awake
 ⠀
 You wake gasping.
 ⠀
@@ -124,7 +167,7 @@ The dream lingers. The voice lingers.
 crewMorale = 45
 ```
 
-# assess_damage {"hidden": true}
+# Assess Damage
 ⠀
 The crash site is a tomb. Twisted corridors. Broken systems. In the engine room, Dax sits against a bulkhead, holding his ribs. Something's cracked inside him.
 ⠀
@@ -140,7 +183,7 @@ You move to the navigation console. One file survives the corruption: coordinate
 crewMorale = 40
 ```
 
-# find_kess {"hidden": true}
+# Find Kess
 ⠀
 Kess is in the main cabin distributing rations. Her face is stone cold.
 ⠀
@@ -153,7 +196,7 @@ She points to the viewport. Concrete plains. Gray sky. Ruins stretching endlessl
 ➛ [Head out at dawn](#day_one)
 ➛ [Explore the crash site first](#explore_crash)
 
-# question_location {"hidden": true}
+# Question Location
 ⠀
 You pull Kess aside. Her expression darkens.
 ⠀
@@ -163,7 +206,7 @@ She meets your eyes. "We need to be very careful."
 ⠀
 ➛ [Prepare to move](#find_kess)
 
-# day_one {"hidden": true}
+# Day One
 ⠀
 The first day, hope is swallowed in a desolate landscape.
 ⠀
@@ -180,7 +223,7 @@ crewMorale = 35
 visibleRain = 4
 ```
 
-# day_two {"hidden": true}
+# Day Two
 ⠀
 By the second day, you wish you were back in the system.
 ⠀
@@ -198,7 +241,7 @@ She's right. The rain feels permanent. Almost intentional.
 visibleRain = numRainParticles
 ```
 
-# day_three {"hidden": true}
+# Day Three
 ⠀
 Dax is worse. His fever climbs. He moves slower. The group tightens rations. The remaining supplies from the *Meridian* dwindle faster than expected.
 ⠀
@@ -208,7 +251,7 @@ The voice from your dream whispers at the edge of awareness. Almost subliminal.
 ⠀
 ➛ [Keep moving](#day_four)
 
-# day_four {"hidden": true}
+# Day Four
 ⠀
 On the evening of the fourth day, exhaustion settles into your bones like sediment. The rain intensifies. Your visibility drops.
 ⠀
@@ -230,7 +273,7 @@ discovered_laundromat = true
 crewMorale = 30
 ```
 
-# cautious_approach {"hidden": true}
+# Cautious Approach
 ⠀
 A neon sign flickers pink. "Laundromat". Warm light spills through glass doors. Inside: rows of machines with clothes strewn about. The mundane infrastructure of ordinary life in a dead world.
 ⠀
@@ -240,7 +283,7 @@ Kess scans the interior carefully before signaling you forward.
 ⠀
 ➛ [Enter the laundromat](#inside_laundromat)
 
-# inside_laundromat {"hidden": true}
+# Inside Laundromat
 ⠀
 Inside: warmth. Dry air. Humming machines cycling through their routines. No people visible. No signs of recent habitation.
 ⠀
@@ -253,7 +296,7 @@ Behind the machines, you notice a door marked "Maintenance."
 ➛ [Check the back room](#maintenance_room)
 ➛ [Rest here with the others](#rest_here)
 
-# maintenance_room {"hidden": true}
+# Maintenance Room
 ⠀
 Behind the door: a small room. At its center, a power conduit. Jury-rigged but functional. It runs from somewhere buried beneath the laundromat, splitting into multiple directions.
 ⠀
@@ -263,7 +306,7 @@ Kess examines it with a grim expression. "Resistance. Or fragments of it. A netw
 ⠀
 ➛ [Return to the main room](#rest_here)
 
-# rest_here {"hidden": true}
+# Rest Here
 ⠀
 Kess gathers the crew. "Two hours rest. Then we move toward the city."
 ⠀
@@ -281,7 +324,7 @@ For a moment, you believe it absolutely. Then Kess grabs your shoulder, snapping
 crewMorale = 25
 ```
 
-# city_approach {"hidden": true}
+# City Approach
 ⠀
 The transition from wasteland to civilization is gradual, then sudden. Abandoned buildings become maintained structures. Power lines multiply. The rain intensifies if anything possible.
 ⠀
@@ -302,7 +345,7 @@ Beneath it all, that voice again. Louder now. Broadcast through the speakers but
 crewMorale = 20
 ```
 
-# city_entrance {"hidden": true}
+# City Entrance
 ⠀
 People move through the streets with purpose but without energy. Everyone has the implant—visible port behind their left ear. Everyone is listening to something invisible.
 ⠀
@@ -316,7 +359,7 @@ You need to disappear quickly.
 ⠀
 ➛ [Find Kess's contact](#find_contact)
 
-# find_contact {"hidden": true}
+# Find Contact
 ⠀
 Kess leads through back streets. Her movements are practiced. She's been here before. The contact is in what she calls the "Marginal Zones"—areas that exist but aren't officially listed.
 ⠀
@@ -337,7 +380,7 @@ met_elder = true
 crewMorale = 35
 ```
 
-# marcus_begins {"hidden": true}
+# Marcus Begins
 ⠀
 His apartment is crammed with contraband. Physical books. Pre-government recordings. Photographs of a city that was different. Alive.
 ⠀
@@ -350,7 +393,7 @@ He turns to face you directly.
 ➛ [Ask about the Voice](#ask_voice)
 ➛ [Ask about Station V](#ask_station)
 
-# ask_voice {"hidden": true}
+# Ask Voice
 ⠀
 "The government came slowly at first," Marcus explains. "Public safety programs. Social optimization. Mental health support. Everyone was tired. Ready to let someone else decide."
 ⠀
@@ -360,7 +403,7 @@ He pauses meaningfully.
 ⠀
 ➛ [Ask about Station V](#ask_station)
 
-# ask_station {"hidden": true}
+# Ask Station
 ⠀
 "Station V," Marcus says grimly. "The central system. Where the Voice originates. Where the control algorithms run. If you want to survive—if you want to do anything—you need to understand Station V."
 ⠀
@@ -372,7 +415,7 @@ Then: sirens. Distant but growing closer.
 ⠀
 ➛ [Hide or flee?](#sirens_approach)
 
-# sirens_approach {"hidden": true}
+# Sirens Approach
 ⠀
 The sirens stop suddenly. Worse than when they were wailing. Silence is more ominous than noise.
 ⠀
@@ -386,7 +429,7 @@ A soft knock at the door. Polite. Terrifying in its politeness.
 ⠀
 ➛ [Flee through the tunnels](#maintenance_tunnels)
 
-# maintenance_tunnels {"hidden": true}
+# Maintenance Tunnels
 ⠀
 The tunnels are dark. Older than the city above. Remnants of something else. Repurposed and adapted for modern systems.
 ⠀
@@ -398,7 +441,7 @@ The air grows cooler. You hear water in pipes. Machinery humming. The sound of v
 ⠀
 ➛ [Continue through the tunnels](#deep_tunnels)
 
-# deep_tunnels {"hidden": true}
+# Deep Tunnels
 ⠀
 After what feels like hours, you reach a grate. Through it: a massive space. Equipment. Humming with power and purpose.
 ⠀
@@ -414,7 +457,7 @@ He looks at each of you.
 ⠀
 ➛ [Enter the core](#enter_core)
 
-# enter_core {"hidden": true}
+# Enter Core
 ⠀
 **[SYSTEMS BREACHED]**
 ⠀
@@ -430,7 +473,7 @@ Then: a voice.
 ⠀
 ➛ [Who's speaking?](#who_speaks)
 
-# who_speaks {"hidden": true}
+# Who Speaks
 ⠀
 A figure emerges from the shadows. Tall. Dark-clothed. Face hidden.
 ⠀
@@ -453,7 +496,7 @@ The face is scarred. Badly. Burned. Healed wrong. But the eyes are human. Intell
 station_breached = true
 ```
 
-# trust_figure {"hidden": true}
+# Trust Figure
 ⠀
 "I'm Del," the figure says. "Former city engineer. Before the government. Before the Voice. I built this place when it was supposed to be a city of innovation. A free city in a controlled world."
 ⠀
@@ -467,7 +510,7 @@ Del stops at a checkpoint.
 ⠀
 ➛ [Ask about the administrator](#ask_administrator)
 
-# ask_administrator {"hidden": true}
+# Ask Administrator
 ⠀
 "A woman named Aria," Del says. "Former mayor. Before mayors were elected by Voice consensus. She volunteered for the position. The Voice offered her something. Power. Certainty. Purpose."
 ⠀
@@ -481,7 +524,7 @@ Ahead: a lift. Massive. Glass. Reaching upward into darkness.
 ⠀
 ➛ [Enter the lift](#lift_up)
 
-# demand_answers {"hidden": true}
+# Demand Answers
 ⠀
 "Why should we trust you?" you demand. "How do we know you're not government?"
 ⠀
@@ -497,7 +540,7 @@ Kess nods slowly. "We move with Del."
 ⠀
 ➛ [Move through the core](#trust_figure)
 
-# lift_up {"hidden": true}
+# Lift Up
 ⠀
 The lift is massive. Reinforced glass. Designed to intimidate. Designed to remind you that you're ascending to something vast and powerful. To make you feel small.
 ⠀
@@ -521,7 +564,7 @@ The doors open onto Station V.
 crewMorale = 15
 ```
 
-# station_v_enter {"hidden": true}
+# Station V Enter
 ⠀
 **[HUSH]**
 ⠀
@@ -541,7 +584,7 @@ Literally. Her mind networked directly to the apparatus. Her consciousness distr
 ⠀
 ➛ [Examine the systems](#examine_systems)
 
-# examine_systems {"hidden": true}
+# Examine Systems
 ⠀
 "She cannot be disturbed," Del whispers. "Any sudden input. Any loud sound. Sensory shock could cause catastrophic failure. Her neural integration is too complete. The system would collapse if she's damaged."
 ⠀
@@ -564,7 +607,7 @@ aria_awakened = true
 crewMorale = 5
 ```
 
-# aria_awakens {"hidden": true}
+# Aria Awakens
 ⠀
 It's not a human scream. It's the sound of a system overloading. Of something too vast and networked to be human experiencing pain in every direction simultaneously.
 ⠀
@@ -578,7 +621,7 @@ The former mayor's eyes fix on you. Not seeing. Not thinking. Just reacting. A c
 ⠀
 ➛ [Flee Station V](#flee_station)
 
-# flee_station {"hidden": true}
+# Flee Station
 ⠀
 You run through endless chambers. Through corridors that multiply. Behind you: sounds. Movement. Something broken and vast moving through the darkness.
 ⠀
@@ -594,7 +637,7 @@ Alive with possibility.
 ⠀
 ➛ [What now?](#aftermath)
 
-# aftermath {"hidden": true}
+# Aftermath
 ⠀
 **[WHO WILL SAVE US]**
 ⠀

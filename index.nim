@@ -968,9 +968,14 @@ proc nimini_window_open(env: ref Env; args: seq[Value]): Value {.nimini.} =
       when defined(emscripten):
         js_window_open(url.cstring, target.cstring)
     # Stub - window.open temporarily disabled
-    when not defined(emscripten):
-      echo "window_open (disabled): ", url, " in ", target
-  return valNil()
+
+when defined(emscripten):
+  proc setDocumentTitleJS(title: cstring) {.importc: "tStorie_setDocumentTitle".}
+
+proc setDocumentTitle(title: string) =
+  ## Set the browser tab title (emscripten only)
+  when defined(emscripten):
+    setDocumentTitleJS(title.cstring)
 
 # ================================================================
 # CANVAS SYSTEM WRAPPERS
@@ -981,10 +986,19 @@ proc initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Args: currentIdx (int, optional, default 0), presentationMode (bool, optional, default false)
   if storieCtx.isNil:
     return valBool(false)
-  let currentIdx = if args.len > 0: valueToInt(args[0]) else: 0
+  var currentIdx = if args.len > 0: valueToInt(args[0]) else: 0
   let presentationMode = if args.len > 1: valueToBool(args[1]) else: false
   let sections = storieCtx.sectionMgr.getAllSections()
-  initCanvas(sections, currentIdx, presentationMode)
+  
+  # Auto-skip Section 0 if it has no title (just lifecycle hooks/init code)
+  if currentIdx == 0 and sections.len > 1:
+    if sections[0].title.len == 0:
+      currentIdx = 1  # Navigate to first real section
+  
+  initCanvas(sections, currentIdx, presentationMode, storieCtx.frontMatter)
+  
+  # Set section manager's current index (source of truth)
+  storieCtx.sectionMgr.currentIndex = currentIdx
   
   # Set up the execution callback for on:enter and on:exit lifecycle hooks
   setExecuteCallback(proc(codeBlock: CodeBlock, lifecycle: string): bool =
@@ -1438,6 +1452,12 @@ proc createNiminiContext(state: AppState): NiminiContext =
     initCanvas,
     nimini_defaultStyle, nimini_getStyle,
     nimini_getThemes, nimini_switchTheme, nimini_getCurrentTheme,
+    # Section management
+    nimini_getCurrentSection, nimini_getAllSections, nimini_getSectionById,
+    nimini_gotoSection, nimini_createSection, nimini_deleteSection, nimini_updateSectionTitle,
+    nimini_setMultiSectionMode, nimini_getMultiSectionMode,
+    nimini_setScrollY, nimini_getScrollY,
+    nimini_getSectionCount, nimini_getCurrentSectionIndex,
     # Figlet font rendering
     figletLoadFont, figletIsFontLoaded, figletRender, figletListAvailableFonts,
     # TUI widget system
@@ -1482,6 +1502,21 @@ proc createNiminiContext(state: AppState): NiminiContext =
   defineVar(runtimeEnv, "DIR_UP", valInt(DIR_UP))
   defineVar(runtimeEnv, "DIR_DOWN", valInt(DIR_DOWN))
   defineVar(runtimeEnv, "DIR_CENTER", valInt(DIR_CENTER))
+  
+  # Register section management functions with user-friendly names
+  registerNative("getCurrentSection", nimini_getCurrentSection)
+  registerNative("getAllSections", nimini_getAllSections)
+  registerNative("getSectionById", nimini_getSectionById)
+  registerNative("gotoSection", nimini_gotoSection)
+  registerNative("createSection", nimini_createSection)
+  registerNative("deleteSection", nimini_deleteSection)
+  registerNative("updateSectionTitle", nimini_updateSectionTitle)
+  registerNative("setMultiSectionMode", nimini_setMultiSectionMode)
+  registerNative("getMultiSectionMode", nimini_getMultiSectionMode)
+  registerNative("setScrollY", nimini_setScrollY)
+  registerNative("getScrollY", nimini_getScrollY)
+  registerNative("getSectionCount", nimini_getSectionCount)
+  registerNative("getCurrentSectionIndex", nimini_getCurrentSectionIndex)
   
   let ctx = NiminiContext(env: runtimeEnv)
   
@@ -1843,6 +1878,11 @@ proc initStorieContext(state: AppState) =
   
   # Expose front matter to user scripts as global variables
   exposeFrontMatterVariables()
+  
+  # Update browser tab title if title is defined in frontmatter (emscripten only)
+  when defined(emscripten):
+    if storieCtx.frontMatter.hasKey("title"):
+      setDocumentTitle(storieCtx.frontMatter["title"])
   
   # Check for theme parameter and apply if present (overrides front matter theme)
   if hasParamDirect("theme"):
