@@ -243,6 +243,22 @@ proc parsePrefix(p: var Parser; allowDoNotation=true): Expr =
       discard p.advance()
       let v = parseExpr(p, 100, allowDoNotation)
       return newUnaryOp("not", v, t.line, t.col)
+    elif t.lexeme == "if":
+      # Inline if-else expression: if cond: expr1 else: expr2
+      discard p.advance()
+      let cond = parseExpr(p, allowDoNotation=false)
+      discard expect(p, tkColon, "Expected ':' after if condition")
+      let thenExpr = parseExpr(p, allowDoNotation=false)
+      # Check for else
+      if p.cur().kind != tkIdent or p.cur().lexeme != "else":
+        var err = newException(NiminiParseError, "Inline if expression requires 'else' at line " & $p.cur().line)
+        err.line = p.cur().line
+        err.col = p.cur().col
+        raise err
+      discard p.advance()  # consume 'else'
+      discard expect(p, tkColon, "Expected ':' after else")
+      let elseExpr = parseExpr(p, allowDoNotation=false)
+      return newIfExpr(cond, thenExpr, elseExpr, t.line, t.col)
     elif t.lexeme == "proc":
       # Parse anonymous proc (lambda expression)
       discard p.advance()
@@ -455,6 +471,25 @@ proc parsePrefix(p: var Parser; allowDoNotation=true): Expr =
       discard p.advance()
       let v = parsePrefix(p)
       newUnaryOp(t.lexeme, v, t.line, t.col)
+    elif t.lexeme == "@":
+      # @ prefix for array literals: @[1, 2, 3]
+      discard p.advance()
+      if p.cur().kind != tkLBracket:
+        var err = newException(NiminiParseError, "Expected '[' after '@' at line " & $t.line)
+        err.line = t.line
+        err.col = t.col
+        raise err
+      # Parse the array literal
+      discard p.advance()  # consume '['
+      var elements: seq[Expr] = @[]
+      if p.cur().kind != tkRBracket:
+        elements.add(parseExpr(p))
+        while match(p, tkComma):
+          if p.cur().kind == tkRBracket:
+            break  # Allow trailing comma
+          elements.add(parseExpr(p))
+      discard expect(p, tkRBracket, "Expected ']'")
+      newArray(elements, t.line, t.col)
     else:
       var err = newException(NiminiParseError, "Unexpected prefix operator at line " & $t.line)
       err.line = t.line

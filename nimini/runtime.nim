@@ -738,6 +738,14 @@ proc evalExpr(e: Expr; env: ref Env): Value =
       varParams: varParams,
       stmts: e.lambdaBody
     ))
+  
+  of ekIfExpr:
+    # Inline if-else expression: if cond: val1 else: val2
+    let condValue = evalExpr(e.ifExprCond, env)
+    if toBool(condValue):
+      evalExpr(e.ifExprThen, env)
+    else:
+      evalExpr(e.ifExprElse, env)
 
 # ------------------------------------------------------------------------------
 # Statement Execution

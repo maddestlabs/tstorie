@@ -2,17 +2,18 @@
 
 Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with executable Nim-like code blocks. Fast prototyping on the web or native that exports to Nim for fully native compilation across platforms.
 
-Check it out live: [Demo](https://maddestlabs.github.io/tstorie/)
+Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 
 Demos:
-- [slides.md](https://maddestlabs.github.io/tstorie?content=demo:slides&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
-- [depths.md](https://maddestlabs.github.io/tstorie?content=demo:depths&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
+- [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
+- [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=invert&theme=nord&font=Cutive+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 - [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
 
 Core examples:
 - [layout.md](https://maddestlabs.github.io/tstorie?content=demo:layout&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
-- [tui_simple.md](https://maddestlabs.github.io/tstorie?content=demo:tui_simple&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
+- [tui.md](https://maddestlabs.github.io/tstorie?content=demo:tui_simple&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
 
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie/?content=863a4175989370857ccd67cb5492ac11&shader=crt&font=Zeyada) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)

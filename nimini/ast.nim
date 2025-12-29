@@ -77,7 +77,8 @@ type
     ekObjConstr,   # Object construction Type(field: value, ...)
     ekDot,         # Field access obj.field
     ekTuple,       # Tuple literal (1, 2, 3) or (name: "Bob", age: 30)
-    ekLambda       # Lambda/anonymous proc expression
+    ekLambda,      # Lambda/anonymous proc expression
+    ekIfExpr       # Inline if-else expression: if cond: val1 else: val2
 
   Expr* = ref object
     line*: int
@@ -133,6 +134,10 @@ type
       lambdaParams*: seq[ProcParam]  # Parameters for the lambda
       lambdaBody*: seq[Stmt]         # Body statements of the lambda
       lambdaReturnType*: TypeNode    # Optional return type
+    of ekIfExpr:
+      ifExprCond*: Expr              # Condition
+      ifExprThen*: Expr              # Then expression
+      ifExprElse*: Expr              # Else expression
 
 # Statements (part of the same type block as Expressions)
 
@@ -315,6 +320,9 @@ proc newLambda*(params: seq[ProcParam]; body: seq[Stmt]; returnType: TypeNode = 
 
 proc newNamedTuple*(fields: seq[tuple[name: string, value: Expr]]; line=0; col=0): Expr =
   Expr(kind: ekTuple, tupleFields: fields, isNamedTuple: true, line: line, col: col)
+
+proc newIfExpr*(cond: Expr; thenExpr: Expr; elseExpr: Expr; line=0; col=0): Expr =
+  Expr(kind: ekIfExpr, ifExprCond: cond, ifExprThen: thenExpr, ifExprElse: elseExpr, line: line, col: col)
 
 # --- Type Nodes ---------------------------------------------------------------
 

@@ -570,6 +570,26 @@ proc genExpr*(e: Expr; ctx: CodegenContext): string =
     
     else:
       result = "/* lambda not implemented for " & ctx.backend.name & " */"
+  
+  of ekIfExpr:
+    # Inline if-else expression
+    case ctx.backend.name
+    of "Nim":
+      result = "(if " & genExpr(e.ifExprCond, ctx) & ": " & 
+               genExpr(e.ifExprThen, ctx) & " else: " & 
+               genExpr(e.ifExprElse, ctx) & ")"
+    of "Python":
+      result = "(" & genExpr(e.ifExprThen, ctx) & " if " & 
+               genExpr(e.ifExprCond, ctx) & " else " & 
+               genExpr(e.ifExprElse, ctx) & ")"
+    of "JavaScript":
+      result = "(" & genExpr(e.ifExprCond, ctx) & " ? " & 
+               genExpr(e.ifExprThen, ctx) & " : " & 
+               genExpr(e.ifExprElse, ctx) & ")"
+    else:
+      result = "(" & genExpr(e.ifExprCond, ctx) & " ? " & 
+               genExpr(e.ifExprThen, ctx) & " : " & 
+               genExpr(e.ifExprElse, ctx) & ")"
 
 # ------------------------------------------------------------------------------
 # Statement Code Generation

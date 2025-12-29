@@ -75,7 +75,7 @@ while i < visibleRain:
     var intensity = rainIntensity[i]
     var rainStyle = defaultStyle()
     # Create a subtle blue-ish background tint for rain
-    rainStyle.bg = rgb(0, 0, intensity)
+    rainStyle.bg = rgb(intensity, intensity, intensity)
     draw(0, px, py, " ", rainStyle)
   
   i = i + 1
@@ -142,9 +142,9 @@ crewMorale = 40
 
 # find_kess {"hidden": true}
 ⠀
-Kess is in the main cabin distributing rations. Her face is stone.
+Kess is in the main cabin distributing rations. Her face is stone cold.
 ⠀
-"Enough for a week if we're strict. The city marked HER is 4-5 days on foot through that wasteland out there."
+"Enough for a week if we're strict. There's a city marked here. 4-5 days on foot through that wasteland out there."
 ⠀
 She points to the viewport. Concrete plains. Gray sky. Ruins stretching endlessly.
 ⠀
@@ -157,19 +157,19 @@ She points to the viewport. Concrete plains. Gray sky. Ruins stretching endlessl
 ⠀
 You pull Kess aside. Her expression darkens.
 ⠀
-"The trajectory was wrong. Navigation got hijacked or the charts were compromised." She glances at the wasteland. "There are rumors. Resistance channels mentioned a place called 'Her'—a megacity where they test control systems. Audio-based conditioning."
+"The trajectory was wrong. Navigation got hijacked or the charts were compromised." She glances at the wasteland. "There are rumors. Resistance channels mentioned a place called 'Her' — a megacity where they test control systems."
 ⠀
-She meets your eyes. "If that's where we crashed, we need to be very careful."
+She meets your eyes. "We need to be very careful."
 ⠀
 ➛ [Prepare to move](#find_kess)
 
 # day_one {"hidden": true}
 ⠀
-The first day you expect rescue.
+The first day, hope is swallowed in a desolate landscape.
 ⠀
-The landscape doesn't help. Concrete plains. Dead factories. Residential blocks in various states of collapse. Everything gray. Everything silent. The government broadcasts insist the world is cultivated, content, controlled.
+Concrete plains. Dead factories. Residential blocks in various states of collapse. Everything gray. Everything silent. The system broadcasts insisted the world was cultivated, content, controlled.
 ⠀
-You're seeing proof that's a lie. Or you're in the place the government pretends doesn't exist.
+You're seeing the lie. You're in the place the system pretends doesn't exist.
 ⠀
 Dax struggles to keep pace. His fever is rising.
 ⠀
@@ -182,17 +182,15 @@ visibleRain = 4
 
 # day_two {"hidden": true}
 ⠀
-By the second day, you stop expecting rescue.
+By the second day, you wish you were back in the system.
 ⠀
-The rain starts—not a downpour, just constant, merciless drizzle that soaks everything and makes the concrete slick. Your clothes are damp. Your skin is damp. Everything is damp.
+The rain starts — not a downpour, just constant, merciless drizzle that soaks everything and makes the ground slick. Your clothes are damp. Your skin is damp. Everything is damp.
 ⠀
 Marta remarks quietly: "It always rains here."
 ⠀
 She's right. The rain feels permanent. Almost intentional.
 ⠀
 "Didn't you know? It always rains in Dystopia," she says.
-⠀
-No one laughs.
 ⠀
 ➛ [Press on](#day_three)
 
@@ -224,7 +222,7 @@ In the middle of a dead zone. With electricity. Impossible.
 ⠀
 Kess stops the group. Her hand moves to her weapon. "No structure should have independent power out here."
 ⠀
-➛ [Approach cautiously](#laundromat_approach)
+➛ [Approach cautiously](#cautious_approach)
 ➛ [Camp here instead](#camp_distance)
 
 ```nim on:enter
@@ -232,11 +230,11 @@ discovered_laundromat = true
 crewMorale = 30
 ```
 
-# laundromat_approach {"hidden": true}
+# cautious_approach {"hidden": true}
 ⠀
-The neon sign flickers pink. Warm light spills through glass doors. Inside: rows of washing machines. Dryers. The mundane infrastructure of ordinary life in a dead world.
+A neon sign flickers pink. "Laundromat". Warm light spills through glass doors. Inside: rows of machines with clothes strewn about. The mundane infrastructure of ordinary life in a dead world.
 ⠀
-The surrounding buildings are hollowed. Windows are empty sockets. Doors hang at wrong angles. The government erases inconvenient zones. Inconvenient people. This laundromat is a ghost of what was—but it still lives.
+The surrounding buildings are hollowed. Windows are empty sockets. Doors hang at wrong angles. The system erases inconvenient zones. Inconvenient people. This building is a ghost of what was—but it still lives.
 ⠀
 Kess scans the interior carefully before signaling you forward.
 ⠀
