@@ -170,6 +170,9 @@ proc initStdlib*() =
   registerNative("split", niminiSplit,
     imports = @["strutils"],
     description = "Split string by separator into array")
+  registerNative("splitLines", niminiSplitLines,
+    imports = @["strutils"],
+    description = "Split string by actual newline characters into array")
   registerNative("join", niminiJoin,
     imports = @["strutils"],
     description = "Join array elements with separator")

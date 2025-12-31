@@ -604,12 +604,55 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           ))
           hasCurrentSection = true
       else:
-        # Non-Nim code block, skip it
+        # Non-Nim code block - parse it as a data block (e.g., lvl, json, txt, etc.)
+        var language = if headerParts.len > 0: headerParts[0] else: ""
+        
+        # Extract code block content
+        var codeLines: seq[string] = @[]
         inc i
         while i < lines.len:
           if lines[i].strip().startsWith("```"):
             break
+          codeLines.add(lines[i])
           inc i
+        
+        # Create the code block (no lifecycle for non-Nim blocks)
+        let codeBlock = CodeBlock(
+          code: codeLines.join("\n"),
+          lifecycle: "",  # Data blocks don't have lifecycle
+          language: language
+        )
+        
+        # Add to flat list
+        result.codeBlocks.add(codeBlock)
+        
+        # Add to current section
+        if hasCurrentSection:
+          currentSection.blocks.add(ContentBlock(
+            kind: CodeBlock_Content,
+            codeBlock: codeBlock
+          ))
+        else:
+          # Create default section if needed
+          inc sectionCounter
+          let sectionId = "section_" & $sectionCounter
+          currentSection = Section(
+            id: sectionId,
+            title: "",
+            level: 1,
+            blocks: @[],
+            metadata: initTable[string, string]()
+          )
+          currentSection.blocks.add(ContentBlock(
+            kind: HeadingBlock,
+            level: 1,
+            title: ""
+          ))
+          currentSection.blocks.add(ContentBlock(
+            kind: CodeBlock_Content,
+            codeBlock: codeBlock
+          ))
+          hasCurrentSection = true
     else:
       # Regular text line - add to buffer
       textBuffer.add(line)

@@ -158,6 +158,36 @@ proc getScrollY*(sm: SectionManager): int =
   return sm.scrollY
 
 # ================================================================
+# CODE BLOCK ACCESS
+# ================================================================
+
+proc getSectionCodeBlocks*(sm: SectionManager, sectionIndex: int, language: string = ""): seq[CodeBlock] =
+  ## Get all code blocks from a section, optionally filtered by language
+  result = @[]
+  
+  if sectionIndex < 0 or sectionIndex >= sm.sections.len:
+    return result
+  
+  let section = sm.sections[sectionIndex]
+  for blk in section.blocks:
+    if blk.kind == CodeBlock_Content:
+      # Filter by language if specified, otherwise include all
+      if language.len == 0 or blk.codeBlock.language == language:
+        result.add(blk.codeBlock)
+
+proc getSectionCodeBlocksByLang*(sm: SectionManager, sectionId: string, language: string): seq[CodeBlock] =
+  ## Get all code blocks from a section by ID, filtered by language
+  result = @[]
+  
+  for i, section in sm.sections:
+    if section.id == sectionId:
+      return sm.getSectionCodeBlocks(i, language)
+
+proc getCurrentSectionCodeBlocks*(sm: SectionManager, language: string = ""): seq[CodeBlock] =
+  ## Get all code blocks from the current section, optionally filtered by language
+  return sm.getSectionCodeBlocks(sm.currentIndex, language)
+
+# ================================================================
 # NIMINI BINDINGS
 # ================================================================
 
@@ -339,3 +369,83 @@ proc nimini_getCurrentSectionIndex*(env: ref Env; args: seq[Value]): Value {.nim
     return valInt(0)
   return valInt(gSectionMgr[].getCurrentSectionIndex())
 
+proc nimini_getSectionCodeBlocks*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get code blocks from a section, optionally filtered by language
+  ## Args: sectionIndex (int), language (string, optional)
+  if gSectionMgr.isNil or args.len == 0:
+    return valArray(@[])
+  
+  let sectionIndex = valueToInt(args[0])
+  let language = if args.len > 1 and args[1].kind == vkString: args[1].s else: ""
+  
+  let codeBlocks = gSectionMgr[].getSectionCodeBlocks(sectionIndex, language)
+  
+  var arr: seq[Value] = @[]
+  for cb in codeBlocks:
+    var table = initTable[string, Value]()
+    table["code"] = valString(cb.code)
+    table["language"] = valString(cb.language)
+    table["lifecycle"] = valString(cb.lifecycle)
+    arr.add(valMap(table))
+  
+  return valArray(arr)
+
+proc nimini_getCodeBlock*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get a specific code block by section index, language, and block index
+  ## Args: sectionIndex (int), language (string), blockIndex (int, default 0)
+  if gSectionMgr.isNil or args.len < 2:
+    return valNil()
+  
+  let sectionIndex = valueToInt(args[0])
+  let language = args[1].s
+  let blockIndex = if args.len > 2: valueToInt(args[2]) else: 0
+  
+  let codeBlocks = gSectionMgr[].getSectionCodeBlocks(sectionIndex, language)
+  
+  if blockIndex < 0 or blockIndex >= codeBlocks.len:
+    return valNil()
+  
+  let cb = codeBlocks[blockIndex]
+  var table = initTable[string, Value]()
+  table["code"] = valString(cb.code)
+  table["language"] = valString(cb.language)
+  table["lifecycle"] = valString(cb.lifecycle)
+  
+  return valMap(table)
+
+proc nimini_getCurrentSectionCodeBlocks*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get code blocks from the current section, optionally filtered by language
+  ## Args: language (string, optional)
+  if gSectionMgr.isNil:
+    return valArray(@[])
+  
+  let language = if args.len > 0 and args[0].kind == vkString: args[0].s else: ""
+  
+  let codeBlocks = gSectionMgr[].getCurrentSectionCodeBlocks(language)
+  
+  var arr: seq[Value] = @[]
+  for cb in codeBlocks:
+    var table = initTable[string, Value]()
+    table["code"] = valString(cb.code)
+    table["language"] = valString(cb.language)
+    table["lifecycle"] = valString(cb.lifecycle)
+    arr.add(valMap(table))
+  
+  return valArray(arr)
+proc nimini_getCodeBlockText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the code text from a specific code block
+  ## Args: sectionIndex (int), language (string), blockIndex (int, default 0)
+  ## Returns: Just the code text as a string
+  if gSectionMgr.isNil or args.len < 2:
+    return valString("")
+  
+  let sectionIndex = valueToInt(args[0])
+  let language = args[1].s
+  let blockIndex = if args.len > 2: valueToInt(args[2]) else: 0
+  
+  let codeBlocks = gSectionMgr[].getSectionCodeBlocks(sectionIndex, language)
+  
+  if blockIndex < 0 or blockIndex >= codeBlocks.len:
+    return valString("")
+  
+  return valString(codeBlocks[blockIndex].code)

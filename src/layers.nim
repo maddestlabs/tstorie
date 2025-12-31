@@ -6,6 +6,7 @@
 
 import types
 import std/strutils
+import charwidth
 
 # ================================================================
 # BUFFER OPERATIONS
@@ -83,7 +84,15 @@ proc writeText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
       ch = "?"
     
     tb.write(currentX, y, ch, style)
-    currentX += 1
+    
+    # Advance by the display width, not just 1
+    let displayWidth = getCharDisplayWidth(ch)
+    
+    # For double-width characters, write a single-width space to second cell
+    if displayWidth == 2 and currentX + 1 < tb.width:
+      tb.write(currentX + 1, y, " ", style)  # Regular ASCII space (single-width)
+    
+    currentX += displayWidth
     i += charLen
 
 proc fillRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =

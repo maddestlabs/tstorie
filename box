@@ -1,0 +1,2 @@
+#!/bin/bash
+./tstorie docs/demos/box.md

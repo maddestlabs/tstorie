@@ -291,6 +291,19 @@ class TStorieTerminal {
     }
     
     renderCell(x, y) {
+        // Check if this cell is the second half of a double-width character
+        // Do this BEFORE getting any cell data to avoid rendering over it
+        if (x > 0) {
+            const prevCh = Module.UTF8ToString(Module._emGetCell(x - 1, y));
+            if (prevCh && prevCh !== '') {
+                const prevWidth = Module._emGetCellWidth ? Module._emGetCellWidth(x - 1, y) : 1;
+                if (prevWidth === 2) {
+                    // This is the second cell of a double-width character, skip entirely
+                    return;
+                }
+            }
+        }
+        
         // Get cell data from WASM
         const ch = Module.UTF8ToString(Module._emGetCell(x, y));
         
@@ -305,10 +318,11 @@ class TStorieTerminal {
         const bold = Module._emGetCellBold(x, y);
         const italic = Module._emGetCellItalic(x, y);
         const underline = Module._emGetCellUnderline(x, y);
+        const charWidth = Module._emGetCellWidth ? Module._emGetCellWidth(x, y) : 1;
         
         const px = Math.floor(x * this.charWidth);
         const py = Math.floor(y * this.charHeight);
-        const pxNext = Math.ceil((x + 1) * this.charWidth);
+        const pxNext = Math.ceil((x + charWidth) * this.charWidth);
         const pyNext = Math.ceil((y + 1) * this.charHeight);
         
         // Ensure integer dimensions for pixel-perfect rendering
@@ -332,7 +346,7 @@ class TStorieTerminal {
         // Ensure textBaseline is set (font changes may reset it)
         this.ctx.textBaseline = 'top';
         
-        // Draw text
+        // Draw text - no scaling, just draw it normally
         this.ctx.fillStyle = `rgb(${fgR}, ${fgG}, ${fgB})`;
         this.ctx.fillText(ch, px, py);
         
@@ -342,7 +356,7 @@ class TStorieTerminal {
             this.ctx.lineWidth = 1;
             this.ctx.beginPath();
             this.ctx.moveTo(px, py + this.charHeight - 2);
-            this.ctx.lineTo(px + this.charWidth, py + this.charHeight - 2);
+            this.ctx.lineTo(px + charWidth * this.charWidth, py + this.charHeight - 2);
             this.ctx.stroke();
         }
         

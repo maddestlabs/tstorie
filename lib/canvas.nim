@@ -7,6 +7,11 @@
 # Import core types when used as a module
 when not declared(Style):
   import ../src/types
+  import ../src/charwidth
+else:
+  # When included in tstorie.nim, charwidth is imported via src/charwidth
+  when not declared(getCharDisplayWidth):
+    import src/charwidth
 
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
 import section_manager
@@ -25,12 +30,14 @@ proc getCurrentSectionIdx*(): int =
 # ================================================================
 
 const
-  SECTION_WIDTH = 60
   SECTION_HEIGHT = 20
   SECTION_PADDING = 10
   MAX_SECTIONS_PER_ROW = 3
   PAN_SPEED = 5.0
   SMOOTH_SPEED = 8.0
+
+# Section width can be overridden based on front matter minWidth
+var gSectionWidth* = 60  # Default section width
 
 # ================================================================
 # STYLE CONVERSION HELPERS
@@ -362,7 +369,7 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
   for i, section in sections:
     var layout = SectionLayout(
       section: section,
-      width: SECTION_WIDTH,
+      width: gSectionWidth,
       height: SECTION_HEIGHT,
       index: i
     )
@@ -391,7 +398,7 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
       maxHeightInRow = 0
       sectionsInRow = 0
     else:
-      currentX += SECTION_WIDTH + SECTION_PADDING
+      currentX += gSectionWidth + SECTION_PADDING
     
     result.add(layout)
 
@@ -436,14 +443,78 @@ proc getNextSectionAtLevel*(currentIdx: int, level: int, forward: bool = true): 
 # TEXT RENDERING UTILITIES
 # ================================================================
 
+proc getVisualWidth*(text: string): int =
+  ## Calculate the visual display width of a string (accounting for double-width chars)
+  result = 0
+  var i = 0
+  while i < text.len:
+    let b = text[i].ord
+    var charLen = 1
+    var ch = ""
+    
+    if (b and 0x80) == 0:
+      ch = $text[i]
+    elif (b and 0xE0) == 0xC0 and i + 1 < text.len:
+      ch = text[i..i+1]
+      charLen = 2
+    elif (b and 0xF0) == 0xE0 and i + 2 < text.len:
+      ch = text[i..i+2]
+      charLen = 3
+    elif (b and 0xF8) == 0xF0 and i + 3 < text.len:
+      ch = text[i..i+3]
+      charLen = 4
+    else:
+      ch = "?"
+    
+    result += getCharDisplayWidth(ch)
+    i += charLen
+
+proc truncateToVisualWidth*(text: string, maxVisualWidth: int): string =
+  ## Truncate a string to fit within maxVisualWidth display columns
+  result = ""
+  var visualWidth = 0
+  var i = 0
+  
+  while i < text.len and visualWidth < maxVisualWidth:
+    let b = text[i].ord
+    var charLen = 1
+    var ch = ""
+    
+    if (b and 0x80) == 0:
+      ch = $text[i]
+    elif (b and 0xE0) == 0xC0 and i + 1 < text.len:
+      ch = text[i..i+1]
+      charLen = 2
+    elif (b and 0xF0) == 0xE0 and i + 2 < text.len:
+      ch = text[i..i+2]
+      charLen = 3
+    elif (b and 0xF8) == 0xF0 and i + 3 < text.len:
+      ch = text[i..i+3]
+      charLen = 4
+    else:
+      ch = "?"
+    
+    let charWidth = getCharDisplayWidth(ch)
+    if visualWidth + charWidth <= maxVisualWidth:
+      result.add(ch)
+      visualWidth += charWidth
+    else:
+      break
+    
+    i += charLen
+
 proc wrapText*(text: string, maxWidth: int): seq[string] =
-  ## Wrap text to fit within maxWidth
+  ## Wrap text to fit within maxWidth (accounting for double-width characters)
   result = @[]
   let words = text.split(' ')
   var currentLine = ""
   
   for word in words:
-    if currentLine.len + word.len + 1 <= maxWidth:
+    let currentWidth = getVisualWidth(currentLine)
+    let wordWidth = getVisualWidth(word)
+    let spaceWidth = if currentLine.len > 0: 1 else: 0
+    
+    if currentWidth + wordWidth + spaceWidth <= maxWidth:
       if currentLine.len > 0:
         currentLine.add(" ")
       currentLine.add(word)
@@ -487,6 +558,15 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: 
   ## frontMatter: Document front matter containing global settings like hideHeadings
   if not canvasState.isNil:
     return  # Already initialized
+  
+  # Set section width from minWidth if provided
+  if frontMatter.hasKey("minWidth"):
+    try:
+      let minWidth = parseInt(frontMatter["minWidth"])
+      if minWidth > gSectionWidth:
+        gSectionWidth = minWidth
+    except:
+      discard
   
   canvasState = CanvasState(
     camera: Camera(x: 0.0, y: 0.0, targetX: 0.0, targetY: 0.0),
@@ -649,8 +729,9 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
               break
             var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: false, 
                              underline: baseStyle.underline, italic: false, dim: baseStyle.dim)
-            buffer.writeText(currentX, y, $ch, style)
-            currentX += 1
+            let chStr = $ch
+            buffer.writeText(currentX, y, chStr, style)
+            currentX += getCharDisplayWidth(chStr)
           pos = codeEnd + 1
         else:
           # Not a variable reference - render the content literally
@@ -659,15 +740,16 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
               break
             var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: false, 
                              underline: baseStyle.underline, italic: false, dim: baseStyle.dim)
-            buffer.writeText(currentX, y, $ch, style)
-            currentX += 1
+            let chStr = $ch
+            buffer.writeText(currentX, y, chStr, style)
+            currentX += getCharDisplayWidth(chStr)
           pos = codeEnd + 1  # Skip past closing backtick
       else:
         # No matching backtick, render the backtick itself
         var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
                          underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
         buffer.writeText(currentX, y, "`", style)
-        currentX += 1
+        currentX += 1  # Backtick is always single-width
         pos += 1
     # Check for **bold**
     elif pos + 1 < expandedText.len and expandedText[pos..pos+1] == "**":
@@ -700,7 +782,7 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
       var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
                        underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
       buffer.writeText(currentX, y, ch, style)
-      currentX += 1
+      currentX += getCharDisplayWidth(ch)
       pos += charLen
   
   return currentX - x
@@ -788,15 +870,16 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
           target: target,
           screenX: currentX,
           screenY: y,
-          width: linkText.len,
+          width: getVisualWidth(linkText),
           index: globalLinkIdx
         ))
         
         # Render link text
         for ch in linkText:
           if currentX < x + maxWidth:
-            buffer.writeText(currentX, y, $ch, styleToUse)
-            currentX += 1
+            let chStr = $ch
+            buffer.writeText(currentX, y, chStr, styleToUse)
+            currentX += getCharDisplayWidth(chStr)
         
         globalLinkIdx += 1
       else:
@@ -849,7 +932,9 @@ proc getSectionRawContent(section: Section): string =
         lines.add("#".repeat(blk.level) & " " & blk.title)
     of CodeBlock_Content:
       # Insert marker for code blocks that generate content (on:render or on:enter)
-      if blk.codeBlock.lifecycle in ["render", "enter"]:
+      # OR for data blocks (lvl, json, etc.) that can be replaced by contentWrite()
+      if blk.codeBlock.lifecycle in ["render", "enter"] or 
+         (blk.codeBlock.lifecycle == "" and blk.codeBlock.language != ""):
         lines.add("{{CONTENT_BUFFER}}")
       # Skip other code blocks in content rendering
   
@@ -944,8 +1029,8 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
           if bufferLine.startsWith("#"):
             # Heading
             let formatted = formatHeading(bufferLine)
-            let displayText = if formatted.len > maxContentWidth: 
-                                formatted[0..<maxContentWidth] 
+            let displayText = if getVisualWidth(formatted) > maxContentWidth: 
+                                truncateToVisualWidth(formatted, maxContentWidth) 
                               else: 
                                 formatted
             buffer.writeText(contentX, contentY, displayText, headingStyle)
@@ -983,8 +1068,8 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     if line.startsWith("#"):
       # Heading
       let formatted = formatHeading(line)
-      let displayText = if formatted.len > maxContentWidth: 
-                          formatted[0..<maxContentWidth] 
+      let displayText = if getVisualWidth(formatted) > maxContentWidth: 
+                          truncateToVisualWidth(formatted, maxContentWidth) 
                         else: 
                           formatted
       buffer.writeText(contentX, contentY, displayText, headingStyle)

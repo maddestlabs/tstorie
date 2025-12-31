@@ -9,14 +9,45 @@
 ##
 ## Phase 1: Foundation - Widget base types, manager, and style resolution
 ##
-## NOTE: This module must be imported/included after tstorie.nim types are defined
-## as it depends on Color, Style, Layer, InputEvent, etc.
+## NOTE: This module is included (not imported) by tstorie.nim, so it has access
+## to all tstorie types and constants including INPUT_* constants
 
 import tables
-import algorithm
-import math
-import storie_types
-import layout  # For HAlign and VAlign types
+import algorithm  # For sort
+import math  # For round, min, max
+import storie_types  # For StyleSheet, StyleConfig
+import layout  # For HAlign, VAlign
+import ../src/types  # For Style, Color, Layer, InputEvent, etc.
+from ../src/layers import write, writeText  # For buffer operations
+
+# INPUT constants - used throughout tstorie
+const
+  INPUT_ESCAPE* = 27
+  INPUT_BACKSPACE* = 127
+  INPUT_SPACE* = 32
+  INPUT_TAB* = 9
+  INPUT_ENTER* = 13
+  INPUT_DELETE* = 46
+  INPUT_UP* = 1000
+  INPUT_DOWN* = 1001
+  INPUT_LEFT* = 1002
+  INPUT_RIGHT* = 1003
+  INPUT_HOME* = 1004
+  INPUT_END* = 1005
+  INPUT_PAGE_UP* = 1006
+  INPUT_PAGE_DOWN* = 1007
+  INPUT_F1* = 1008
+  INPUT_F2* = 1009
+  INPUT_F3* = 1010
+  INPUT_F4* = 1011
+  INPUT_F5* = 1012
+  INPUT_F6* = 1013
+  INPUT_F7* = 1014
+  INPUT_F8* = 1015
+  INPUT_F9* = 1016
+  INPUT_F10* = 1017
+  INPUT_F11* = 1018
+  INPUT_F12* = 1019
 
 # ================================================================
 # WIDGET STATE MANAGEMENT
@@ -444,7 +475,7 @@ method render*(label: Label, layer: Layer) =
   # Fill background
   for dy in 0 ..< label.height:
     for dx in 0 ..< label.width:
-      layer.buffer.write(label.x + dx, label.y + dy, " ", style)
+      layer.buffer.cells[(label.y + dy) * layer.buffer.width + (label.x + dx)] = Cell(ch: " ", style: style)
   
   if label.text.len == 0:
     return
@@ -543,31 +574,31 @@ method render*(btn: Button, layer: Layer) =
   # Fill background
   for dy in 0 ..< btn.height:
     for dx in 0 ..< btn.width:
-      layer.buffer.write(btn.x + dx, btn.y + dy, " ", style)
+      layer.buffer.cells[(btn.y + dy) * layer.buffer.width + (btn.x + dx)] = Cell(ch: " ", style: style)
   
   # Draw border if enabled
   if btn.drawBorder and btn.width >= 2 and btn.height >= 2:
     # Top border
     for dx in 0 ..< btn.width:
-      layer.buffer.write(btn.x + dx, btn.y, "─", style)
+      layer.buffer.cells[(btn.y) * layer.buffer.width + (btn.x + dx)] = Cell(ch: "─", style: style)
     
     # Bottom border
     for dx in 0 ..< btn.width:
-      layer.buffer.write(btn.x + dx, btn.y + btn.height - 1, "─", style)
+      layer.buffer.cells[(btn.y + btn.height - 1) * layer.buffer.width + (btn.x + dx)] = Cell(ch: "─", style: style)
     
     # Left border
     for dy in 0 ..< btn.height:
-      layer.buffer.write(btn.x, btn.y + dy, "│", style)
+      layer.buffer.cells[(btn.y + dy) * layer.buffer.width + (btn.x)] = Cell(ch: "│", style: style)
     
     # Right border
     for dy in 0 ..< btn.height:
-      layer.buffer.write(btn.x + btn.width - 1, btn.y + dy, "│", style)
+      layer.buffer.cells[(btn.y + dy) * layer.buffer.width + (btn.x + btn.width - 1)] = Cell(ch: "│", style: style)
     
     # Corners
-    layer.buffer.write(btn.x, btn.y, "┌", style)
-    layer.buffer.write(btn.x + btn.width - 1, btn.y, "┐", style)
-    layer.buffer.write(btn.x, btn.y + btn.height - 1, "└", style)
-    layer.buffer.write(btn.x + btn.width - 1, btn.y + btn.height - 1, "┘", style)
+    layer.buffer.cells[(btn.y) * layer.buffer.width + (btn.x)] = Cell(ch: "┌", style: style)
+    layer.buffer.cells[(btn.y) * layer.buffer.width + (btn.x + btn.width - 1)] = Cell(ch: "┐", style: style)
+    layer.buffer.cells[(btn.y + btn.height - 1) * layer.buffer.width + (btn.x)] = Cell(ch: "└", style: style)
+    layer.buffer.cells[(btn.y + btn.height - 1) * layer.buffer.width + (btn.x + btn.width - 1)] = Cell(ch: "┘", style: style)
   
   # Render label text
   if btn.label.len > 0:
@@ -866,7 +897,7 @@ method render*(slider: Slider, layer: Layer) =
       let ch = if i < handlePos: slider.fillChar
                elif i == handlePos: slider.handleChar
                else: slider.trackChar
-      layer.buffer.write(slider.x + i, slider.y, ch, style)
+      layer.buffer.cells[(slider.y) * layer.buffer.width + (slider.x + i)] = Cell(ch: ch, style: style)
     
     # Render value if enabled
     if slider.showValue:
@@ -883,7 +914,7 @@ method render*(slider: Slider, layer: Layer) =
       let ch = if i > handlePos: slider.fillChar
                elif i == handlePos: slider.handleChar
                else: slider.trackChar
-      layer.buffer.write(slider.x, slider.y + i, ch, style)
+      layer.buffer.cells[(slider.y + i) * layer.buffer.width + (slider.x)] = Cell(ch: ch, style: style)
     
     # Render value if enabled
     if slider.showValue:

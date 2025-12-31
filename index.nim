@@ -3,97 +3,12 @@
 # Note: This file is included by tstorie.nim and has access to all tstorie types and lib modules.
 # When compiling, use: nim c tstorie.nim -d:userFile=index (or ./build.sh / ./build-web.sh)
 
-import strutils, tables, random, times, algorithm
-when not defined(emscripten):
-  import os
-  import src/platform/terminal
-import nimini
-
-# Import library modules - customize this list based on what you need
-import lib/storie_md          # Markdown parser (includes gEmbeddedFigletFonts)
-import lib/section_manager    # Section navigation and management (includes nimini bindings)
-import lib/layout             # Text layout utilities
-import lib/figlet             # FIGlet font rendering (for parsing and rendering)
-
-# These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
-# so they must be included to share the same namespace
-include lib/events            # Event handling system
-include lib/animation         # Animation helpers and easing
-include lib/canvas            # Canvas navigation system
-include lib/audio             # Audio system
-include lib/tui               # TUI widget system
-include lib/tui_editor
-
-# Helper to convert Value to int (handles both int and float values)
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  of vkString:
-    # Try to parse string as integer
-    try:
-      return parseInt(v.s)
-    except:
-      return 0
-  of vkBool: return if v.b: 1 else: 0
-  else: return 0
-
-# Helper to convert Value to bool
-proc valueToBool(v: Value): bool =
-  case v.kind
-  of vkBool: return v.b
-  of vkInt: return v.i != 0
-  of vkFloat: return v.f != 0.0
-  else: return false
+# NOTE: Imports, includes, types, and globals are now in tstorie.nim to avoid duplication
+# This file only contains the application logic and lifecycle hooks
 
 # ================================================================
-# NIMINI INTEGRATION
+# NIMINI INTEGRATION - Helper Functions
 # ================================================================
-
-type
-  NiminiContext = ref object
-    env: ref Env
-  
-  GlobalHandler* = object
-    name*: string
-    callback*: Value  # Nimini function/closure
-    priority*: int    # Lower = executes first (default 0)
-  
-  StorieContext = ref object
-    codeBlocks: seq[CodeBlock]
-    niminiContext: NiminiContext
-    frontMatter: FrontMatter  # Front matter from markdown
-    styleSheet: StyleSheet    # Style configurations from front matter
-    themeBackground: tuple[r, g, b: uint8]  # Theme's background color for terminal
-    minWidth: int  # Minimum required terminal width (0 = no requirement)
-    minHeight: int  # Minimum required terminal height (0 = no requirement)
-    # Pre-compiled layer references
-    bgLayer: Layer
-    fgLayer: Layer
-    # Section management
-    sectionMgr: SectionManager   # Section manager handles all section state
-    # Global event handlers
-    globalRenderHandlers*: seq[GlobalHandler]
-    globalUpdateHandlers*: seq[GlobalHandler]
-    globalInputHandlers*: seq[GlobalHandler]
-
-
-# ================================================================
-# NIMINI WRAPPERS - Bridge storie functions to Nimini
-# ================================================================
-
-# Global references to layers (set in initStorieContext)
-var gDefaultLayer: Layer  # Single default layer (layer 0)
-var gTextStyle, gBorderStyle, gInfoStyle: Style
-var gAppState: AppState  # Global reference to app state for state accessors
-
-# Global TUI widget manager and widget registry
-var gWidgetManager: WidgetManager
-var gWidgetRegistry = initTable[string, Widget]()
-var gLastClickedWidget: string = ""  # Track last clicked widget for polling
-
-# Forward declaration for functions that will be defined later
-var storieCtx: StorieContext
 
 # Type conversion functions
 proc nimini_int(env: ref Env; args: seq[Value]): Value =
@@ -305,13 +220,7 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
   layer.buffer.fillRect(x, y, w, h, ch, style)
   return valNil()
 
-# Random number generator - consistent across WASM and native
-var globalRng: Rand
-
-proc initGlobalRng*() =
-  ## Initialize the global RNG with a time-based seed
-  let seed = getTime().toUnix() * 1000000000 + getTime().nanosecond()
-  globalRng = initRand(seed)
+# Random number generator and functions are now in tstorie.nim
 
 # Random number functions - now consistent across platforms
 proc randInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -534,404 +443,14 @@ proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # ================================================================
-# TUI WIDGET SYSTEM WRAPPERS
+# TUI WIDGET SYSTEM - Now in lib/tui_bindings.nim
 # ================================================================
-
-# Test function to verify nimini registration works
-proc nimini_tuiTest(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Simple test function
-  return valString("TUI functions are loaded!")
-
-proc nimini_newWidgetManager(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a new widget manager. Optional arg: use document styleSheet (bool, default true)
-  let useStyleSheet = if args.len > 0: args[0].b else: true
-  if useStyleSheet and not storieCtx.isNil and storieCtx.styleSheet.len > 0:
-    gWidgetManager = newWidgetManager(storieCtx.styleSheet)
-  else:
-    gWidgetManager = newWidgetManager()
-  return valNil()
-
-proc nimini_newLabel(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a label widget. Args: id, x, y, width, height, text
-  if args.len >= 6:
-    let id = args[0].s
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    let w = valueToInt(args[3])
-    let h = valueToInt(args[4])
-    let text = args[5].s
-    let label = newLabel(id, x, y, w, h, text)
-    gWidgetRegistry[id] = label
-    gWidgetManager.addWidget(label)
-  return valNil()
-
-proc nimini_newButton(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a button widget. Args: id, x, y, width, height, label
-  if args.len >= 6:
-    let id = args[0].s
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    let w = valueToInt(args[3])
-    let h = valueToInt(args[4])
-    let labelText = args[5].s
-    let button = newButton(id, x, y, w, h, labelText)
-    
-    # Set default onClick to record the click
-    button.onClick = proc(w: Widget) {.nimcall.} =
-      gLastClickedWidget = w.id
-    
-    gWidgetRegistry[id] = button
-    gWidgetManager.addWidget(button)
-  return valNil()
-
-proc nimini_newCheckBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a checkbox widget. Args: id, x, y, label, checked (optional)
-  if args.len >= 4:
-    let id = args[0].s
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    let labelText = args[3].s
-    let checked = if args.len >= 5: args[4].b else: false
-    let checkbox = newCheckBox(id, x, y, labelText, checked)
-    gWidgetRegistry[id] = checkbox
-    gWidgetManager.addWidget(checkbox)
-  return valNil()
-
-proc nimini_newRadioButton(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a radio button widget. Args: id, x, y, label, group
-  if args.len >= 5:
-    let id = args[0].s
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    let labelText = args[3].s
-    let group = args[4].s
-    let radio = newRadioButton(id, x, y, labelText, group)
-    gWidgetRegistry[id] = radio
-    gWidgetManager.addWidget(radio)
-  return valNil()
-
-proc nimini_newSlider(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a horizontal slider widget. Args: id, x, y, length, minVal, maxVal
-  if args.len >= 6:
-    let id = args[0].s
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    let length = valueToInt(args[3])
-    let minVal = if args[4].kind == vkFloat: args[4].f else: float(args[4].i)
-    let maxVal = if args[5].kind == vkFloat: args[5].f else: float(args[5].i)
-    let slider = newSlider(id, x, y, length, minVal, maxVal)
-    gWidgetRegistry[id] = slider
-    gWidgetManager.addWidget(slider)
-  return valNil()
-
-proc nimini_newTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a multi-line text editor widget. Args: id, x, y, width, height
-  if args.len >= 5:
-    let id = args[0].s
-    let x = valueToInt(args[1])
-    let y = valueToInt(args[2])
-    let w = valueToInt(args[3])
-    let h = valueToInt(args[4])
-    let textbox = newTextBox(id, x, y, w, h)
-    gWidgetRegistry[id] = textbox
-    gWidgetManager.addWidget(textbox)
-  return valNil()
-
-proc nimini_widgetSetText(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set text on a label or textbox widget. Args: id, text
-  if args.len >= 2:
-    let id = args[0].s
-    if gWidgetRegistry.hasKey(id):
-      let widget = gWidgetRegistry[id]
-      if widget of Label:
-        Label(widget).setText(args[1].s)
-      elif widget of TextBox:
-        TextBox(widget).setText(args[1].s)
-  return valNil()
-
-proc nimini_widgetGetText(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get text from a label or textbox widget. Args: id
-  if args.len >= 1:
-    let id = args[0].s
-    if gWidgetRegistry.hasKey(id):
-      let widget = gWidgetRegistry[id]
-      if widget of Label:
-        return valString(Label(widget).text)
-      elif widget of TextBox:
-        return valString(TextBox(widget).getText())
-  return valString("")
-
-proc nimini_widgetGetValue(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get value from a widget (checkbox checked state or slider value). Args: id
-  if args.len >= 1:
-    let id = args[0].s
-    if gWidgetRegistry.hasKey(id):
-      let widget = gWidgetRegistry[id]
-      if widget of CheckBox:
-        return valBool(CheckBox(widget).checked)
-      elif widget of Slider:
-        return valFloat(Slider(widget).value)
-  return valNil()
-
-proc nimini_widgetSetValue(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set value on a widget (checkbox checked or slider value). Args: id, value
-  if args.len >= 2:
-    let id = args[0].s
-    if gWidgetRegistry.hasKey(id):
-      let widget = gWidgetRegistry[id]
-      if widget of CheckBox:
-        CheckBox(widget).setChecked(args[1].b)
-      elif widget of Slider:
-        let val = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
-        Slider(widget).setValue(val)
-  return valNil()
-
-proc nimini_widgetSetCallback(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set a callback for a widget. Args: id, callbackType, callback
-  ## callbackType can be: "click", "change", "focus", "blur"
-  if args.len >= 3:
-    let id = args[0].s
-    let callbackType = args[1].s
-    let callback = args[2]
-    
-    if callback.kind != vkFunction:
-      return valNil()
-    
-    if gWidgetRegistry.hasKey(id):
-      let widget = gWidgetRegistry[id]
-      
-      # Store the callback in userData as a pointer to the Value
-      # We'll need to call it manually from a wrapper
-      let callbackPtr = create(Value)
-      callbackPtr[] = callback
-      widget.userData = cast[pointer](callbackPtr)
-      
-      case callbackType
-      of "click":
-        # Set onClick callback that calls the stored nimini function
-        widget.onClick = proc(w: Widget) {.nimcall.} =
-          if not w.userData.isNil:
-            let cb = cast[ptr Value](w.userData)
-            if cb[].kind == vkFunction:
-              try:
-                let callEnv = storieCtx.niminiContext.env
-                if cb[].fnVal.isNative:
-                  discard cb[].fnVal.native(callEnv, @[])
-              except:
-                discard
-      
-      of "change":
-        # Set onChange callback
-        widget.onChange = proc(w: Widget) {.nimcall.} =
-          if not w.userData.isNil:
-            let cb = cast[ptr Value](w.userData)
-            if cb[].kind == vkFunction:
-              try:
-                let callEnv = storieCtx.niminiContext.env
-                if cb[].fnVal.isNative:
-                  discard cb[].fnVal.native(callEnv, @[])
-              except:
-                discard
-      
-      of "focus":
-        # Set onFocus callback
-        widget.onFocus = proc(w: Widget) {.nimcall.} =
-          if not w.userData.isNil:
-            let cb = cast[ptr Value](w.userData)
-            if cb[].kind == vkFunction:
-              try:
-                let callEnv = storieCtx.niminiContext.env
-                if cb[].fnVal.isNative:
-                  discard cb[].fnVal.native(callEnv, @[])
-              except:
-                discard
-      
-      of "blur":
-        # Set onBlur callback
-        widget.onBlur = proc(w: Widget) {.nimcall.} =
-          if not w.userData.isNil:
-            let cb = cast[ptr Value](w.userData)
-            if cb[].kind == vkFunction:
-              try:
-                let callEnv = storieCtx.niminiContext.env
-                if cb[].fnVal.isNative:
-                  discard cb[].fnVal.native(callEnv, @[])
-              except:
-                discard
-      
-      else:
-        discard
-  
-  return valNil()
-
-proc nimini_widgetWasClicked(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Check if a widget was just clicked. Args: id
-  ## Returns true and clears the flag, so only returns true once per click
-  if args.len >= 1:
-    let id = args[0].s
-    if gLastClickedWidget == id:
-      gLastClickedWidget = ""
-      return valBool(true)
-  return valBool(false)
-
-proc nimini_widgetGetLastClicked(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get the ID of the last clicked widget and clear it
-  let result = gLastClickedWidget
-  gLastClickedWidget = ""
-  return valString(result)
-
-proc nimini_widgetManagerUpdate(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update widget manager. Args: dt (float, optional)
-  let dt = if args.len > 0 and args[0].kind == vkFloat: args[0].f else: 0.016
-  if not gWidgetManager.isNil:
-    gWidgetManager.update(dt)
-  return valNil()
-
-proc nimini_widgetManagerRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Render widgets to a layer. Args: layerId (string, optional, default "foreground")
-  let layerId = if args.len > 0: args[0].s else: "foreground"
-  
-  if not gWidgetManager.isNil and not gAppState.isNil:
-    # Find the layer
-    for layer in gAppState.layers:
-      if layer.id == layerId:
-        gWidgetManager.render(layer)
-        break
-  
-  return valNil()
-
-proc nimini_widgetManagerHandleInput(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Handle input event with widget manager. 
-  ## The event is available in the environment from the input lifecycle
-  ## Returns: bool (true if event was consumed)
-  
-  if gWidgetManager.isNil:
-    return valBool(false)
-  
-  # Get the event from the environment - it should be set by executeCodeBlock
-  # Use getVar to walk the scope chain (event is in child scope!)
-  let eventVar = getVar(env, "event")
-  if eventVar.kind == vkNil:
-    return valBool(false)
-  
-  # We need to decode the event back into an InputEvent
-  # For now, we'll handle basic keyboard and mouse events
-  if eventVar.kind != vkMap:
-    return valBool(false)
-  
-  let eventMap = eventVar.map
-  let eventType = if eventMap.hasKey("type"): eventMap["type"].s else: ""
-  
-  # Create an InputEvent based on the type
-  var inputEvent: InputEvent
-  
-  case eventType
-  of "key":
-    let keyCode = if eventMap.hasKey("keyCode"): eventMap["keyCode"].i else: 0
-    let action = if eventMap.hasKey("action"): eventMap["action"].s else: "press"
-    
-    inputEvent = InputEvent(
-      kind: KeyEvent,
-      keyCode: keyCode,
-      keyAction: case action
-        of "press": Press
-        of "release": Release
-        of "repeat": Repeat
-        else: Press,
-      keyMods: {}  # TODO: decode modifiers if needed
-    )
-  
-  of "mouse":
-    let x = if eventMap.hasKey("x"): eventMap["x"].i else: 0
-    let y = if eventMap.hasKey("y"): eventMap["y"].i else: 0
-    let button = if eventMap.hasKey("button"): eventMap["button"].s else: "left"
-    let action = if eventMap.hasKey("action"): eventMap["action"].s else: "press"
-    
-    inputEvent = InputEvent(
-      kind: MouseEvent,
-      mouseX: x,
-      mouseY: y,
-      button: case button
-        of "left": Left
-        of "right": Right
-        of "middle": Middle
-        of "scroll_up": ScrollUp
-        of "scroll_down": ScrollDown
-        else: Unknown,
-      action: case action
-        of "press": Press
-        of "release": Release
-        of "repeat": Repeat
-        else: Press,
-      mods: {}  # TODO: decode modifiers if needed
-    )
-  
-  of "mouse_move":
-    let x = if eventMap.hasKey("x"): eventMap["x"].i else: 0
-    let y = if eventMap.hasKey("y"): eventMap["y"].i else: 0
-    
-    inputEvent = InputEvent(
-      kind: MouseMoveEvent,
-      moveX: x,
-      moveY: y,
-      moveMods: {}  # TODO: decode modifiers if needed
-    )
-  
-  else:
-    return valBool(false)
-  
-  # Pass the event to the widget manager
-  let consumed = gWidgetManager.handleInput(inputEvent)
-  return valBool(consumed)
+# The TUI widget system has been moved to lib/tui_bindings.nim
+# It is registered via registerTUIBindings() in initStorieContext()
 
 # ================================================================
-# BROWSER API WRAPPERS (localStorage, window.open)
+# BROWSER API (WASM)
 # ================================================================
-
-# localStorage functionality temporarily disabled for web build due to FFI issues
-# TODO: Re-enable with proper emscripten bindings
-#
-# The issue is that emscripten doesn't support direct importc with JavaScript object
-# methods like "localStorage.setItem". To fix this, we need to:
-# 1. Add emscripten.h include to get EM_ASM macros
-# 2. Use proper EM_ASM/EM_ASM_PTR syntax for calling JavaScript from C
-# 3. Handle UTF8 string conversion correctly
-# 4. Test that window.open works with the same approach
-#
-# Alternatively, we could create JavaScript wrapper functions that are called
-# via simpler C function names (e.g., js_localstorage_set instead of localStorage.setItem)
-
-when false: # disabled
-  when defined(emscripten):
-    # JavaScript FFI for localStorage using EM_ASM
-    proc js_localStorage_setItem(key: cstring, value: cstring) =
-      {.emit: """
-      EM_ASM({
-        localStorage.setItem(UTF8ToString($0), UTF8ToString($1));
-      }, `key`, `value`);
-      """.}
-    
-    proc js_localStorage_getItem(key: cstring): cstring =
-      var result: cstring
-      {.emit: """
-      `result` = (char*)EM_ASM_PTR({
-        var item = localStorage.getItem(UTF8ToString($0));
-        if (item === null) return 0;
-        var len = lengthBytesUTF8(item) + 1;
-        var str = _malloc(len);
-        stringToUTF8(item, str, len);
-        return str;
-      }, `key`);
-      """.}
-      return result
-    
-    proc js_window_open(url: cstring, target: cstring) =
-      {.emit: """
-      EM_ASM({
-        window.open(UTF8ToString($0), UTF8ToString($1));
-      }, `url`, `target`);
-      """.}
-
 proc nimini_localStorage_setItem(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Save content to browser localStorage. Args: key, value (temporarily disabled)
   if args.len >= 2:
@@ -1353,8 +872,7 @@ const
 # FIGLET FONT HELPERS (Nimini wrappers)
 # ================================================================
 
-# Global cache for loaded figlet fonts
-var gFigletFonts = initTable[string, FIGfont]()
+# Global cache for loaded figlet fonts is now in tstorie.nim
 
 proc figletLoadFont(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Load a figlet font embedded in the markdown. Args: fontName (string)
@@ -1433,8 +951,19 @@ proc createNiminiContext(state: AppState): NiminiContext =
   initStdlib()  # Register standard library functions (add, len, etc.)
   registerParamFuncs(runtimeEnv)  # Register parameter functions (getParam, hasParam, etc.)
   
-  # Register core framework APIs (state accessors, colors, etc.) from tstorie.nim
-  registerTstorieApis(runtimeEnv, cast[pointer](state))
+  # Register core framework APIs (state accessors, colors, etc.) from lib/nimini_bridge.nim
+  registerTstorieApis(runtimeEnv, state)
+  
+  # Create DrawProc wrapper for TUI/ASCII art bindings
+  proc drawWrapper(layer, x, y: int, char: string, style: Style) =
+    # For now, just write to default layer
+    # Later can be enhanced to support multiple layers
+    if not gDefaultLayer.isNil:
+      gDefaultLayer.buffer.write(x, y, char, style)
+  
+  # Register TUI widget bindings and ASCII art bindings
+  registerTUIBindings(drawWrapper, addr gDefaultLayer)
+  registerAsciiArtBindings(drawWrapper, addr state)
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)
@@ -1458,15 +987,12 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_setMultiSectionMode, nimini_getMultiSectionMode,
     nimini_setScrollY, nimini_getScrollY,
     nimini_getSectionCount, nimini_getCurrentSectionIndex,
+    # Code block access
+    nimini_getSectionCodeBlocks, nimini_getCodeBlock, nimini_getCurrentSectionCodeBlocks,
+    nimini_getCodeBlockText,
     # Figlet font rendering
     figletLoadFont, figletIsFontLoaded, figletRender, figletListAvailableFonts,
-    # TUI widget system
-    nimini_tuiTest, nimini_newWidgetManager,
-    nimini_newLabel, nimini_newButton, nimini_newCheckBox, nimini_newRadioButton, nimini_newSlider,
-    nimini_newTextBox,
-    nimini_widgetSetText, nimini_widgetGetText, nimini_widgetGetValue, nimini_widgetSetValue, nimini_widgetSetCallback,
-    nimini_widgetWasClicked, nimini_widgetGetLastClicked,
-    nimini_widgetManagerUpdate, nimini_widgetManagerRender, nimini_widgetManagerHandleInput,
+    # TUI widget system - now registered in tstorie.nim via registerTUIBindings()
     # Browser API
     nimini_localStorage_setItem, nimini_localStorage_getItem, nimini_window_open,
     # Animation/transition helpers (simple, safe)
@@ -1517,6 +1043,12 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerNative("getScrollY", nimini_getScrollY)
   registerNative("getSectionCount", nimini_getSectionCount)
   registerNative("getCurrentSectionIndex", nimini_getCurrentSectionIndex)
+  
+  # Register code block access functions
+  registerNative("getSectionCodeBlocks", nimini_getSectionCodeBlocks)
+  registerNative("getCodeBlock", nimini_getCodeBlock)
+  registerNative("getCurrentSectionCodeBlocks", nimini_getCurrentSectionCodeBlocks)
+  registerNative("getCodeBlockText", nimini_getCodeBlockText)
   
   let ctx = NiminiContext(env: runtimeEnv)
   

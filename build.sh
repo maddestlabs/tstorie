@@ -31,7 +31,7 @@ EOF
 }
 
 RELEASE_MODE="-d:release --opt:size -d:strip -d:useMalloc --passC:-flto --passL:-flto --passL:-s"
-COMPILE_ONLY=false
+COMPILE_ONLY=true
 USER_FILE=""
 
 # Parse arguments

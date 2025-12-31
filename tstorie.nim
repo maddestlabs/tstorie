@@ -1,54 +1,40 @@
-import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs
+import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs, algorithm
 import macros
 import nimini
 import src/params
 import src/types  # Core runtime types
+import src/charwidth  # Character display width utilities
 import src/layers  # Layer system and buffer operations
 import src/appstate  # Application state management
 import lib/storie_types
 import lib/audio_gen
+import lib/storie_md          # Markdown parser (includes gEmbeddedFigletFonts)
+import lib/section_manager    # Section navigation and management (includes nimini bindings)
+import lib/layout             # Text layout utilities
+import lib/figlet             # FIGlet font rendering (for parsing and rendering)
+import lib/nimini_bridge      # Nimini API registration and bindings
+import lib/tui_bindings       # TUI widget nimini bindings
+import lib/ascii_art_bindings # ASCII art nimini bindings
 
 when not defined(emscripten):
   import src/platform/terminal
   import std/httpclient
   import src/export_command  # Export command support
 
+# These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
+# so they must be included to share the same namespace
+include lib/events            # Event handling system
+include lib/animation         # Animation helpers and easing
+include lib/canvas            # Canvas navigation system
+include lib/audio             # Audio system
+include lib/tui               # TUI widget system (defines INPUT_* constants)
+include lib/tui_editor
+
 const version = "0.1.0"
 
 # ================================================================
-# INPUT CONSTANTS
+# INPUT CONSTANTS - Defined in lib/tui.nim
 # ================================================================
-
-const
-  INPUT_ESCAPE* = 27
-  INPUT_BACKSPACE* = 127
-  INPUT_SPACE* = 32
-  INPUT_TAB* = 9
-  INPUT_ENTER* = 13
-  INPUT_DELETE* = 46
-
-  INPUT_UP* = 1000
-  INPUT_DOWN* = 1001
-  INPUT_LEFT* = 1002
-  INPUT_RIGHT* = 1003
-
-  INPUT_HOME* = 1004
-  INPUT_END* = 1005
-  INPUT_PAGE_UP* = 1006
-  INPUT_PAGE_DOWN* = 1007
-
-  INPUT_F1* = 1008
-  INPUT_F2* = 1009
-  INPUT_F3* = 1010
-  INPUT_F4* = 1011
-  INPUT_F5* = 1012
-  INPUT_F6* = 1013
-  INPUT_F7* = 1014
-  INPUT_F8* = 1015
-  INPUT_F9* = 1016
-  INPUT_F10* = 1017
-  INPUT_F11* = 1018
-  INPUT_F12* = 1019
 
 const
   ModShift* = 0'u8
@@ -713,518 +699,73 @@ proc listCachedModules*(): seq[string] =
     result.add(key)
 
 # ================================================================
-# NIMINI BRIDGE - API Registration
+# NIMINI BRIDGE - Module loading and runtime
 # ================================================================
 
 # Buffer operations and layer management now imported from src/layers
-# These helper templates remain for backward compatibility with nimini API calls
+# API registration and helper templates now in lib/nimini_bridge.nim
 
-# Helper templates to avoid symbol resolution conflicts with File.write
-template tbWrite(layer: Layer, x, y: int, ch: string, style: Style) =
-  bind write
-  layer.buffer.write(x, y, ch, style)
+# ================================================================
+# INDEX.NIM INTEGRATION - Types and Globals
+# ================================================================
 
-template tbWriteText(layer: Layer, x, y: int, text: string, style: Style) =
-  bind writeText
-  layer.buffer.writeText(x, y, text, style)
+type
+  NiminiContext = ref object
+    env: ref Env
+  
+  GlobalHandler* = object
+    name*: string
+    callback*: Value  # Nimini function/closure
+    priority*: int    # Lower = executes first (default 0)
+  
+  StorieContext = ref object
+    codeBlocks: seq[CodeBlock]
+    niminiContext: NiminiContext
+    frontMatter: FrontMatter  # Front matter from markdown
+    styleSheet: StyleSheet    # Style configurations from front matter
+    themeBackground: tuple[r, g, b: uint8]  # Theme's background color for terminal
+    minWidth: int  # Minimum required terminal width (0 = no requirement)
+    minHeight: int  # Minimum required terminal height (0 = no requirement)
+    # Pre-compiled layer references
+    bgLayer: Layer
+    fgLayer: Layer
+    # Section management
+    sectionMgr: SectionManager   # Section manager handles all section state
+    # Global event handlers
+    globalRenderHandlers*: seq[GlobalHandler]
+    globalUpdateHandlers*: seq[GlobalHandler]
+    globalInputHandlers*: seq[GlobalHandler]
 
-template tbFillRect(layer: Layer, x, y, w, h: int, ch: string, style: Style) =
-  bind fillRect
-  layer.buffer.fillRect(x, y, w, h, ch, style)
+# Global references to layers (set in initStorieContext)
+var gDefaultLayer: Layer  # Single default layer (layer 0)
+var gTextStyle, gBorderStyle, gInfoStyle: Style
+var gAppState: AppState  # Global reference to app state for state accessors
 
-template tbClear(layer: Layer, bgColor: tuple[r, g, b: uint8]) =
-  bind clear
-  layer.buffer.clear(bgColor)
+# Global TUI widget manager and widget registry
+var gWidgetManager: WidgetManager
+var gWidgetRegistry = initTable[string, Widget]()
+var gLastClickedWidget: string = ""  # Track last clicked widget for polling
 
-template tbClearTransparent(layer: Layer) =
-  bind clearTransparent
-  layer.buffer.clearTransparent()
+# Forward declaration for functions that will be defined later
+var storieCtx: StorieContext
 
-# Store the global state ref here to avoid circular imports
-var globalAppStateRef: pointer = nil
+# Random number generator - consistent across WASM and native
+var globalRng: Rand
 
-proc setGlobalAppState*(state: pointer) =
-  ## Called by tstorie to set the app state reference
-  globalAppStateRef = state
+proc initGlobalRng*() =
+  ## Initialize the global random number generator with a seed
+  when defined(emscripten):
+    # For WASM, use a fixed seed or timestamp if available
+    globalRng = initRand(123456)
+  else:
+    # For native, use system entropy
+    globalRng = initRand()
 
-# Import audio here for API registration (avoids type conflicts at top level)
-import lib/audio as audioModule
+# Global cache for loaded figlet fonts
+var gFigletFonts = initTable[string, FIGfont]()
 
-proc registerTstorieApis*(env: ref Env, state: pointer) =
-  ## Register all tstorie API functions in the nimini environment
-  ## This makes them available to interpreted modules
-  ## state is a pointer to AppState to avoid circular dependency
-  
-  # Store state for later use
-  setGlobalAppState(state)
-  
-  # Cast AppState once at the beginning (it's a ref object, so we cast directly from pointer)
-  let appState = cast[AppState](state)
-  let defaultStyle = defaultStyle() # Default style for drawing
-  
-  # ============================================================================
-  # Drawing APIs
-  # ============================================================================
-  
-  env.vars["write"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## write(layerId: string, x: int, y: int, ch: string)
-    if args.len < 4:
-      raise newException(ValueError, "write() requires 4 arguments: layerId, x, y, ch")
-    
-    let layerId = args[0].s
-    let x = args[1].i
-    let y = args[2].i
-    let ch = args[3].s
-    
-    var layer = getLayer(appState, layerId)
-    if not layer.isNil:
-      tbWrite(layer, x, y, ch, defaultStyle)
-    return valNil()
-  
-  env.vars["writeText"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## writeText(layerId: string, x: int, y: int, text: string)
-    if args.len < 4:
-      raise newException(ValueError, "writeText() requires 4 arguments: layerId, x, y, text")
-    
-    let layerId = args[0].s
-    let x = args[1].i
-    let y = args[2].i
-    let text = args[3].s
-    
-    var layer = getLayer(appState, layerId)
-    if not layer.isNil:
-      tbWriteText(layer, x, y, text, defaultStyle)
-    return valNil()
-  
-  env.vars["fillRect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## fillRect(layerId: string, x: int, y: int, w: int, h: int, ch: string)
-    if args.len < 6:
-      raise newException(ValueError, "fillRect() requires 6 arguments: layerId, x, y, w, h, ch")
-    
-    let layerId = args[0].s
-    let x = args[1].i
-    let y = args[2].i
-    let w = args[3].i
-    let h = args[4].i
-    let ch = args[5].s
-    
-    var layer = getLayer(appState, layerId)
-    if not layer.isNil:
-      tbFillRect(layer, x, y, w, h, ch, defaultStyle)
-    return valNil()
-  
-  env.vars["clearLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## clearLayer(layerId: string)
-    if args.len < 1:
-      raise newException(ValueError, "clearLayer() requires 1 argument: layerId")
-    
-    let layerId = args[0].s
-    var layer = getLayer(appState, layerId)
-    if not layer.isNil:
-      tbClear(layer, appState.themeBackground)
-    return valNil()
-  
-  env.vars["clearLayerTransparent"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## clearLayerTransparent(layerId: string)
-    if args.len < 1:
-      raise newException(ValueError, "clearLayerTransparent() requires 1 argument: layerId")
-    
-    let layerId = args[0].s
-    var layer = getLayer(appState, layerId)
-    if not layer.isNil:
-      tbClearTransparent(layer)
-    return valNil()
-  
-  # ============================================================================
-  # Layer Management
-  # ============================================================================
-  
-  env.vars["addLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## addLayer(id: string, z: int) - Create and add a new layer
-    if args.len < 2:
-      raise newException(ValueError, "addLayer() requires 2 arguments: id, z")
-    
-    let id = args[0].s
-    let z = args[1].i
-    discard addLayer(appState, id, z)
-    return valNil()
-  
-  env.vars["layerExists"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## layerExists(id: string) -> bool
-    if args.len < 1:
-      raise newException(ValueError, "layerExists() requires 1 argument: id")
-    
-    let layer = getLayer(appState, args[0].s)
-    return valBool(not layer.isNil)
-  
-  # ============================================================================
-  # Color Utilities
-  # ============================================================================
-  
-  env.vars["rgb"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## rgb(r: int, g: int, b: int) -> color map
-    if args.len < 3:
-      raise newException(ValueError, "rgb() requires 3 arguments: r, g, b")
-    
-    let colorMap = valMap()
-    colorMap.map["r"] = valInt(args[0].i)
-    colorMap.map["g"] = valInt(args[1].i)
-    colorMap.map["b"] = valInt(args[2].i)
-    return colorMap
-  
-  proc makeColorMap(r, g, b: int): Value =
-    let m = valMap()
-    m.map["r"] = valInt(r)
-    m.map["g"] = valInt(g)
-    m.map["b"] = valInt(b)
-    return m
-  
-  env.vars["black"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(0, 0, 0)
-  
-  env.vars["white"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(255, 255, 255)
-  
-  env.vars["red"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(255, 0, 0)
-  
-  env.vars["green"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(0, 255, 0)
-  
-  env.vars["blue"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(0, 0, 255)
-  
-  env.vars["cyan"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(0, 255, 255)
-  
-  env.vars["magenta"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(255, 0, 255)
-  
-  env.vars["yellow"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    return makeColorMap(255, 255, 0)
-  
-  env.vars["gray"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## gray(level: int) -> color map
-    if args.len < 1:
-      return makeColorMap(128, 128, 128)  # Default medium gray
-    let level = args[0].i
-    return makeColorMap(level, level, level)
-  
-  # ============================================================================
-  # Style System
-  # ============================================================================
-  
-  proc styleConfigToValue(config: StyleConfig): Value =
-    ## Convert StyleConfig to a nimini Value (map)
-    let styleMap = valMap()
-    let fgMap = valMap()
-    fgMap.map["r"] = valInt(config.fg.r.int)
-    fgMap.map["g"] = valInt(config.fg.g.int)
-    fgMap.map["b"] = valInt(config.fg.b.int)
-    styleMap.map["fg"] = fgMap
-    
-    let bgMap = valMap()
-    bgMap.map["r"] = valInt(config.bg.r.int)
-    bgMap.map["g"] = valInt(config.bg.g.int)
-    bgMap.map["b"] = valInt(config.bg.b.int)
-    styleMap.map["bg"] = bgMap
-    
-    styleMap.map["bold"] = valBool(config.bold)
-    styleMap.map["italic"] = valBool(config.italic)
-    styleMap.map["underline"] = valBool(config.underline)
-    styleMap.map["dim"] = valBool(config.dim)
-    return styleMap
-  
-  proc valueToStyle(v: Value): Style =
-    ## Convert nimini Value (map) to Style
-    result = defaultStyle()
-    if v.kind != vkMap:
-      return
-    
-    if v.map.hasKey("fg"):
-      let fgVal = v.map["fg"]
-      if fgVal.kind == vkMap:
-        let r = if fgVal.map.hasKey("r"): fgVal.map["r"].i.uint8 else: 255'u8
-        let g = if fgVal.map.hasKey("g"): fgVal.map["g"].i.uint8 else: 255'u8
-        let b = if fgVal.map.hasKey("b"): fgVal.map["b"].i.uint8 else: 255'u8
-        result.fg = rgb(r, g, b)
-    
-    if v.map.hasKey("bg"):
-      let bgVal = v.map["bg"]
-      if bgVal.kind == vkMap:
-        let r = if bgVal.map.hasKey("r"): bgVal.map["r"].i.uint8 else: 0'u8
-        let g = if bgVal.map.hasKey("g"): bgVal.map["g"].i.uint8 else: 0'u8
-        let b = if bgVal.map.hasKey("b"): bgVal.map["b"].i.uint8 else: 0'u8
-        result.bg = rgb(r, g, b)
-    
-    if v.map.hasKey("bold"):
-      result.bold = v.map["bold"].b
-    if v.map.hasKey("italic"):
-      result.italic = v.map["italic"].b
-    if v.map.hasKey("underline"):
-      result.underline = v.map["underline"].b
-    if v.map.hasKey("dim"):
-      result.dim = v.map["dim"].b
-  
-  proc getDefaultStyleConfig(): StyleConfig =
-    ## Get the default style configuration
-    StyleConfig(
-      fg: (255'u8, 255'u8, 255'u8),
-      bg: (0'u8, 0'u8, 0'u8),
-      bold: false,
-      italic: false,
-      underline: false,
-      dim: false
-    )
-  
-  env.vars["defaultStyle"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## defaultStyle() -> Style map
-    return styleConfigToValue(getDefaultStyleConfig())
-  
-  env.vars["getStyle"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getStyle(name: string) -> Style map
-    ## Retrieve a named style from the stylesheet defined in front matter
-    if args.len < 1:
-      return styleConfigToValue(getDefaultStyleConfig())
-    
-    let styleName = args[0].s
-    
-    # Access the stylesheet from appState
-    if not appState.isNil and appState.styleSheet.hasKey(styleName):
-      return styleConfigToValue(appState.styleSheet[styleName])
-    
-    # Fallback to default style
-    return styleConfigToValue(getDefaultStyleConfig())
-  
-  # ============================================================================
-  # Input Handling
-  # ============================================================================
-  
-  env.vars["getInput"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getInput() -> array of input events
-    # Return empty array for now
-    return valArray()
-  
-  # ============================================================================
-  # State Access
-  # ============================================================================
-  
-  env.vars["getTermWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get current terminal width
-    return valInt(appState.termWidth)
-  
-  env.vars["getTermHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get current terminal height
-    return valInt(appState.termHeight)
-  
-  env.vars["getWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getWidth() -> int (alias for getTermWidth)
-    return valInt(appState.termWidth)
-  
-  env.vars["getHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getHeight() -> int (alias for getTermHeight)
-    return valInt(appState.termHeight)
-  
-  env.vars["getTargetFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the target FPS
-    return valFloat(appState.targetFps)
-  
-  env.vars["setTargetFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Set the target FPS. Args: fps (number)
-    if args.len > 0:
-      let fps = case args[0].kind
-        of vkFloat: args[0].f
-        of vkInt: args[0].i.float
-        else: 60.0
-      appState.targetFps = fps
-    return valNil()
-  
-  env.vars["getFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the current actual FPS
-    return valFloat(appState.fps)
-  
-  env.vars["getFrameCount"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the total frame count
-    return valInt(appState.frameCount)
-  
-  env.vars["getTotalTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the total elapsed time in seconds
-    return valFloat(appState.totalTime)
-  
-  env.vars["getDeltaTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getDeltaTime() -> float (alias for getting frame delta)
-    return valFloat(1.0 / appState.targetFps)
-  
-  # ============================================================================
-  # Time Functions
-  # ============================================================================
-  
-  env.vars["now"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## now() -> map with datetime properties (year, month, day, hour, minute, second, weekday, yearday)
-    let dt = now()
-    let timeMap = valMap()
-    timeMap.map["year"] = valInt(dt.year)
-    timeMap.map["month"] = valInt(dt.month.int)  # 1-12
-    timeMap.map["day"] = valInt(dt.monthday)     # 1-31
-    timeMap.map["hour"] = valInt(dt.hour)        # 0-23
-    timeMap.map["minute"] = valInt(dt.minute)    # 0-59
-    timeMap.map["second"] = valInt(dt.second)    # 0-59
-    timeMap.map["weekday"] = valInt(dt.weekday.int)  # 0=Monday, 6=Sunday
-    timeMap.map["yearday"] = valInt(dt.yearday)  # 1-366
-    return timeMap
-  
-  # ============================================================================
-  # Utility Functions
-  # ============================================================================
-  
-  env.vars["echo"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## echo(...) - print to console/stdout
-    var output = ""
-    for i, arg in args:
-      if i > 0: output.add(" ")
-      output.add($arg)
-    echo output
-    return valNil()
-  
-  env.vars["len"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## len(array or string) -> int
-    if args.len < 1:
-      raise newException(ValueError, "len() requires 1 argument")
-    
-    case args[0].kind
-    of vkArray:
-      return valInt(args[0].arr.len)
-    of vkString:
-      return valInt(args[0].s.len)
-    else:
-      raise newException(ValueError, "len() requires array or string")
-  
-  # ============================================================================
-  # Audio System (Procedural Sound Generation)
-  # ============================================================================
-  # Note: These are convenience wrappers. For full control, users can import
-  # lib/audio.nim and lib/audio_gen.nim directly in their code blocks.
-  
-  # Helper to get AudioSystem from pointer
-  template getAudioSys(): untyped =
-    if appState.audioSystemPtr.isNil:
-      # Lazy initialization
-      appState.audioSystemPtr = cast[pointer](audioModule.initAudio(44100))
-    cast[audioModule.AudioSystem](appState.audioSystemPtr)
-  
-  env.vars["audioPlayTone"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayTone(frequency: float, duration: float, waveform: string, volume: float)
-    ## waveform: "sine", "square", "sawtooth", "triangle", "noise"
-    if args.len < 2:
-      raise newException(ValueError, "audioPlayTone() requires at least 2 arguments: frequency, duration")
-    
-    let frequency = case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 440.0
-    
-    let duration = case args[1].kind
-      of vkFloat: args[1].f
-      of vkInt: args[1].i.float
-      else: 0.2
-    
-    let waveform = if args.len > 2 and args[2].kind == vkString:
-      case args[2].s.toLowerAscii()
-      of "square": wfSquare
-      of "sawtooth", "saw": wfSawtooth
-      of "triangle": wfTriangle
-      of "noise": wfNoise
-      else: wfSine
-    else: wfSine
-    
-    let volume = if args.len > 3:
-      case args[3].kind
-      of vkFloat: args[3].f
-      of vkInt: args[3].i.float
-      else: 0.5
-    else: 0.5
-    
-    getAudioSys().playTone(frequency, duration, waveform, volume)
-    return valNil()
-  
-  env.vars["audioPlayBleep"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayBleep(frequency: float = 440.0, volume: float = 0.4)
-    let frequency = if args.len > 0:
-      case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 440.0
-    else: 440.0
-    
-    let volume = if args.len > 1:
-      case args[1].kind
-      of vkFloat: args[1].f
-      of vkInt: args[1].i.float
-      else: 0.4
-    else: 0.4
-    
-    getAudioSys().playBleep(frequency, volume)
-    return valNil()
-  
-  env.vars["audioPlayJump"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayJump(volume: float = 0.4) - Play jump sound effect
-    let volume = if args.len > 0:
-      case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 0.4
-    else: 0.4
-    
-    getAudioSys().playJump(volume)
-    return valNil()
-  
-  env.vars["audioPlayLanding"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayLanding(volume: float = 0.5) - Play landing sound effect
-    let volume = if args.len > 0:
-      case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 0.5
-    else: 0.5
-    
-    getAudioSys().playLanding(volume)
-    return valNil()
-  
-  env.vars["audioPlayHit"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayHit(volume: float = 0.4) - Play hit/damage sound effect
-    let volume = if args.len > 0:
-      case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 0.4
-    else: 0.4
-    
-    getAudioSys().playHit(volume)
-    return valNil()
-  
-  env.vars["audioPlayPowerUp"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayPowerUp(volume: float = 0.4) - Play power-up sound effect
-    let volume = if args.len > 0:
-      case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 0.4
-    else: 0.4
-    
-    getAudioSys().playPowerUp(volume)
-    return valNil()
-  
-  env.vars["audioPlayLaser"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## audioPlayLaser(volume: float = 0.35) - Play laser sound effect
-    let volume = if args.len > 0:
-      case args[0].kind
-      of vkFloat: args[0].f
-      of vkInt: args[0].i.float
-      else: 0.35
-    else: 0.35
-    
-    getAudioSys().playLaser(volume)
-    return valNil()
+# Note: registerTstorieApis is now defined in lib/nimini_bridge.nim
+# The bridge module handles all API registrations for nimini-interpreted code
 
 var globalRuntimeEnv*: ref Env = nil
 
@@ -1232,7 +773,7 @@ proc initGlobalRuntime*(state: AppState) =
   ## Initialize the global nimini runtime environment with tstorie APIs
   if globalRuntimeEnv == nil:
     globalRuntimeEnv = newEnv()
-    registerTstorieApis(globalRuntimeEnv, cast[pointer](state))
+    registerTstorieApis(globalRuntimeEnv, state)
 
 proc require*(moduleRef: string, state: AppState): ref Env =
   ## Load a Nim module at runtime from a gist or local file
@@ -1304,6 +845,35 @@ var gMarkdownFile*: string = "index.md"
 var gWaitingForGist*: bool = false
 var gShowingDimensionWarning*: bool = false  # Flag to skip layer compositing
 
+# ================================================================
+# HELPER FUNCTIONS FOR INDEX.NIM (used by both native and WASM)
+# ================================================================
+
+# Helper to convert Value to int (handles both int and float values)
+proc valueToInt(v: Value): int =
+  case v.kind
+  of vkInt: return v.i
+  of vkFloat: return int(v.f)
+  of vkString:
+    try:
+      return parseInt(v.s)
+    except:
+      return 0
+  of vkBool: return if v.b: 1 else: 0
+  else: return 0
+
+# Helper to convert Value to bool
+proc valueToBool(v: Value): bool =
+  case v.kind
+  of vkBool: return v.b
+  of vkInt: return v.i != 0
+  of vkFloat: return v.f != 0.0
+  else: return false
+
+# ================================================================
+# PLATFORM-SPECIFIC INCLUDES
+# ================================================================
+
 when not defined(emscripten):
   var onInit*: proc(state: AppState) = nil
   var onUpdate*: proc(state: AppState, dt: float) = nil
@@ -1311,20 +881,8 @@ when not defined(emscripten):
   var onShutdown*: proc(state: AppState) = nil
   var onInput*: proc(state: AppState, event: InputEvent): bool = nil
   
-  # Include user-specified file or default to index.nim at compile time
-  # To run a specific file, use: ./compile.sh <filename>
-  # Or compile with: nim c -d:userFile="filename" storie.nim
-  const userFile {.strdefine.} = "index"
-  
-  # Macro to dynamically include file based on compile-time string
-  macro includeUserFile(filename: static[string]): untyped =
-    let file = if filename.endsWith(".nim"): filename else: filename & ".nim"
-    if not fileExists(file):
-      error("File not found: " & file & ". Create the file or specify a different one with -d:userFile=<filename>")
-    result = newNimNode(nnkIncludeStmt)
-    result.add(newIdentNode(file.replace(".nim", "")))
-  
-  includeUserFile(userFile)
+  # Directly include index.nim
+  include "index"
   
   proc callOnSetup(state: AppState) =
     if not onInit.isNil:
@@ -1363,26 +921,15 @@ when defined(emscripten):
   var gEmSetUrlParamCalls: int = 0
   var gFlushWasmParamsCalls: int = 0
   
-  # For WASM builds, we need to include the user file logic
-  # Define callback variables (proc variables) like native builds
+  # For WASM builds, include index.nim directly
   var onInit*: proc(state: AppState) = nil
   var onUpdate*: proc(state: AppState, dt: float) = nil
   var onRender*: proc(state: AppState) = nil
   var onShutdown*: proc(state: AppState) = nil
   var onInput*: proc(state: AppState, event: InputEvent): bool = nil
   
-  # Include user-specified file or default to index.nim at compile time
-  const userFile {.strdefine.} = "index"
-  
-  # Macro to dynamically include file based on compile-time string
-  macro includeUserFile(filename: static[string]): untyped =
-    let file = if filename.endsWith(".nim"): filename else: filename & ".nim"
-    if not fileExists(file):
-      error("File not found: " & file & ". Create the file or specify a different one with -d:userFile=<filename>")
-    result = newNimNode(nnkIncludeStmt)
-    result.add(newIdentNode(file.replace(".nim", "")))
-  
-  includeUserFile(userFile)
+  # Directly include index.nim
+  include "index"
   
   # Define callback wrapper procs that call the user-defined callbacks
   proc userInit(state: AppState) =
@@ -1692,6 +1239,15 @@ when defined(emscripten):
       let idx = y * globalState.currentBuffer.width + x
       return if globalState.currentBuffer.cells[idx].style.underline: 1 else: 0
     return 0
+  
+  proc emGetCellWidth(x, y: int): int {.exportc.} =
+    if x >= 0 and x < globalState.currentBuffer.width and 
+       y >= 0 and y < globalState.currentBuffer.height:
+      let idx = y * globalState.currentBuffer.width + x
+      let ch = globalState.currentBuffer.cells[idx].ch
+      if ch.len > 0:
+        return getCharDisplayWidth(ch)
+    return 1
   
   proc emHandleKeyPress(keyCode: int, shift, alt, ctrl: int) {.exportc.} =
     var mods: set[uint8] = {}

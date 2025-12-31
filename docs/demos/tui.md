@@ -2,14 +2,17 @@
 title: "Scripted TUI Demo"
 minWidth: 60
 minHeight: 35
-theme: "catppuccin"
+# Theme-aware demo - works with any theme!
+# Try: futurism (default), catppuccin, nord, dracula, miami-vice, outrun, etc.
+theme: "futurism"
+# Custom highlight style inherits background from theme
 styles.highlight.fg: "#FFFF00"
-styles.highlight.dim: "false"
+styles.highlight.bold: "true"
 ---
 
 # Comprehensive TUI System
 
-A full-featured UI widget system built with scripting of core drawing functions. Demonstrating textboxes, buttons, sliders, and checkboxes with focus management and keyboard/mouse navigation.
+A full-featured UI widget system built with scripting of core drawing functions. This demo automatically adapts to the active theme, using standard style names that are defined for all themes: `border`, `info`, `default`, `button`, and `warning`.
 
 ```nim on:init
 # ===================================================================

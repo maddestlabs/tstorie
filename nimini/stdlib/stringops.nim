@@ -148,6 +148,22 @@ proc niminiFindStr*(env: ref Env; args: seq[Value]): Value =
   
   return valInt(strutils.find(args[0].s, args[1].s))
 
+# Split string into lines
+proc niminiSplitLines*(env: ref Env; args: seq[Value]): Value =
+  ## splitLines(s: string) - Split string by actual newline characters into array
+  if args.len < 1:
+    quit "splitLines requires 1 argument"
+  
+  if args[0].kind != vkString:
+    quit "splitLines requires a string argument"
+  
+  let parts = strutils.split(args[0].s, '\n')
+  var arr: seq[Value] = @[]
+  for part in parts:
+    arr.add(valString(part))
+  
+  return Value(kind: vkArray, arr: arr)
+
 # Repeat string n times
 proc niminiRepeat*(env: ref Env; args: seq[Value]): Value =
   ## repeat(s: string, n: int) - Repeat string n times
