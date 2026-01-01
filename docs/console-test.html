@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Console Log Test</title>
+</head>
+<body>
+    <h1>Console Log Test</h1>
+    <p>Open browser console and check for messages</p>
+    <button id="testBtn">Test emConsoleLog</button>
+    
+    <script>
+        console.log("Page loaded");
+        
+        var Module = {
+            onRuntimeInitialized: function() {
+                console.log("WASM Runtime initialized!");
+                
+                // Test if we can call the function
+                try {
+                    var testStr = "Hello from direct call!";
+                    var ptr = Module.allocateUTF8(testStr);
+                    Module._emConsoleLog(ptr);
+                    Module._free(ptr);
+                    console.log("Direct call succeeded");
+                } catch (e) {
+                    console.error("Direct call failed:", e);
+                }
+            }
+        };
+        
+        document.getElementById('testBtn').addEventListener('click', function() {
+            try {
+                console.log("Button clicked");
+                if (Module._emConsoleLog) {
+                    var testStr = "Test from button click!";
+                    var ptr = Module.allocateUTF8(testStr);
+                    Module._emConsoleLog(ptr);
+                    Module._free(ptr);
+                } else {
+                    console.error("_emConsoleLog not available");
+                }
+            } catch (e) {
+                console.error("Error:", e);
+            }
+        });
+    </script>
+    <script src="tstorie.wasm.js"></script>
+</body>
+</html>

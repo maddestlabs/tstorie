@@ -8,6 +8,7 @@ Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
 - [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=invert&font=Cutive+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [bloxes.md](https://maddestlabs.github.io/tstorie/?content=demo:bloxes&fontsize=24&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/bloxes.md)
 - [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
 

@@ -48,6 +48,10 @@ proc nimini_str(env: ref Env; args: seq[Value]): Value =
   return valString("")
 
 # Print function
+when defined(emscripten):
+  # JavaScript console log helper (defined in console_bridge.js)
+  proc emConsoleLog(msg: cstring) {.importc: "emConsoleLog".}
+
 proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
   var output = ""
   for i, arg in args:
@@ -59,7 +63,13 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
     of vkBool: output.add($arg.b)
     of vkNil: output.add("nil")
     else: output.add("<value>")
-  echo output
+  
+  when defined(emscripten):
+    # In WASM, also log to browser console
+    emConsoleLog(output.cstring)
+  else:
+    echo output
+  
   return valNil()
 
 # Style conversion functions
@@ -603,6 +613,39 @@ proc encodeInputEvent(event: InputEvent): Value =
       of Press: "press"
       of Release: "release"
       of Repeat: "repeat")
+    
+    # Add content-relative coordinates if canvas is initialized
+    if not canvasState.isNil:
+      let bounds = canvasState.currentContentBounds
+      let relX = event.mouseX - bounds.x
+      let relY = event.mouseY - bounds.y
+      
+      # Only set contentX/contentY if within content bounds
+      # Use -1 to indicate "outside content area" (easier to check in nimini than nil)
+      if relX >= 0 and relY >= 0 and relX < bounds.width and relY < bounds.height:
+        table["contentX"] = valInt(relX)
+        table["contentY"] = valInt(relY)
+      else:
+        table["contentX"] = valInt(-1)
+        table["contentY"] = valInt(-1)
+      
+      # Add buffer-relative coordinates (for games and dynamic content)
+      let bufferBounds = canvasState.currentContentBufferBounds
+      let bufferX = event.mouseX - bufferBounds.x
+      let bufferY = event.mouseY - bufferBounds.y
+      
+      # Only set bufferX/bufferY if within buffer bounds
+      if bufferX >= 0 and bufferY >= 0 and bufferX < bufferBounds.width and bufferY < bufferBounds.height:
+        table["bufferX"] = valInt(bufferX)
+        table["bufferY"] = valInt(bufferY)
+      else:
+        table["bufferX"] = valInt(-1)
+        table["bufferY"] = valInt(-1)
+    else:
+      table["contentX"] = valInt(-1)
+      table["contentY"] = valInt(-1)
+      table["bufferX"] = valInt(-1)
+      table["bufferY"] = valInt(-1)
     
     # Encode modifiers
     var mods: seq[string] = @[]

@@ -10,6 +10,7 @@ print "Testing background colors with theme"
 ```
 
 ```nim on:render
+print "TSTORIE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 # First clear to theme background
 clear()
 

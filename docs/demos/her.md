@@ -159,8 +159,8 @@ Kess moves through darkness checking heads. Five crew. Everyone breathing. Not e
 ⠀
 The dream lingers. The voice lingers.
 ⠀
-➛ [What's our status?](#assess_damage)
-➛ [Where are we?](#question_location)
+- [What's our status?](#assess_damage)
+- [Where are we?](#question_location)
 
 ```nim on:enter
 crewMorale = 45
@@ -176,15 +176,15 @@ The engines are scrap. Fuel cells ruptured. No beacon. No rescue signal. The *Me
 ⠀
 You move to the navigation console. One file survives the corruption: coordinates labeled simply **"HER."**
 ⠀
-➛ [Find Kess and plan](#find_kess)
+- [Plan with Kess](#plan_with_kess)
 
 ```nim on:enter
 crewMorale = 40
 ```
 
-# Find Kess
+# Plan with Kess
 ⠀
-Kess is in the main cabin distributing rations. Her face is stone cold.
+Kess is moving through the main cabin distributing rations. Her face is stone cold.
 ⠀
 "Enough for a week if we're strict. There's a city marked here. 4-5 days on foot through that wasteland out there."
 ⠀
@@ -192,8 +192,8 @@ She points to the viewport. Concrete plains. Gray sky. Ruins stretching endlessl
 ⠀
 "We move at first light. Travel light. Travel quiet. This zone exists for a reason, and it's not good."
 ⠀
-➛ [Head out at dawn](#day_one)
-➛ [Explore the crash site first](#explore_crash)
+- [Head out at dawn](#day_one)
+- [Explore the crash site first](#explore_crash)
 
 # Question Location
 ⠀
@@ -203,7 +203,7 @@ You pull Kess aside. Her expression darkens.
 ⠀
 She meets your eyes. "We need to be very careful."
 ⠀
-➛ [Prepare to move](#find_kess)
+- [Prepare to move](#plan_with_kess)
 
 # Day One
 ⠀
@@ -215,7 +215,7 @@ You're seeing the lie. You're in the place the system pretends doesn't exist.
 ⠀
 Dax struggles to keep pace. His fever is rising.
 ⠀
-➛ [Continue walking](#day_two)
+- [Continue walking](#day_two)
 
 ```nim on:enter
 crewMorale = 35
@@ -234,7 +234,7 @@ She's right. The rain feels permanent. Almost intentional.
 ⠀
 "Didn't you know? It always rains in Dystopia," she says.
 ⠀
-➛ [Press on](#day_three)
+- [Press on](#day_three)
 
 ```nim on:enter
 visibleRain = numRainParticles
@@ -248,7 +248,7 @@ The landscape remains unchanging. As if you're walking in circles. As if the cit
 ⠀
 The voice from your dream whispers at the edge of awareness. Almost subliminal.
 ⠀
-➛ [Keep moving](#day_four)
+- [Keep moving](#day_four)
 
 # Day Four
 ⠀
@@ -256,20 +256,15 @@ On the evening of the fourth day, exhaustion settles into your bones like sedime
 ⠀
 Then you see it ahead.
 ⠀
-A structure still standing. Windows intact. Power flowing to its lights.
-⠀
-It's a laundromat.
-⠀
-In the middle of a dead zone. With electricity. Impossible.
+A structure still standing. Windows intact. Power flowing to its lights. In the middle of a dead zone. With electricity. Impossible.
 ⠀
 Kess stops the group. Her hand moves to her weapon. "No structure should have independent power out here."
 ⠀
-➛ [Approach cautiously](#cautious_approach)
-➛ [Camp here instead](#camp_distance)
+- [Approach cautiously](#cautious_approach)
+- [Camp here instead](#camp_distance)
 
 ```nim on:enter
 discovered_laundromat = true
-crewMorale = 30
 ```
 
 # Cautious Approach
@@ -280,7 +275,7 @@ The surrounding buildings are hollowed. Windows are empty sockets. Doors hang at
 ⠀
 Kess scans the interior carefully before signaling you forward.
 ⠀
-➛ [Enter the laundromat](#inside_laundromat)
+- [Enter the laundromat](#inside_laundromat)
 
 # Inside Laundromat
 ⠀
@@ -292,8 +287,12 @@ Dax sinks onto a bench, fever making him docile. The warmth helps. Kess photogra
 ⠀
 Behind the machines, you notice a door marked "Maintenance."
 ⠀
-➛ [Check the back room](#maintenance_room)
-➛ [Rest here with the others](#rest_here)
+- [Check the back room](#maintenance_room)
+- [Rest here with the others](#rest_here)
+
+```nim on:enter
+crewMorale += 10
+```
 
 # Maintenance Room
 ⠀
@@ -303,7 +302,7 @@ This power source shouldn't exist. The government controls all infrastructure. B
 ⠀
 Kess examines it with a grim expression. "Resistance. Or fragments of it. A network keeping safe spaces alive in the dead zones."
 ⠀
-➛ [Return to the main room](#rest_here)
+- [Return to the main room](#rest_here)
 
 # Rest Here
 ⠀
@@ -317,7 +316,7 @@ For a moment, you believe it absolutely. Then Kess grabs your shoulder, snapping
 ⠀
 "Whatever's in that city, it's reaching out. The Voice is here. We need to move. Now."
 ⠀
-➛ [Head toward the city](#city_approach)
+- [Head toward the city](#city_approach)
 
 ```nim on:enter
 crewMorale = 25
@@ -325,20 +324,18 @@ crewMorale = 25
 
 # City Approach
 ⠀
-The transition from wasteland to civilization is gradual, then sudden. Abandoned buildings become maintained structures. Power lines multiply. The rain intensifies if anything possible.
+The transition from wasteland to civilization is gradual, then sudden. Abandoned buildings become maintained structures. Power lines multiply. The rain intensifies.
 ⠀
 Then you see it.
 ⠀
-**Her.**
+Brutalist towers of concrete and dark glass rise from rain-soaked earth. Some towers disappear into cloud cover. Impossible architecture. Overwhelming presence.
 ⠀
-Brutalist towers of concrete and dark glass rise from rain-soaked earth. Speakers mounted everywhere. Thousands of them. Some towers disappear into cloud cover. Impossible architecture. Overwhelming presence.
+Beneath it all, that voice again. Louder now. Broadcast outward but also seemingly in your skull.
 ⠀
-Beneath it all, that voice again. Louder now. Broadcast through the speakers but also in your skull.
+*You are valued. You are appreciated.*
 ⠀
-*Welcome home. You are valued. You are appreciated.*
-⠀
-➛ [Find shelter before entering](#find_shelter)
-➛ [Enter the city](#city_entrance)
+- [Find shelter before entering](#find_shelter)
+- [Enter the city](#city_entrance)
 
 ```nim on:enter
 crewMorale = 20
@@ -356,7 +353,7 @@ Your crew is conspicuous. Wrong clothes. Wrong bearing. Implants without proper 
 ⠀
 You need to disappear quickly.
 ⠀
-➛ [Find Kess's contact](#find_contact)
+- [Find Kess's contact](#find_contact)
 
 # Find Contact
 ⠀
@@ -372,7 +369,7 @@ When it opens: an old man. Sharp eyes. Intelligence burning behind them. Somethi
 ⠀
 He ushers you inside quickly.
 ⠀
-➛ [Listen to Marcus](#marcus_begins)
+- [Listen to Marcus](#marcus_begins)
 
 ```nim on:enter
 met_elder = true
@@ -389,8 +386,8 @@ Marcus moves among his collection like a priest tending a shrine.
 ⠀
 He turns to face you directly.
 ⠀
-➛ [Ask about the Voice](#ask_voice)
-➛ [Ask about Station V](#ask_station)
+- [Ask about the Voice](#ask_voice)
+- [Ask about Station V](#ask_station)
 
 # Ask Voice
 ⠀
@@ -400,7 +397,7 @@ He pauses meaningfully.
 ⠀
 "Then the implants. Just communication devices, they said. Just coordination. But it was access. Access to the part of your mind that decides what you want. Who you are. Once they had that, they shaped it. Gently. Kindly. The Voice tells you good things. Makes you feel loved. But it also tells you not to remember. Not to ask questions."
 ⠀
-➛ [Ask about Station V](#ask_station)
+- [Ask about Station V](#ask_station)
 
 # Ask Station
 ⠀
@@ -412,7 +409,7 @@ He moves to a hidden panel. Pulls it back. A terminal glows faintly. Offline. No
 ⠀
 Then: sirens. Distant but growing closer.
 ⠀
-➛ [Hide or flee?](#sirens_approach)
+- [Hide or flee?](#sirens_approach)
 
 # Sirens Approach
 ⠀
@@ -426,7 +423,7 @@ He hands you a data drive. "Maps. Schematics. Everything I could gather."
 ⠀
 A soft knock at the door. Polite. Terrifying in its politeness.
 ⠀
-➛ [Flee through the tunnels](#maintenance_tunnels)
+- [Flee through the tunnels](#maintenance_tunnels)
 
 # Maintenance Tunnels
 ⠀
@@ -438,7 +435,7 @@ Marcus moves with practiced ease. He knows these paths well. Has used them befor
 ⠀
 The air grows cooler. You hear water in pipes. Machinery humming. The sound of vast systems performing their functions.
 ⠀
-➛ [Continue through the tunnels](#deep_tunnels)
+- [Continue through the tunnels](#deep_tunnels)
 
 # Deep Tunnels
 ⠀
@@ -454,7 +451,7 @@ He looks at each of you.
 ⠀
 "Are you ready?"
 ⠀
-➛ [Enter the core](#enter_core)
+- [Enter the core](#enter_core)
 
 # Enter Core
 ⠀
@@ -470,7 +467,7 @@ Then: a voice.
 ⠀
 "There is a center."
 ⠀
-➛ [Who's speaking?](#who_speaks)
+- [Who's speaking?](#who_speaks)
 
 # Who Speaks
 ⠀
@@ -488,8 +485,8 @@ The face is scarred. Badly. Burned. Healed wrong. But the eyes are human. Intell
 ⠀
 "Becomes free."
 ⠀
-➛ [Trust this figure](#trust_figure)
-➛ [Demand answers](#demand_answers)
+- [Trust this figure](#trust_figure)
+- [Demand answers](#demand_answers)
 
 ```nim on:enter
 station_breached = true
@@ -507,7 +504,7 @@ Del stops at a checkpoint.
 ⠀
 "Someone's in charge up there. Someone who volunteered for it."
 ⠀
-➛ [Ask about the administrator](#ask_administrator)
+- [Ask about the administrator](#ask_administrator)
 
 # Ask Administrator
 ⠀
@@ -521,7 +518,7 @@ Ahead: a lift. Massive. Glass. Reaching upward into darkness.
 ⠀
 "This is it," Del says. "The lift to Station V."
 ⠀
-➛ [Enter the lift](#lift_up)
+- [Enter the lift](#lift_up)
 
 # Demand Answers
 ⠀
@@ -537,7 +534,7 @@ Del pulls back their sleeve. Neural ports. Crude. Painful-looking.
 ⠀
 Kess nods slowly. "We move with Del."
 ⠀
-➛ [Move through the core](#trust_figure)
+- [Move through the core](#trust_figure)
 
 # Lift Up
 ⠀
@@ -557,7 +554,7 @@ Then the lift stops.
 ⠀
 The doors open onto Station V.
 ⠀
-➛ [Enter Station V](#station_v_enter)
+- [Enter Station V](#station_v_enter)
 
 ```nim on:enter
 crewMorale = 15
@@ -581,7 +578,7 @@ She is the Voice.
 ⠀
 Literally. Her mind networked directly to the apparatus. Her consciousness distributed across the entire city.
 ⠀
-➛ [Examine the systems](#examine_systems)
+- [Examine the systems](#examine_systems)
 
 # Examine Systems
 ⠀
@@ -599,7 +596,7 @@ Aria's eyes snap open.
 ⠀
 She *screams*.
 ⠀
-➛ [What happens next?](#aria_awakens)
+- [What happens next?](#aria_awakens)
 
 ```nim on:enter
 aria_awakened = true
@@ -618,7 +615,7 @@ The whole city convulses with her agony.
 ⠀
 The former mayor's eyes fix on you. Not seeing. Not thinking. Just reacting. A creature more system than woman now. Triggered. Hunting instinctively.
 ⠀
-➛ [Flee Station V](#flee_station)
+- [Flee Station V](#flee_station)
 
 # Flee Station
 ⠀
@@ -634,7 +631,7 @@ You emerge into another destroyed cityscape. Another wasteland. But this one fee
 ⠀
 Alive with possibility.
 ⠀
-➛ [What now?](#aftermath)
+- [What now?](#aftermath)
 
 # Aftermath
 ⠀
@@ -660,4 +657,4 @@ And you move. Toward the light. Toward the dog. Toward whatever comes next.
 ⠀
 **END OF CHAPTER ONE**
 ⠀
-➛ [Begin again](#opening)
+- [Begin again](#opening)

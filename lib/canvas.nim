@@ -81,11 +81,18 @@ type
     width*: int
     index*: int
   
+  ContentBounds* = object
+    ## Content area bounds for coordinate conversion
+    x*, y*: int        # Top-left position of content area in terminal grid
+    width*, height*: int  # Size of content area
+  
   SectionLayout* = object
     section*: Section
     x*, y*: int
     width*, height*: int
     index*: int
+    actualVisualWidth*: int  # Actual visual width of rendered content (accounting for double-width chars)
+    actualVisualHeight*: int  # Actual height of rendered content in lines
   
   # Callback type for executing code blocks (lifecycle hooks)
   ExecuteCodeBlockCallback* = proc(codeBlock: CodeBlock, lifecycle: string): bool
@@ -106,6 +113,8 @@ type
     executeCallback*: ExecuteCodeBlockCallback  # Callback to execute lifecycle hooks
     contentBuffers*: Table[string, seq[string]]  # Per-section buffers for dynamically generated content
     frontMatter*: FrontMatter  # Document front matter for global settings like hideHeadings
+    currentContentBounds*: ContentBounds  # Current section's content rendering bounds (for mouse coords)
+    currentContentBufferBounds*: ContentBounds  # Content buffer area bounds (for games/dynamic content)
 
 # Global canvas state
 var canvasState*: CanvasState
@@ -248,6 +257,8 @@ proc navigateToSection*(sectionIdx: int) =
     executeLifecycleHooks(newSection, "enter")
   
   # Center camera on new section with smooth easing (if viewport is initialized)
+  # This is called AFTER on:enter hooks so content buffers are populated
+  # For first visit, render will adjust if actual dimensions differ significantly
   if gViewportWidth > 0 and gViewportHeight > 0:
     centerOnSection(sectionIdx, gViewportWidth, gViewportHeight)
 
@@ -347,12 +358,25 @@ proc centerOnSection*(sectionIdx: int, viewportWidth, viewportHeight: int) =
   
   let section = canvasState.sections[sectionIdx]
   
-  # Center horizontally on section's center
-  canvasState.camera.targetX = float(section.x + section.width div 2 - viewportWidth div 2)
+  # Use actual rendered dimensions if available (for accurate centering),
+  # otherwise fall back to allocated section dimensions
+  let effectiveWidth = if section.actualVisualWidth > 0: 
+                         section.actualVisualWidth 
+                       else: 
+                         section.width
   
-  # Center vertically on the section's center
-  let sectionCenter = section.y + section.height div 2
-  canvasState.camera.targetY = float(sectionCenter - viewportHeight div 2)
+  let effectiveHeight = if section.actualVisualHeight > 0:
+                          section.actualVisualHeight
+                        else:
+                          section.height
+  
+  # Center horizontally on actual content center (content is left-aligned at section.x)
+  let contentCenterX = float(section.x) + float(effectiveWidth) / 2.0
+  canvasState.camera.targetX = contentCenterX - float(viewportWidth) / 2.0
+  
+  # Center vertically on actual content center (content starts at section.y)
+  let contentCenterY = float(section.y) + float(effectiveHeight) / 2.0
+  canvasState.camera.targetY = contentCenterY - float(viewportHeight) / 2.0
 
 # ================================================================
 # LAYOUT CALCULATION
@@ -907,6 +931,7 @@ proc getSectionRawContent(section: Section): string =
   ## Respects front matter "hideHeadings" setting and section-level "showHeading" metadata
   ## Logic: hideHeadings sets default, showHeading overrides per section
   var lines: seq[string] = @[]
+  var contentBufferInserted = false  # Track if we've already inserted the buffer marker
   
   # Determine if headings should be shown by default (from front matter)
   let hideHeadingsDefault = if not canvasState.isNil and canvasState.frontMatter.hasKey("hideHeadings"):
@@ -931,11 +956,14 @@ proc getSectionRawContent(section: Section): string =
       if showHeading:
         lines.add("#".repeat(blk.level) & " " & blk.title)
     of CodeBlock_Content:
-      # Insert marker for code blocks that generate content (on:render or on:enter)
-      # OR for data blocks (lvl, json, etc.) that can be replaced by contentWrite()
-      if blk.codeBlock.lifecycle in ["render", "enter"] or 
-         (blk.codeBlock.lifecycle == "" and blk.codeBlock.language != ""):
+      # Insert marker for code blocks that generate or receive content:
+      # - on:render/on:enter blocks actively generate content via contentWrite()
+      # - Data blocks (lvl, json, etc.) mark where global on:render can place content
+      # Only insert ONE marker per section since content buffer is per-section
+      if not contentBufferInserted and (blk.codeBlock.lifecycle in ["render", "enter"] or 
+         (blk.codeBlock.lifecycle == "" and blk.codeBlock.language != "")):
         lines.add("{{CONTENT_BUFFER}}")
+        contentBufferInserted = true
       # Skip other code blocks in content rendering
   
   return lines.join("\n")
@@ -969,10 +997,12 @@ proc hasLinksOutsideBackticks(text: string): bool =
 
 proc renderSection(layout: SectionLayout, screenX, screenY: int,
                   buffer: var TermBuffer, isCurrent: bool,
-                  styleSheet: StyleSheet = initTable[string, StyleConfig]()): seq[Link] =
+                  styleSheet: StyleSheet = initTable[string, StyleConfig]()): tuple[links: seq[Link], visualWidth: int, visualHeight: int] =
   ## Render a single section to the buffer
-  ## Returns list of links found in the section
-  result = @[]
+  ## Returns links found in the section, maximum visual width, and total height of rendered content
+  result.links = @[]
+  result.visualWidth = 0
+  result.visualHeight = 0
   
   # Skip removed sections
   if isRemoved(layout.section.title):
@@ -993,6 +1023,10 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                            toStyle(styleSheet["placeholder"])
                          else:
                            Style(fg: ansiToColor(30), bg: black(), bold: true, underline: false, italic: false, dim: false)
+  
+  # Track actual rendered dimensions for proper centering
+  var maxVisualWidth = 0
+  let startContentY = screenY
   
   # If hidden and not current, show placeholder
   if isHidden(layout.section.title) and not isCurrent:
@@ -1020,12 +1054,22 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     if line.strip() == "{{CONTENT_BUFFER}}":
       # Render content buffer if this section has content
       if not canvasState.isNil and canvasState.contentBuffers.hasKey(layout.section.title):
+        let bufferStartY = contentY  # Track where buffer rendering begins
         let sectionBuffer = canvasState.contentBuffers[layout.section.title]
+        
+        # Store buffer bounds for current section (if this is the current section, will be updated below)
+        if isCurrent:
+          canvasState.currentContentBufferBounds = ContentBounds(
+            x: contentX,
+            y: bufferStartY,
+            width: maxContentWidth,
+            height: 0  # Will be calculated as we render
+          )
+        
         for bufferLine in sectionBuffer:
           if contentY >= screenY + layout.height:
             break
           
-          # Process each buffer line the same way as regular content
           if bufferLine.startsWith("#"):
             # Heading
             let formatted = formatHeading(bufferLine)
@@ -1033,13 +1077,25 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                                 truncateToVisualWidth(formatted, maxContentWidth) 
                               else: 
                                 formatted
+            # Track visual width of rendered heading
+            let renderedWidth = getVisualWidth(displayText)
+            if renderedWidth > maxVisualWidth:
+              maxVisualWidth = renderedWidth
             buffer.writeText(contentX, contentY, displayText, headingStyle)
           elif hasLinksOutsideBackticks(bufferLine):
             # Line with links
             let links = renderTextWithLinks(bufferLine, contentX, contentY, maxContentWidth,
                                            buffer, isCurrent, currentLinkIdx, styleSheet, bodyStyle)
-            result.add(links)
+            result.links.add(links)
             currentLinkIdx += links.len
+            # Track width - estimate based on longest link text
+            var maxLinkTextWidth = 0
+            for link in links:
+              let linkTextWidth = getVisualWidth(link.text)
+              if linkTextWidth > maxLinkTextWidth:
+                maxLinkTextWidth = linkTextWidth
+            if maxLinkTextWidth > maxVisualWidth:
+              maxVisualWidth = maxLinkTextWidth
           elif "**" in bufferLine or "*" in bufferLine:
             # Line with markdown formatting
             let wrapped = wrapText(bufferLine, maxContentWidth)
@@ -1048,6 +1104,11 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                 break
               discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
                                           buffer, bodyStyle)
+              # Track width without markdown markers
+              let textWithoutMarkdown = wLine.replace("**", "").replace("*", "")
+              let lineWidth = getVisualWidth(textWithoutMarkdown)
+              if lineWidth > maxVisualWidth:
+                maxVisualWidth = lineWidth
               contentY += 1
             contentY -= 1
           else:
@@ -1057,10 +1118,19 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
               if contentY >= screenY + layout.height:
                 break
               buffer.writeText(contentX, contentY, wLine, bodyStyle)
+              # Track visual width of wrapped line
+              let lineWidth = getVisualWidth(wLine)
+              if lineWidth > maxVisualWidth:
+                maxVisualWidth = lineWidth
               contentY += 1
             contentY -= 1
           
           contentY += 1
+        
+        # Update buffer height now that we've finished rendering it
+        if isCurrent:
+          canvasState.currentContentBufferBounds.height = contentY - bufferStartY
+      
       # Continue to next line (don't render the marker itself)
       continue
     
@@ -1072,13 +1142,25 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                           truncateToVisualWidth(formatted, maxContentWidth) 
                         else: 
                           formatted
+      # Track visual width of actual rendered text
+      let renderedWidth = getVisualWidth(displayText)
+      if renderedWidth > maxVisualWidth:
+        maxVisualWidth = renderedWidth
       buffer.writeText(contentX, contentY, displayText, headingStyle)
     elif hasLinksOutsideBackticks(line):
       # Line with links (but not inside backticks)
       let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
                                      buffer, isCurrent, currentLinkIdx, styleSheet, bodyStyle)
-      result.add(links)
+      result.links.add(links)
       currentLinkIdx += links.len  # Update index for next line with links
+      # Track width based on link text content
+      var maxLinkTextWidth = 0
+      for link in links:
+        let linkTextWidth = getVisualWidth(link.text)
+        if linkTextWidth > maxLinkTextWidth:
+          maxLinkTextWidth = linkTextWidth
+      if maxLinkTextWidth > maxVisualWidth:
+        maxVisualWidth = maxLinkTextWidth
     elif "**" in line or "*" in line:
       # Line with markdown formatting - wrap it first
       let wrapped = wrapText(line, maxContentWidth)
@@ -1087,6 +1169,11 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
           break
         discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
                                     buffer, bodyStyle)
+        # Track width of rendered text (without markdown markers)
+        let textWithoutMarkdown = wLine.replace("**", "").replace("*", "")
+        let lineWidth = getVisualWidth(textWithoutMarkdown)
+        if lineWidth > maxVisualWidth:
+          maxVisualWidth = lineWidth
         contentY += 1
       contentY -= 1  # Adjust for the increment below
     else:
@@ -1096,10 +1183,18 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
         if contentY >= screenY + layout.height:
           break
         buffer.writeText(contentX, contentY, wLine, bodyStyle)
+        # Track visual width of wrapped line
+        let lineWidth = getVisualWidth(wLine)
+        if lineWidth > maxVisualWidth:
+          maxVisualWidth = lineWidth
         contentY += 1
       contentY -= 1  # Adjust for the increment below
     
     contentY += 1
+  
+  # Update result with actual rendered dimensions
+  result.visualWidth = maxVisualWidth
+  result.visualHeight = contentY - startContentY
 
 proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
                   styleSheet: StyleSheet = initTable[string, StyleConfig]()) =
@@ -1127,7 +1222,9 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
                         canvasState.lastViewportHeight != vh)
   
   # Center camera on current section on first render or viewport resize
-  if (canvasState.camera.targetX == 0.0 and canvasState.camera.targetY == 0.0) or viewportChanged:
+  # This happens BEFORE rendering so we use estimated dimensions
+  let needsRecenter = (canvasState.camera.targetX == 0.0 and canvasState.camera.targetY == 0.0) or viewportChanged
+  if needsRecenter:
     centerOnSection(getCurrentSectionIdx(), vw, vh)
     # Snap camera immediately on first render (no animation for initial position)
     if canvasState.lastViewportWidth == 0:
@@ -1146,12 +1243,16 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
   # Clear links for current frame
   canvasState.links = @[]
   
-  # Get camera position
-  let cameraX = int(canvasState.camera.x)
-  let cameraY = int(canvasState.camera.y)
+  # Get camera position - use rounding for precise centering
+  let cameraX = int(canvasState.camera.x + 0.5)
+  let cameraY = int(canvasState.camera.y + 0.5)
   
   var renderedCount = 0
   var removedCount = 0
+  # Track if we need to recenter after rendering (for first visit with dynamic content)
+  let currentSectionIdx = getCurrentSectionIdx()
+  var shouldRecenterAfterRender = false
+  
   # Render all visible sections
   for i, layout in canvasState.sections:
     if isRemoved(layout.section.title):
@@ -1170,10 +1271,23 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
     
     renderedCount += 1
     let isCurrent = (layout.index == getCurrentSectionIdx())
-    let links = renderSection(layout, screenX, screenY, buffer, isCurrent, styleSheet)
+    let (links, visualWidth, visualHeight) = renderSection(layout, screenX, screenY, buffer, isCurrent, styleSheet)
+    
+    # Update the actual dimensions in the section layout
+    let previousWidth = canvasState.sections[i].actualVisualWidth
+    let previousHeight = canvasState.sections[i].actualVisualHeight
+    canvasState.sections[i].actualVisualWidth = visualWidth
+    canvasState.sections[i].actualVisualHeight = visualHeight
     
     if isCurrent:
       canvasState.links = links
+      # Store content bounds for mouse coordinate conversion
+      canvasState.currentContentBounds = ContentBounds(
+        x: screenX,
+        y: screenY,
+        width: layout.width,
+        height: visualHeight  # Use actual rendered height
+      )
 
 proc canvasUpdate*(deltaTime: float) =
   ## Update canvas animations
@@ -1445,6 +1559,94 @@ proc canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let isDown = if args[3].kind == vkBool: args[3].b else: (canvasValueToInt(args[3]) != 0)
   return valBool(canvasHandleMouse(x, y, button, isDown))
 
+proc getContentBounds*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current section's content rendering bounds for mouse coordinate conversion
+  ## Returns table: { x: int, y: int, width: int, height: int }
+  ## Returns nil if canvas is not initialized
+  if canvasState.isNil:
+    return valNil()
+  
+  result = valMap()
+  result.map["x"] = valInt(canvasState.currentContentBounds.x)
+  result.map["y"] = valInt(canvasState.currentContentBounds.y)
+  result.map["width"] = valInt(canvasState.currentContentBounds.width)
+  result.map["height"] = valInt(canvasState.currentContentBounds.height)
+
+proc screenToContent*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Convert screen coordinates to content-relative coordinates
+  ## Args: screenX (int), screenY (int)
+  ## Returns table: { x: int, y: int } or nil if outside content area or canvas not initialized
+  if args.len < 2 or canvasState.isNil:
+    return valNil()
+  
+  let screenX = canvasValueToInt(args[0])
+  let screenY = canvasValueToInt(args[1])
+  let bounds = canvasState.currentContentBounds
+  
+  let contentX = screenX - bounds.x
+  let contentY = screenY - bounds.y
+  
+  # Check if within content area
+  if contentX < 0 or contentY < 0 or 
+     contentX >= bounds.width or contentY >= bounds.height:
+    return valNil()
+  
+  result = valMap()
+  result.map["x"] = valInt(contentX)
+  result.map["y"] = valInt(contentY)
+
+proc eventToGrid*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Convert mouse event to grid coordinates (for games)
+  ## Args: event (table), cellWidth (int), cellHeight (int, optional, default=1)
+  ## Returns table: { x: int, y: int, valid: bool }
+  ## Uses bufferX/bufferY from event if available, otherwise returns invalid
+  if args.len < 2:
+    # Return invalid result
+    result = valMap()
+    result.map["x"] = valInt(-1)
+    result.map["y"] = valInt(-1)
+    result.map["valid"] = valBool(false)
+    return result
+  
+  # Get event table
+  let eventVal = args[0]
+  if eventVal.kind != vkMap:
+    result = valMap()
+    result.map["x"] = valInt(-1)
+    result.map["y"] = valInt(-1)
+    result.map["valid"] = valBool(false)
+    return result
+  
+  # Get cell dimensions
+  let cellWidth = canvasValueToInt(args[1])
+  let cellHeight = if args.len >= 3: canvasValueToInt(args[2]) else: 1
+  
+  # Extract bufferX and bufferY from event
+  var bufferX = -1
+  var bufferY = -1
+  
+  if eventVal.map.hasKey("bufferX"):
+    bufferX = canvasValueToInt(eventVal.map["bufferX"])
+  if eventVal.map.hasKey("bufferY"):
+    bufferY = canvasValueToInt(eventVal.map["bufferY"])
+  
+  # Check if coordinates are valid
+  if bufferX < 0 or bufferY < 0:
+    result = valMap()
+    result.map["x"] = valInt(-1)
+    result.map["y"] = valInt(-1)
+    result.map["valid"] = valBool(false)
+    return result
+  
+  # Convert to grid coordinates
+  let gridX = bufferX div cellWidth
+  let gridY = bufferY div cellHeight
+  
+  result = valMap()
+  result.map["x"] = valInt(gridX)
+  result.map["y"] = valInt(gridY)
+  result.map["valid"] = valBool(true)
+
 proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState, 
                             styleSheet: ptr StyleSheet) =
   ## Register canvas bindings with the nimini runtime
@@ -1457,7 +1659,8 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
   exportNiminiProcs(
     nimini_hideSection, nimini_removeSection, nimini_restoreSection,
     nimini_isVisited, nimini_markVisited, canvasRender, 
-    canvasUpdate, canvasHandleKey, canvasHandleMouse
+    canvasUpdate, canvasHandleKey, canvasHandleMouse,
+    getContentBounds, screenToContent, eventToGrid
   )
   
   # Register content buffer functions with simple names

@@ -171,6 +171,7 @@ NIM_OPTS="c
   --passL:-s --passL:STACK_OVERFLOW_CHECK=0
   --passL:-Os
   --passL:-flto
+  --passL:--js-library --passL:web/console_bridge.js
   --passL:--js-library --passL:web/audio_bridge.js
   --passL:--js-library --passL:web/audio_nodes_bridge.js
   --passL:--js-library --passL:web/figlet_bridge.js
