@@ -286,8 +286,16 @@ proc display*(tb: var TermBuffer, prev: var TermBuffer, colorSupport: int) =
           else:
             runLength += 1
         
-        if not haveCursor or lastCursorY != y or lastCursorXEnd != x:
-          output.add("\e[" & $(y + 1) & ";" & $(x + 1) & "H")
+        # Calculate visual column position accounting for double-width characters
+        var visualX = 0
+        for cx in 0 ..< x:
+          let cellIdx = y * tb.width + cx
+          if cellIdx < tb.cells.len:
+            let chWidth = getCharDisplayWidth(tb.cells[cellIdx].ch)
+            visualX += chWidth
+        
+        if not haveCursor or lastCursorY != y or lastCursorXEnd != visualX:
+          output.add("\e[" & $(y + 1) & ";" & $(visualX + 1) & "H")
         if (not haveLastStyle) or (not stylesEqual(cell.style, lastStyle)):
           output.add(buildStyleCode(cell.style, colorSupport))
           lastStyle = cell.style
@@ -296,10 +304,15 @@ proc display*(tb: var TermBuffer, prev: var TermBuffer, colorSupport: int) =
         for i in 0 ..< runLength:
           output.add(tb.cells[idx + i].ch)
         
+        # Update visual cursor position
+        for i in 0 ..< runLength:
+          let chWidth = getCharDisplayWidth(tb.cells[idx + i].ch)
+          visualX += chWidth
+        
         x += runLength
         haveCursor = true
         lastCursorY = y
-        lastCursorXEnd = x
+        lastCursorXEnd = visualX
     
     # Batch write for better Windows console performance
     stdout.write(output)

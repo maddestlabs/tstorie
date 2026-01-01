@@ -1057,6 +1057,9 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
         let bufferStartY = contentY  # Track where buffer rendering begins
         let sectionBuffer = canvasState.contentBuffers[layout.section.title]
         
+        # Track the maximum cell width used (accounting for double-width chars)
+        var maxCellWidth = 0
+        
         # Store buffer bounds for current section (if this is the current section, will be updated below)
         if isCurrent:
           canvasState.currentContentBufferBounds = ContentBounds(
@@ -1077,10 +1080,12 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                                 truncateToVisualWidth(formatted, maxContentWidth) 
                               else: 
                                 formatted
-            # Track visual width of rendered heading
+            # Track visual width of rendered heading (equals cell width for double-width chars)
             let renderedWidth = getVisualWidth(displayText)
             if renderedWidth > maxVisualWidth:
               maxVisualWidth = renderedWidth
+            if renderedWidth > maxCellWidth:
+              maxCellWidth = renderedWidth
             buffer.writeText(contentX, contentY, displayText, headingStyle)
           elif hasLinksOutsideBackticks(bufferLine):
             # Line with links
@@ -1096,6 +1101,8 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                 maxLinkTextWidth = linkTextWidth
             if maxLinkTextWidth > maxVisualWidth:
               maxVisualWidth = maxLinkTextWidth
+            if maxLinkTextWidth > maxCellWidth:
+              maxCellWidth = maxLinkTextWidth
           elif "**" in bufferLine or "*" in bufferLine:
             # Line with markdown formatting
             let wrapped = wrapText(bufferLine, maxContentWidth)
@@ -1104,11 +1111,13 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                 break
               discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
                                           buffer, bodyStyle)
-              # Track width without markdown markers
+              # Track width without markdown markers (equals cell width for double-width chars)
               let textWithoutMarkdown = wLine.replace("**", "").replace("*", "")
               let lineWidth = getVisualWidth(textWithoutMarkdown)
               if lineWidth > maxVisualWidth:
                 maxVisualWidth = lineWidth
+              if lineWidth > maxCellWidth:
+                maxCellWidth = lineWidth
               contentY += 1
             contentY -= 1
           else:
@@ -1118,18 +1127,22 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
               if contentY >= screenY + layout.height:
                 break
               buffer.writeText(contentX, contentY, wLine, bodyStyle)
-              # Track visual width of wrapped line
+              # Track visual width of wrapped line (equals cell width for double-width chars)
               let lineWidth = getVisualWidth(wLine)
               if lineWidth > maxVisualWidth:
                 maxVisualWidth = lineWidth
+              if lineWidth > maxCellWidth:
+                maxCellWidth = lineWidth
               contentY += 1
             contentY -= 1
           
           contentY += 1
         
-        # Update buffer height now that we've finished rendering it
+        # Update buffer dimensions now that we've finished rendering it
         if isCurrent:
           canvasState.currentContentBufferBounds.height = contentY - bufferStartY
+          # Set width to actual cell width used (accounts for double-width chars like emoji)
+          canvasState.currentContentBufferBounds.width = maxCellWidth
       
       # Continue to next line (don't render the marker itself)
       continue

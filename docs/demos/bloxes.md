@@ -88,6 +88,14 @@ contentWrite("-" & wallChar & " Walls")
 # Initialize canvas system
 initCanvas(0)
 
+# Debug state
+var lastMouseX = -1
+var lastMouseY = -1
+var lastBufferX = -1
+var lastBufferY = -1
+var lastGridX = -1
+var lastGridY = -1
+
 # Game state
 var playerX = 0
 var playerY = 0
@@ -165,8 +173,6 @@ proc parseLevel(levelData: string) =
   playerY = 0
   moveCount = 0
   gameWon = false
-  
-  print("Parsing new level...")
   
   if len(levelData) > 0:
     var lines = splitLines(levelData)
@@ -419,16 +425,18 @@ proc handleClick(clickX: int, clickY: int): bool =
   if gameWon:
     return false
   
-  print("handleClick called with: " & $clickX & ", " & $clickY)
-  print("Level size: " & $levelWidth & " x " & $levelHeight)
+  # Store for debug display
+  lastBufferX = clickX
+  lastBufferY = clickY
   
   # Coordinates are already buffer-relative!
   # Each emoji takes 2 character cells width
   var gridX = clickX / 2
   var gridY = clickY
   
-  print("Converted to grid: " & $gridX & ", " & $gridY)
-  print("Valid range: 0-" & $(levelWidth-1) & ", 0-" & $(levelHeight-1))
+  # Store for debug display
+  lastGridX = gridX
+  lastGridY = gridY
   
   # Validate grid position
   if gridX < 0 or gridX >= levelWidth or gridY < 0 or gridY >= levelHeight:
@@ -513,7 +521,6 @@ proc handleClick(clickX: int, clickY: int): bool =
   
   # Find path to clicked position and move player directly there
   if findPath(gridX, gridY):
-    print("Path found! Moving player from (" & $playerX & "," & $playerY & ") to (" & $gridX & "," & $gridY & ")")
     # Move player directly to the clicked position
     playerX = gridX
     playerY = gridY
@@ -532,13 +539,11 @@ if event.type == "mouse":
   var mouseY = event.y
   var mouseAction = event.action
   
-  print("Mouse event detected!")
-  print("mouseX: " & $mouseX & ", mouseY: " & $mouseY)
-  print("mouseAction: " & $mouseAction)
+  # Store for debug display
+  lastMouseX = mouseX
+  lastMouseY = mouseY
   
   if mouseAction == "press":
-    print("Mouse press at: " & $mouseX & ", " & $mouseY)
-    
     # Check if we're on a level section (has lvl code blocks)
     var levelBlocks = getCurrentSectionCodeBlocks("lvl")
     
