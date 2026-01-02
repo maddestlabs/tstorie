@@ -1,8 +1,8 @@
 ---
 title: "Bloxes"
 author: "Maddest Labs"
-minWidth: 50
-minHeight: 16
+minWidth: 28
+minHeight: 12
 theme: "outrun"
 emoji: "⬛⬜🔲😶🟨❎"
 ---
