@@ -30,28 +30,28 @@ timeStr = timeStr & $second
 
 draw(0, 1, 2, "Time: " & timeStr)
 
-# Try to render
+# Render and draw figlet text
 var lines = figletRender("jazmine", timeStr)
 
-# Center and draw
-if len(lines) > 0:
-  var clockWidth = len(lines[0])
-  var clockHeight = len(lines)
-  
-  var startX = 0
-  if clockWidth < termWidth:
-    var diff = termWidth - clockWidth
-    startX = diff / 2
-  
-  var startY = 10
-  if clockHeight < termHeight:
-    var diff = termHeight - clockHeight
-    startY = diff / 2
-  
-  var y = startY
-  for line in lines:
-    draw(0, startX, y, line)
-    y = y + 1
+# Calculate centering
+var clockWidth = 0
+var clockHeight = len(lines)
+if clockHeight > 0:
+  clockWidth = len(lines[0])
+
+var startX = 0
+if clockWidth < termWidth:
+  var diff = termWidth - clockWidth
+  startX = diff / 2
+
+var startY = 10
+if clockHeight < termHeight:
+  var diff = termHeight - clockHeight
+  startY = diff / 2
+
+# Draw using helper function
+if clockHeight > 0:
+  drawFigletText(0, startX, startY, "jazmine", timeStr)
 else:
   draw(0, 2, 8, "No lines to render!")
 ```

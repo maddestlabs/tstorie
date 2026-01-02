@@ -453,12 +453,6 @@ proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # ================================================================
-# TUI WIDGET SYSTEM - Now in lib/tui_bindings.nim
-# ================================================================
-# The TUI widget system has been moved to lib/tui_bindings.nim
-# It is registered via registerTUIBindings() in initStorieContext()
-
-# ================================================================
 # BROWSER API (WASM)
 # ================================================================
 proc nimini_localStorage_setItem(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -988,6 +982,97 @@ proc figletListAvailableFonts(env: ref Env; args: seq[Value]): Value {.nimini.} 
     discard
   return valArray(result)
 
+proc drawFigletText(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Draw figlet text. Args: layer (int), x (int), y (int), fontName (string), text (string), [layoutMode (int), style (Style), vertical (bool), letterSpacing (int)]
+  ## Convenience function that renders and draws figlet text in one call
+  ## vertical: false=horizontal (default), true=vertical (each char printed downward from y coordinate)
+  ## letterSpacing: number of spaces to add between characters (default: 0)
+  if args.len < 5:
+    return valNil()
+  
+  let layerArg = args[0]
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let fontName = args[3].s
+  let text = args[4].s
+  let layout = if args.len >= 6: 
+    case valueToInt(args[5])
+    of 1: HorizontalFitting
+    of 2: HorizontalSmushing
+    else: FullWidth
+  else: FullWidth
+  
+  # Get style if provided
+  let styleArg = if args.len >= 7: args[6] else: valNil()
+  
+  # Get vertical direction flag (default: false/0 for horizontal)
+  let vertical = if args.len >= 8: valueToInt(args[7]) != 0 else: false
+  
+  # Get letter spacing (default: 0)
+  let letterSpacing = if args.len >= 9: valueToInt(args[8]) else: 0
+  
+  # Check if font is loaded
+  if not gFigletFonts.hasKey(fontName):
+    echo "[drawFigletText] Font not loaded: ", fontName
+    return valNil()
+  
+  # Render the text
+  let lines = render(gFigletFonts[fontName], text, layout)
+  if lines.len == 0:
+    return valNil()
+  
+  if vertical:
+    # Vertical: print each character going downward from y coordinate
+    var currentY = y
+    for ch in text:
+      # Render single character
+      let charLines = render(gFigletFonts[fontName], $ch, layout)
+      var lineY = currentY
+      for line in charLines:
+        if styleArg.kind != vkNil:
+          discard draw(env, @[layerArg, valInt(x), valInt(lineY), valString(line), styleArg])
+        else:
+          discard draw(env, @[layerArg, valInt(x), valInt(lineY), valString(line)])
+        lineY += 1
+      # Move down for next character (plus letter spacing)
+      currentY = lineY + letterSpacing
+  else:
+    # Horizontal: normal left-to-right, top-to-bottom with letter spacing
+    if letterSpacing > 0:
+      # Apply letter spacing by rendering character by character
+      var currentX = x
+      for ch in text:
+        let charLines = render(gFigletFonts[fontName], $ch, layout)
+        if charLines.len > 0:
+          var lineY = y
+          # Find the actual width of this character
+          var charWidth = 0
+          for line in charLines:
+            if line.len > charWidth:
+              charWidth = line.len
+          
+          # Draw each line of the character
+          for line in charLines:
+            if styleArg.kind != vkNil:
+              discard draw(env, @[layerArg, valInt(currentX), valInt(lineY), valString(line), styleArg])
+            else:
+              discard draw(env, @[layerArg, valInt(currentX), valInt(lineY), valString(line)])
+            lineY += 1
+          
+          # Move to next character position (width + spacing)
+          currentX += charWidth + letterSpacing
+    else:
+      # No letter spacing - draw normally
+      var currentY = y
+      for line in lines:
+        if styleArg.kind != vkNil:
+          discard draw(env, @[layerArg, valInt(x), valInt(currentY), valString(line), styleArg])
+        else:
+          discard draw(env, @[layerArg, valInt(x), valInt(currentY), valString(line)])
+        currentY += 1
+  
+  return valNil()
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -997,17 +1082,17 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Register core framework APIs (state accessors, colors, etc.) from lib/nimini_bridge.nim
   registerTstorieApis(runtimeEnv, state)
   
-  # Create DrawProc wrapper for TUI/ASCII art bindings
+  # Create DrawProc wrapper for ASCII art bindings
   proc drawWrapper(layer, x, y: int, char: string, style: Style) =
     # For now, just write to default layer
     # Later can be enhanced to support multiple layers
     if not gDefaultLayer.isNil:
       gDefaultLayer.buffer.write(x, y, char, style)
   
-  # Register TUI widget bindings, ASCII art bindings, and dungeon generator
-  registerTUIBindings(drawWrapper, addr gDefaultLayer)
+  # Register ASCII art bindings and dungeon generator
   registerAsciiArtBindings(drawWrapper, addr state)
   registerDungeonBindings()
+  registerTUIHelperBindings(runtimeEnv)
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)
@@ -1035,8 +1120,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_getSectionCodeBlocks, nimini_getCodeBlock, nimini_getCurrentSectionCodeBlocks,
     nimini_getCodeBlockText,
     # Figlet font rendering
-    figletLoadFont, figletIsFontLoaded, figletRender, figletListAvailableFonts,
-    # TUI widget system - now registered in tstorie.nim via registerTUIBindings()
+    figletLoadFont, figletIsFontLoaded, figletRender, figletListAvailableFonts, drawFigletText,
     # Browser API
     nimini_localStorage_setItem, nimini_localStorage_getItem, nimini_window_open,
     # Animation/transition helpers (simple, safe)
@@ -1357,6 +1441,9 @@ proc initStorieContext(state: AppState) =
   storieCtx.frontMatter = doc.frontMatter
   storieCtx.styleSheet = doc.styleSheet
   
+  # Set up TUI helper stylesheet (layer and state refs were set earlier)
+  tui_helpers.gStorieStyleSheet = addr storieCtx.styleSheet
+  
   # Expand `? variable` expressions in section text before creating section manager
   var sections = doc.sections
   expandVariablesInSections(sections, doc.frontMatter)
@@ -1419,6 +1506,10 @@ proc initStorieContext(state: AppState) =
   
   # Create single default layer (layer 0)
   gDefaultLayer = state.addLayer("default", 0)
+  
+  # Set TUI helper default layer reference immediately
+  tui_helpers.gDefaultLayerRef = gDefaultLayer
+  tui_helpers.gAppStateRef = state
   
   # Initialize styles
   var textStyle = defaultStyle()

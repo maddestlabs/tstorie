@@ -13,7 +13,6 @@ import lib/section_manager    # Section navigation and management (includes nimi
 import lib/layout             # Text layout utilities
 import lib/figlet             # FIGlet font rendering (for parsing and rendering)
 import lib/nimini_bridge      # Nimini API registration and bindings
-import lib/tui_bindings       # TUI widget nimini bindings
 import lib/ascii_art_bindings # ASCII art nimini bindings
 import lib/dungeon_bindings   # Dungeon generator nimini bindings
 
@@ -28,20 +27,8 @@ include lib/events            # Event handling system
 include lib/animation         # Animation helpers and easing
 include lib/canvas            # Canvas navigation system
 include lib/audio             # Audio system
-include lib/tui               # TUI widget system (defines INPUT_* constants)
-include lib/tui_editor
 
 const version = "0.1.0"
-
-# ================================================================
-# INPUT CONSTANTS - Defined in lib/tui.nim
-# ================================================================
-
-const
-  ModShift* = 0'u8
-  ModAlt* = 1'u8
-  ModCtrl* = 2'u8
-  ModSuper* = 3'u8
 
 # ================================================================
 # INPUT EVENT TYPES (imported from src/types)
@@ -363,13 +350,14 @@ var gDefaultLayer: Layer  # Single default layer (layer 0)
 var gTextStyle, gBorderStyle, gInfoStyle: Style
 var gAppState: AppState  # Global reference to app state for state accessors
 
-# Global TUI widget manager and widget registry
-var gWidgetManager: WidgetManager
-var gWidgetRegistry = initTable[string, Widget]()
-var gLastClickedWidget: string = ""  # Track last clicked widget for polling
-
-# Forward declaration for functions that will be defined later
+# Forward declaration for storieCtx (used by tui_helpers)
 var storieCtx: StorieContext
+
+# Import TUI helpers (proper module now, not included)
+import lib/tui_helpers
+
+# Import TUI bindings after the helpers
+import lib/tui_helpers_bindings
 
 # Random number generator - consistent across WASM and native
 var globalRng: Rand

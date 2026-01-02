@@ -16,7 +16,7 @@ styles.status.fg: "#00ffff"
 styles.status.bold: "true"
 
 # Location text
-styles.location.fg: "#ffeb3b"
+styles.location.fg: "#ff0000"
 styles.location.italic: "true"
 
 # Accent/highlight
@@ -118,7 +118,14 @@ var y = 0
 
 var metrics = getSectionMetrics()
 
-draw(0, metrics.x - 2, metrics.y - 1, "○─────────────────●", statusStyle)
+var linx = metrics.x - 3
+
+draw(0, linx, metrics.y - 1, "○-|///////|", statusStyle)
+draw(0, linx, metrics.y, "|", statusStyle)
+draw(0, linx, metrics.y + 1, "|", statusStyle)
+draw(0, linx, metrics.y + 2, "|", statusStyle)
+draw(0, linx, metrics.y + 3, "|", statusStyle)
+draw(0, linx, metrics.y + 4, "●", statusStyle)
 
 # Draw status info inside frame
 draw(0, 3, termHeight - 2, "> Morale: " & str(crewMorale) & "%", statusStyle)
