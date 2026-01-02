@@ -25,15 +25,10 @@ if event.type == "mouse":
     # Check if click was in the box
     if mouseX >= 10 and mouseX <= 29 and mouseY >= 14 and mouseY <= 18:
       print("Box clicked at (" & str(mouseX) & ", " & str(mouseY) & ")")
-  
-  return true  # Consume the event
 
 elif event.type == "mouse_move":
   mouseX = event.x
   mouseY = event.y
-  return false
-
-return false
 ```
 
 ```nim on:render

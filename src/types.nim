@@ -15,6 +15,42 @@ import ../lib/storie_types  # Import markdown types
 # INPUT SYSTEM TYPES
 # ================================================================
 
+# Modifier key constants
+const
+  ModShift* = 0'u8
+  ModAlt* = 1'u8
+  ModCtrl* = 2'u8
+  ModSuper* = 3'u8
+
+# Input key constants
+const
+  INPUT_ESCAPE* = 27
+  INPUT_BACKSPACE* = 127
+  INPUT_SPACE* = 32
+  INPUT_TAB* = 9
+  INPUT_ENTER* = 13
+  INPUT_DELETE* = 46
+  INPUT_UP* = 1000
+  INPUT_DOWN* = 1001
+  INPUT_LEFT* = 1002
+  INPUT_RIGHT* = 1003
+  INPUT_HOME* = 1004
+  INPUT_END* = 1005
+  INPUT_PAGE_UP* = 1006
+  INPUT_PAGE_DOWN* = 1007
+  INPUT_F1* = 1008
+  INPUT_F2* = 1009
+  INPUT_F3* = 1010
+  INPUT_F4* = 1011
+  INPUT_F5* = 1012
+  INPUT_F6* = 1013
+  INPUT_F7* = 1014
+  INPUT_F8* = 1015
+  INPUT_F9* = 1016
+  INPUT_F10* = 1017
+  INPUT_F11* = 1018
+  INPUT_F12* = 1019
+
 type
   InputAction* = enum
     Press

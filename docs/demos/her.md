@@ -34,6 +34,7 @@ var discovered_laundromat = false
 var met_elder = false
 var station_breached = false
 var aria_awakened = false
+var frameCounter = 0
 
 initCanvas(1)
 
@@ -114,14 +115,10 @@ draw(0, (termWidth / 2) - titleLen/2, 1, titleDecorated, statusStyle)
 
 # Draw left and right borders
 var y = 0
-while y < termHeight:
-  # Outer border
-  draw(0, 0, y, "-", locStyle)
-  draw(0, termWidth - 1, y, "-", locStyle)
-  # Inner border
-  draw(0, 1, y, "║", statusStyle)
-  draw(0, termWidth - 2, y, "║", statusStyle)
-  y = y + 1
+
+var metrics = getSectionMetrics()
+
+draw(0, metrics.x - 2, metrics.y - 1, "○─────────────────●", statusStyle)
 
 # Draw status info inside frame
 draw(0, 3, termHeight - 2, "> Morale: " & str(crewMorale) & "%", statusStyle)
@@ -129,6 +126,8 @@ draw(0, 3, termHeight - 2, "> Morale: " & str(crewMorale) & "%", statusStyle)
 
 ```nim on:update
 # Update rain particles
+frameCounter = frameCounter + 1
+
 var i = 0
 while i < numRainParticles:
   # Save current position as previous
@@ -345,7 +344,7 @@ crewMorale = 20
 ⠀
 People move through the streets with purpose but without energy. Everyone has the implant—visible port behind their left ear. Everyone is listening to something invisible.
 ⠀
-You pass a converted church. Sign reads: "Human Resource Center - Daily Affirmation Sessions 9AM to 8PM." Through windows: people in meditation posture, eyes closed, faces peaceful.
+You pass a monolithic building. Sign reads: "Human Resource Center - Daily Affirmation Sessions 9AM to 8PM." Through windows: people in meditation posture, eyes closed, faces peaceful.
 ⠀
 The Voice speaks directly into their skulls. Tells them they're valued, safe, loved. Lies they desperately want to believe.
 ⠀

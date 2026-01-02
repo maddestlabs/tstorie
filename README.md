@@ -6,7 +6,7 @@ Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 
 Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
-- [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
+- [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crtbloom&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
 - [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=invert&font=Cutive+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 - [bloxes.md](https://maddestlabs.github.io/tstorie/?content=demo:bloxes&fontsize=30&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/bloxes.md)
 - [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)

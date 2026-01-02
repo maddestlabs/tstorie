@@ -28,7 +28,39 @@ proc getCharDisplayWidth*(ch: string): int =
       # East Asian Width ranges (common double-width ranges)
       # This covers most emoji, CJK characters, and other wide chars
       if (cp >= 0x1100 and cp <= 0x115F) or  # Hangul Jamo
-         (cp >= 0x2000 and cp <= 0x2BFF) or  # General Punctuation through Misc Symbols and Arrows (broad emoji range)
+         (cp >= 0x231A and cp <= 0x231B) or  # Watch, Hourglass
+         (cp >= 0x23E9 and cp <= 0x23EC) or  # Media control symbols
+         (cp >= 0x23F0 and cp <= 0x23F0) or  # Alarm Clock
+         (cp >= 0x23F3 and cp <= 0x23F3) or  # Hourglass
+         (cp >= 0x25FD and cp <= 0x25FE) or  # White/Black Small Squares
+         (cp >= 0x2614 and cp <= 0x2615) or  # Umbrella, Hot Beverage
+         (cp >= 0x2648 and cp <= 0x2653) or  # Zodiac Signs
+         (cp >= 0x267F and cp <= 0x267F) or  # Wheelchair Symbol
+         (cp >= 0x2693 and cp <= 0x2693) or  # Anchor
+         (cp >= 0x26A1 and cp <= 0x26A1) or  # High Voltage
+         (cp >= 0x26AA and cp <= 0x26AB) or  # White/Black Circles
+         (cp >= 0x26BD and cp <= 0x26BE) or  # Soccer/Baseball
+         (cp >= 0x26C4 and cp <= 0x26C5) or  # Snowman, Sun
+         (cp >= 0x26CE and cp <= 0x26CE) or  # Ophiuchus
+         (cp >= 0x26D4 and cp <= 0x26D4) or  # No Entry
+         (cp >= 0x26EA and cp <= 0x26EA) or  # Church
+         (cp >= 0x26F2 and cp <= 0x26F3) or  # Fountain, Golf
+         (cp >= 0x26F5 and cp <= 0x26F5) or  # Sailboat
+         (cp >= 0x26FA and cp <= 0x26FA) or  # Tent
+         (cp >= 0x26FD and cp <= 0x26FD) or  # Fuel Pump
+         (cp >= 0x2705 and cp <= 0x2705) or  # Check Mark Button
+         (cp >= 0x270A and cp <= 0x270B) or  # Fist, Raised Hand
+         (cp >= 0x2728 and cp <= 0x2728) or  # Sparkles
+         (cp >= 0x274C and cp <= 0x274C) or  # Cross Mark
+         (cp >= 0x274E and cp <= 0x274E) or  # Cross Mark Button
+         (cp >= 0x2753 and cp <= 0x2755) or  # Question/Exclamation marks
+         (cp >= 0x2757 and cp <= 0x2757) or  # Exclamation Mark
+         (cp >= 0x2795 and cp <= 0x2797) or  # Plus/Minus/Division signs
+         (cp >= 0x27B0 and cp <= 0x27B0) or  # Curly Loop
+         (cp >= 0x27BF and cp <= 0x27BF) or  # Double Curly Loop
+         (cp >= 0x2B1B and cp <= 0x2B1C) or  # Black/White Large Squares
+         (cp >= 0x2B50 and cp <= 0x2B50) or  # Star
+         (cp >= 0x2B55 and cp <= 0x2B55) or  # Heavy Large Circle
          (cp >= 0x2E80 and cp <= 0x2EFF) or  # CJK Radicals
          (cp >= 0x2F00 and cp <= 0x2FDF) or  # Kangxi Radicals
          (cp >= 0x3000 and cp <= 0x303F) or  # CJK Symbols and Punctuation

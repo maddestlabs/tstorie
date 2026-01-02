@@ -212,6 +212,51 @@ proc findSectionByReference*(reference: string): SectionLayout =
   
   return SectionLayout()
 
+type
+  SectionMetrics* = object
+    ## Screen-relative coordinates and dimensions of a section
+    x*: int         # Screen X coordinate (after camera transform)
+    y*: int         # Screen Y coordinate (after camera transform)
+    width*: int     # Visual width of the section content
+    height*: int    # Visual height of the section content
+    worldX*: int    # World X coordinate (before camera transform)
+    worldY*: int    # World Y coordinate (before camera transform)
+
+proc getSectionMetrics*(): SectionMetrics =
+  ## Get the screen coordinates and dimensions of the current section
+  ## Returns metrics with x, y being relative to the terminal screen
+  ## and width, height being the actual rendered content dimensions
+  ## Returns zero values if no section is active
+  if canvasState.isNil:
+    return SectionMetrics()
+  
+  let currentIdx = getCurrentSectionIdx()
+  if currentIdx < 0 or currentIdx >= canvasState.sections.len:
+    return SectionMetrics()
+  
+  let layout = canvasState.sections[currentIdx]
+  
+  # Get camera position for screen coordinate conversion
+  let cameraX = int(canvasState.camera.x + 0.5)
+  let cameraY = int(canvasState.camera.y + 0.5)
+  
+  # Calculate screen-relative coordinates
+  let screenX = layout.x - cameraX
+  let screenY = layout.y - cameraY
+  
+  # Use actual visual dimensions if available, otherwise use layout dimensions
+  let width = if layout.actualVisualWidth > 0: layout.actualVisualWidth else: layout.width
+  let height = if layout.actualVisualHeight > 0: layout.actualVisualHeight else: layout.height
+  
+  return SectionMetrics(
+    x: screenX,
+    y: screenY,
+    width: width,
+    height: height,
+    worldX: layout.x,
+    worldY: layout.y
+  )
+
 proc executeLifecycleHooks(section: Section, lifecycle: string) =
   ## Execute lifecycle hooks (on:enter, on:exit) for a section
   if canvasState.isNil or canvasState.executeCallback.isNil:
@@ -665,7 +710,8 @@ export updateCamera, centerOnSection
 export getSectionLevel, getNextSectionAtLevel
 export wrapText, formatHeading, stripMarkdownFormatting
 export initCanvas, enableMouse, disableMouse
-export Camera, Link, SectionLayout, CanvasState
+export getSectionMetrics
+export Camera, Link, SectionLayout, SectionMetrics, CanvasState
 export canvasState
 
 # ================================================================
@@ -1585,6 +1631,27 @@ proc canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let isDown = if args[3].kind == vkBool: args[3].b else: (canvasValueToInt(args[3]) != 0)
   return valBool(canvasHandleMouse(x, y, button, isDown))
 
+proc nimini_getSectionMetrics*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get current section's screen coordinates and dimensions
+  ## Returns table: { x: int, y: int, width: int, height: int, worldX: int, worldY: int }
+  ## Returns nil if canvas is not initialized or no current section
+  if canvasState.isNil:
+    return valNil()
+  
+  let metrics = getSectionMetrics()
+  
+  # Return nil if no metrics available (all zeros)
+  if metrics.x == 0 and metrics.y == 0 and metrics.width == 0 and metrics.height == 0:
+    return valNil()
+  
+  result = valMap()
+  result.map["x"] = valInt(metrics.x)
+  result.map["y"] = valInt(metrics.y)
+  result.map["width"] = valInt(metrics.width)
+  result.map["height"] = valInt(metrics.height)
+  result.map["worldX"] = valInt(metrics.worldX)
+  result.map["worldY"] = valInt(metrics.worldY)
+
 proc getContentBounds*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get current section's content rendering bounds for mouse coordinate conversion
   ## Returns table: { x: int, y: int, width: int, height: int }
@@ -1692,6 +1759,7 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
   # Register content buffer functions with simple names
   registerNative("contentWrite", nimini_contentWrite)
   registerNative("contentClear", nimini_contentClear)
+  registerNative("getSectionMetrics", nimini_getSectionMetrics)
 
 # Export rendering functions
 export canvasRender, canvasUpdate, canvasHandleKey, canvasHandleMouse, getSectionCount
