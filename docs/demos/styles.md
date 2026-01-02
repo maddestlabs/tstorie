@@ -1,8 +1,6 @@
 ---
 title: "Style System Demo"
 targetFPS: 30
-styles.default.fg: "#FFFFFF"
-styles.default.bg: "#000000"
 styles.heading1.fg: "#FFFF00"
 styles.heading1.bold: "true"
 styles.heading2.fg: "#00FFFF"
@@ -15,11 +13,14 @@ styles.warning.fg: "#FFA500"
 styles.info.fg: "#64C8FF"
 styles.muted.fg: "#808080"
 styles.muted.dim: "true"
+styles.counter.fg: "#FFFFFF"
+styles.counter.bg: "#0000ff"
+theme: "catppuccin"
 ---
 
 # Styles Demo
 
-This example demonstrates tstorie's style system with front matter configuration.
+This example demonstrates t|Storie's style system with front matter configuration. Theme selection sets defaults which are overriden by specifying styles during draw() operations.
 
 
 ```nim on:init
@@ -41,7 +42,7 @@ var errorStyle = getStyle("error")
 var warningStyle = getStyle("warning")
 var infoStyle = getStyle("info")
 var mutedStyle = getStyle("muted")
-var defaultSty = defaultStyle()
+var counterStyle = getStyle("counter")
 
 # Title with heading style
 draw(0, 5, 2, "=== STYLE SYSTEM DEMO ===", h1Style)
@@ -56,7 +57,7 @@ draw(0, 7, 8, "[WARNING] Please check this", warningStyle)
 draw(0, 7, 9, "[INFO] For your information", infoStyle)
 
 # Normal text
-draw(0, 5, 11, "Counter with default style: " & $counter, defaultStyle)
+draw(0, 5, 11, "Counter with default style: " & $counter, counterStyle)
 
 # Muted footer
 draw(0, 5, 13, "Tip: Edit styles in the front matter!", mutedStyle)

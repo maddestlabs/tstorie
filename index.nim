@@ -1004,9 +1004,10 @@ proc createNiminiContext(state: AppState): NiminiContext =
     if not gDefaultLayer.isNil:
       gDefaultLayer.buffer.write(x, y, char, style)
   
-  # Register TUI widget bindings and ASCII art bindings
+  # Register TUI widget bindings, ASCII art bindings, and dungeon generator
   registerTUIBindings(drawWrapper, addr gDefaultLayer)
   registerAsciiArtBindings(drawWrapper, addr state)
+  registerDungeonBindings()
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)

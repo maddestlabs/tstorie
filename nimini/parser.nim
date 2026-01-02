@@ -1086,6 +1086,11 @@ proc parseProc(p: var Parser): Stmt =
 
 proc parseReturn(p: var Parser): Stmt =
   let tok = advance(p)
+  # Check if there's a value to return
+  # If the next token is newline, dedent, or EOF, there's no return value
+  if p.cur().kind in {tkNewline, tkDedent, tkEOF}:
+    # Return with no value - use int 0 as placeholder
+    return newReturn(newInt(0, tok.line, tok.col), tok.line, tok.col)
   let v = parseExpr(p)
   newReturn(v, tok.line, tok.col)
 

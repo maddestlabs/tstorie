@@ -67,6 +67,7 @@ proc nimini_newWidgetManager*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   ## Returns: pointer to WidgetManager
   if gWidgetManager.isNil:
     gWidgetManager = newWidgetManager()
+    GC_ref(gWidgetManager)  # Keep the global manager alive
   return valPointer(cast[pointer](gWidgetManager))
 
 proc nimini_addWidget*(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -152,6 +153,7 @@ proc nimini_newButton*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let label = if args.len > 5: valueToString(args[5]) else: "Button"
   
   let button = newButton(id, x, y, width, height, label)
+  GC_ref(button)  # Keep alive - will be unref'd when removed from manager
   return valPointer(cast[pointer](button))
 
 proc nimini_buttonSetLabel*(env: ref Env; args: seq[Value]): Value {.nimini.} =

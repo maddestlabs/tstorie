@@ -1292,6 +1292,8 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
     canvasState.sections[i].actualVisualWidth = visualWidth
     canvasState.sections[i].actualVisualHeight = visualHeight
     
+    # If this is the current section and dimensions changed significantly, re-center
+    # This handles cases where on:render/on:enter adds content via contentWrite()
     if isCurrent:
       canvasState.links = links
       # Store content bounds for mouse coordinate conversion
@@ -1301,6 +1303,17 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
         width: layout.width,
         height: visualHeight  # Use actual rendered height
       )
+      
+      # Check if dimensions changed significantly (first render: previousWidth/Height are 0)
+      # Re-center if width or height increased by more than a small threshold
+      let widthChanged = (previousWidth == 0 and visualWidth > 0) or 
+                        abs(visualWidth - previousWidth) > 2
+      let heightChanged = (previousHeight == 0 and visualHeight > 0) or 
+                         abs(visualHeight - previousHeight) > 2
+      
+      if widthChanged or heightChanged:
+        # Re-center on the current section with updated dimensions
+        centerOnSection(layout.index, vw, vh)
 
 proc canvasUpdate*(deltaTime: float) =
   ## Update canvas animations

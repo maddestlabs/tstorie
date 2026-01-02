@@ -1,6 +1,6 @@
 ## Nimini Standard Library - Random Number Generation
 ## Provides random number utilities and random selection
-## NOTE: RNG state is managed by the host application, not by this module
+## Supports both global RNG (for backward compatibility) and isolated RNG instances
 
 import ../runtime
 import std/random
@@ -12,6 +12,121 @@ proc setNiminiRng*(rng: ptr Rand) =
   ## Set the RNG to be used by nimini stdlib functions
   ## This should be called by the host application during initialization
   niminiRngPtr = rng
+
+# ------------------------------------------------------------------------------
+# Isolated RNG Functions (New - for deterministic generation)
+# ------------------------------------------------------------------------------
+
+proc niminiInitRand*(env: ref Env; args: seq[Value]): Value =
+  ## initRand(seed) - Create an isolated RNG instance with a seed
+  ## Returns a Rand object that can be used with rand(), sample(), etc.
+  if args.len != 1:
+    quit "initRand requires 1 argument (seed)"
+  
+  let seed = toInt(args[0])
+  let rng = initRand(seed)
+  return valRand(rng)
+
+proc niminiRandIsolated*(env: ref Env; args: seq[Value]): Value =
+  ## rand(rng, max) - Generate random integer 0..max using isolated RNG
+  ## rand(rng, min, max) - Generate random integer min..max using isolated RNG
+  ## The first argument must be a var Rand parameter (will be mutated)
+  if args.len < 2:
+    quit "rand with isolated RNG requires at least 2 arguments (rng, max)"
+  
+  if args[0].kind != vkRand:
+    quit "First argument to rand must be a Rand instance"
+  
+  # Get the RNG value (which should be a var parameter, so it will be mutated)
+  var rng = args[0].randState
+  
+  if args.len == 2:
+    let max = toInt(args[1])
+    if max <= 0:
+      return valInt(0)
+    let result = rand(rng, max)
+    # Update the RNG state in the Value (important for var semantics)
+    args[0].randState = rng
+    return valInt(result)
+  else:
+    let min = toInt(args[1])
+    let max = toInt(args[2])
+    if max < min:
+      return valInt(min)
+    let result = rand(rng, max - min) + min
+    # Update the RNG state in the Value
+    args[0].randState = rng
+    return valInt(result)
+
+proc niminiRandFloatIsolated*(env: ref Env; args: seq[Value]): Value =
+  ## randFloat(rng) - Generate random float 0.0..1.0 using isolated RNG
+  ## randFloat(rng, max) - Generate random float 0.0..max using isolated RNG
+  if args.len < 1:
+    quit "randFloat with isolated RNG requires at least 1 argument (rng)"
+  
+  if args[0].kind != vkRand:
+    quit "First argument to randFloat must be a Rand instance"
+  
+  var rng = args[0].randState
+  
+  let result = if args.len == 1:
+    rand(rng, 1.0)
+  else:
+    let max = toFloat(args[1])
+    rand(rng, max)
+  
+  # Update the RNG state
+  args[0].randState = rng
+  return valFloat(result)
+
+proc niminiSampleIsolated*(env: ref Env; args: seq[Value]): Value =
+  ## sample(rng, seq) - Returns a random element from the array using isolated RNG
+  if args.len < 2:
+    quit "sample with isolated RNG requires 2 arguments (rng, seq)"
+  
+  if args[0].kind != vkRand:
+    quit "First argument to sample must be a Rand instance"
+  
+  if args[1].kind != vkArray:
+    quit "Second argument to sample must be an array"
+  
+  if args[1].arr.len == 0:
+    quit "sample: cannot sample from empty array"
+  
+  var rng = args[0].randState
+  let idx = rand(rng, args[1].arr.len - 1)
+  args[0].randState = rng
+  return args[1].arr[idx]
+
+proc niminiShuffleIsolated*(env: ref Env; args: seq[Value]): Value =
+  ## shuffle(rng, seq) - Randomly shuffles an array in-place using isolated RNG
+  if args.len < 2:
+    quit "shuffle with isolated RNG requires 2 arguments (rng, seq)"
+  
+  if args[0].kind != vkRand:
+    quit "First argument to shuffle must be a Rand instance"
+  
+  if args[1].kind != vkArray:
+    quit "Second argument to shuffle must be an array"
+  
+  var rng = args[0].randState
+  let arr = args[1]
+  let n = arr.arr.len
+  
+  # Fisher-Yates shuffle algorithm
+  for i in countdown(n - 1, 1):
+    let j = rand(rng, i)
+    # Swap arr[i] and arr[j]
+    let temp = arr.arr[i]
+    arr.arr[i] = arr.arr[j]
+    arr.arr[j] = temp
+  
+  args[0].randState = rng
+  return valNil()
+
+# ------------------------------------------------------------------------------
+# Global RNG Functions (Legacy - for backward compatibility)
+# ------------------------------------------------------------------------------
 
 proc niminiRandomize*(env: ref Env; args: seq[Value]): Value =
   ## randomize() or randomize(seed) - Initialize random number generator
@@ -26,8 +141,8 @@ proc niminiRandomize*(env: ref Env; args: seq[Value]): Value =
   return valNil()
 
 proc niminiRand*(env: ref Env; args: seq[Value]): Value =
-  ## rand(max) - Generate random integer 0..max-1
-  ## rand(min, max) - Generate random integer min..max-1
+  ## rand(max) - Generate random integer 0..max (INCLUSIVE, matching Nim's std/random)
+  ## rand(min, max) - Generate random integer min..max (INCLUSIVE, matching Nim's std/random)
   if niminiRngPtr.isNil:
     quit "Random number generator not initialized"
   
@@ -37,13 +152,13 @@ proc niminiRand*(env: ref Env; args: seq[Value]): Value =
     let max = toInt(args[0])
     if max <= 0:
       return valInt(0)
-    return valInt(rand(niminiRngPtr[], max - 1))
+    return valInt(rand(niminiRngPtr[], max))  # Changed: removed -1 for inclusive
   else:
     let min = toInt(args[0])
     let max = toInt(args[1])
-    if max <= min:
+    if max < min:
       return valInt(min)
-    return valInt(rand(niminiRngPtr[], max - min - 1) + min)
+    return valInt(rand(niminiRngPtr[], max - min) + min)  # Changed: removed -1 for inclusive
 
 proc niminiRandFloat*(env: ref Env; args: seq[Value]): Value =
   ## randFloat() - Generate random float 0.0..1.0

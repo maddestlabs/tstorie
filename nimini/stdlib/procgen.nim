@@ -1,0 +1,290 @@
+## Procedural Generation Primitives for Nimini
+## Exposes lib/procgen_primitives.nim functions to nimini scripts
+
+import ../../lib/procgen_primitives
+import ../runtime
+import std/random
+
+## ============================================================================
+## Math Primitives Wrappers
+## ============================================================================
+
+proc niminiIdiv*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 2:
+    quit "idiv requires 2 arguments"
+  valInt(idiv(toInt(args[0]), toInt(args[1])))
+
+proc niminiImod*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 2:
+    quit "imod requires 2 arguments"
+  valInt(imod(toInt(args[0]), toInt(args[1])))
+
+proc niminiIabs*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "iabs requires 1 argument"
+  valInt(iabs(toInt(args[0])))
+
+proc niminiSign*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "sign requires 1 argument"
+  valInt(sign(toInt(args[0])))
+
+proc niminiClamp*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 3:
+    quit "clamp requires 3 arguments"
+  valInt(clamp(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiWrap*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 3:
+    quit "wrap requires 3 arguments"
+  valInt(wrap(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiLerp*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 3:
+    quit "lerp requires 3 arguments"
+  valInt(lerp(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiSmoothstep*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "smoothstep requires 1 argument"
+  valInt(smoothstep(toInt(args[0])))
+
+proc niminiMap*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 5:
+    quit "map requires 5 arguments"
+  valInt(map(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3]), toInt(args[4])))
+
+## ============================================================================
+## Noise & Hash Functions Wrappers
+## ============================================================================
+
+proc niminiIntHash*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 2:
+    quit "intHash requires 2 arguments"
+  valInt(intHash(toInt(args[0]), toInt(args[1])))
+
+proc niminiIntHash2D*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 3:
+    quit "intHash2D requires 3 arguments"
+  valInt(intHash2D(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiIntHash3D*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "intHash3D requires 4 arguments"
+  valInt(intHash3D(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiValueNoise2D*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 3:
+    quit "valueNoise2D requires 3 arguments"
+  valInt(valueNoise2D(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiSmoothNoise2D*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "smoothNoise2D requires 4 arguments"
+  valInt(smoothNoise2D(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiFractalNoise2D*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 5:
+    quit "fractalNoise2D requires 5 arguments"
+  valInt(fractalNoise2D(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3]), toInt(args[4])))
+
+## ============================================================================
+## Distance Functions Wrappers
+## ============================================================================
+
+proc niminiManhattanDist*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "manhattanDist requires 4 arguments"
+  valInt(manhattanDist(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiChebyshevDist*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "chebyshevDist requires 4 arguments"
+  valInt(chebyshevDist(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiEuclideanDist*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "euclideanDist requires 4 arguments"
+  valInt(euclideanDist(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiEuclideanDistSq*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "euclideanDistSq requires 4 arguments"
+  valInt(euclideanDistSq(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+## ============================================================================
+## Pattern Generation Wrappers
+## ============================================================================
+
+proc niminiCheckerboard*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 3:
+    quit "checkerboard requires 3 arguments"
+  valInt(checkerboard(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiStripes*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 2:
+    quit "stripes requires 2 arguments"
+  valInt(stripes(toInt(args[0]), toInt(args[1])))
+
+proc niminiConcentricCircles*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 5:
+    quit "concentricCircles requires 5 arguments"
+  valInt(concentricCircles(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3]), toInt(args[4])))
+
+proc niminiSpiralPattern*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 5:
+    quit "spiralPattern requires 5 arguments"
+  valInt(spiralPattern(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3]), toInt(args[4])))
+
+## ============================================================================
+## Easing Functions Wrappers
+## ============================================================================
+
+proc niminiEaseLinear*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "easeLinear requires 1 argument"
+  valInt(easeLinear(toInt(args[0])))
+
+proc niminiEaseInQuad*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "easeInQuad requires 1 argument"
+  valInt(easeInQuad(toInt(args[0])))
+
+proc niminiEaseOutQuad*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "easeOutQuad requires 1 argument"
+  valInt(easeOutQuad(toInt(args[0])))
+
+proc niminiEaseInOutQuad*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "easeInOutQuad requires 1 argument"
+  valInt(easeInOutQuad(toInt(args[0])))
+
+proc niminiEaseInCubic*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "easeInCubic requires 1 argument"
+  valInt(easeInCubic(toInt(args[0])))
+
+proc niminiEaseOutCubic*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 1:
+    quit "easeOutCubic requires 1 argument"
+  valInt(easeOutCubic(toInt(args[0])))
+
+## ============================================================================
+## Grid Utility Wrappers
+## ============================================================================
+
+proc niminiInBounds*(env: ref Env; args: seq[Value]): Value =
+  if args.len != 4:
+    quit "inBounds requires 4 arguments"
+  valBool(inBounds(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+## ============================================================================
+## Collection Operations with Isolated RNG
+## ============================================================================
+
+proc niminiPgShuffle*(env: ref Env; args: seq[Value]): Value =
+  ## Shuffle array using isolated RNG
+  ## Usage: shuffle(myRand, myArray)
+  if args.len != 2:
+    quit "shuffle requires 2 arguments (rng, array)"
+  if args[0].kind != vkRand:
+    quit "First argument to shuffle must be Rand"
+  if args[1].kind != vkArray:
+    quit "Second argument to shuffle must be array"
+  
+  # Get mutable copy of RNG
+  var rng = args[0].randState
+  
+  # Convert to native seq, shuffle, convert back
+  var intSeq = newSeq[int](args[1].arr.len)
+  for i in 0..<args[1].arr.len:
+    intSeq[i] = toInt(args[1].arr[i])
+  
+  shuffle(rng, intSeq)
+  
+  # Update array in place
+  for i in 0..<args[1].arr.len:
+    args[1].arr[i] = valInt(intSeq[i])
+  
+  # Update RNG state
+  args[0].randState = rng
+  valNil()
+
+proc niminiPgSample*(env: ref Env; args: seq[Value]): Value =
+  ## Sample random items from array
+  ## Usage: sample(myRand, myArray, count)
+  if args.len != 3:
+    quit "sample requires 3 arguments (rng, array, count)"
+  if args[0].kind != vkRand:
+    quit "First argument to sample must be Rand"
+  if args[1].kind != vkArray:
+    quit "Second argument to sample must be array"
+  
+  var rng = args[0].randState
+  let count = toInt(args[2])
+  
+  # Convert to native seq
+  var intSeq = newSeq[int](args[1].arr.len)
+  for i in 0..<args[1].arr.len:
+    intSeq[i] = toInt(args[1].arr[i])
+  
+  let sampled = sample(rng, intSeq, count)
+  
+  # Convert back to Value array
+  var result = valArray(@[])
+  for val in sampled:
+    result.arr.add(valInt(val))
+  
+  args[0].randState = rng
+  result
+
+proc niminiPgChoice*(env: ref Env; args: seq[Value]): Value =
+  ## Choose one random item
+  ## Usage: choice(myRand, myArray)
+  if args.len != 2:
+    quit "choice requires 2 arguments (rng, array)"
+  if args[0].kind != vkRand:
+    quit "First argument to choice must be Rand"
+  if args[1].kind != vkArray:
+    quit "Second argument to choice must be array"
+  if args[1].arr.len == 0:
+    quit "Cannot choose from empty array"
+  
+  var rng = args[0].randState
+  
+  # Convert to native seq
+  var intSeq = newSeq[int](args[1].arr.len)
+  for i in 0..<args[1].arr.len:
+    intSeq[i] = toInt(args[1].arr[i])
+  
+  let chosen = choice(rng, intSeq)
+  
+  args[0].randState = rng
+  valInt(chosen)
+
+proc niminiPgWeightedChoice*(env: ref Env; args: seq[Value]): Value =
+  ## Weighted random choice
+  ## Usage: weightedChoice(myRand, items, weights)
+  if args.len != 3:
+    quit "weightedChoice requires 3 arguments (rng, items, weights)"
+  if args[0].kind != vkRand:
+    quit "First argument to weightedChoice must be Rand"
+  if args[1].kind != vkArray or args[2].kind != vkArray:
+    quit "Items and weights must be arrays"
+  if args[1].arr.len != args[2].arr.len:
+    quit "Items and weights must have same length"
+  
+  var rng = args[0].randState
+  
+  # Convert both arrays
+  var items = newSeq[int](args[1].arr.len)
+  var weights = newSeq[int](args[2].arr.len)
+  for i in 0..<args[1].arr.len:
+    items[i] = toInt(args[1].arr[i])
+    weights[i] = toInt(args[2].arr[i])
+  
+  let chosen = weightedChoice(rng, items, weights)
+  
+  args[0].randState = rng
+  valInt(chosen)

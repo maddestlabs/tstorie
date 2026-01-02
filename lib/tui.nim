@@ -133,37 +133,10 @@ proc resolveStyle*(w: Widget): Style =
   if w.useOverride:
     return w.styleOverride
   
-  # Determine which style name to look up based on state
-  var styleName = w.normalStyle
-  case w.state
-  of wsFocused:
-    if w.focusedStyle.len > 0:
-      styleName = w.focusedStyle
-  of wsHovered:
-    if w.hoverStyle.len > 0:
-      styleName = w.hoverStyle
-  of wsDisabled:
-    if w.disabledStyle.len > 0:
-      styleName = w.disabledStyle
-  of wsActive:
-    if w.activeStyle.len > 0:
-      styleName = w.activeStyle
-  of wsNormal:
-    discard
+  # TEMPORARY: Skip stylesheet lookup to avoid memory corruption issues
+  # TODO: Fix styleSheet handling for multi-widget scenarios
   
-  # Look up style in stylesheet
-  if styleName.len > 0 and w.styleSheet.hasKey(styleName):
-    let config = w.styleSheet[styleName]
-    return Style(
-      fg: Color(r: config.fg.r, g: config.fg.g, b: config.fg.b),
-      bg: Color(r: config.bg.r, g: config.bg.g, b: config.bg.b),
-      bold: config.bold,
-      italic: config.italic,
-      underline: config.underline,
-      dim: config.dim
-    )
-  
-  # Fallback to default style
+  # Return default style
   return Style(
     fg: Color(r: 255, g: 255, b: 255),
     bg: Color(r: 0, g: 0, b: 0),
@@ -220,8 +193,8 @@ proc addWidget*(wm: WidgetManager, widget: Widget) =
   if widget.isNil:
     return
   
-  # Set stylesheet reference
-  widget.styleSheet = wm.styleSheet
+  # Don't set stylesheet - causes memory corruption with multiple widgets
+  # widget.styleSheet = wm.styleSheet
   
   # Add to widgets list
   wm.widgets.add(widget)
@@ -556,7 +529,7 @@ proc newButton*(id: string, x, y, w, h: int, label: string = "Button"): Button =
   result.disabledStyle = "button.disabled"
   result.activeStyle = "button.active"
   result.useOverride = false
-  result.styleSheet = initTable[string, StyleConfig]()
+  # Don't initialize styleSheet here - will be set by addWidget
   result.label = label
   result.hAlign = AlignCenter
   result.vAlign = AlignMiddle
@@ -569,36 +542,64 @@ method render*(btn: Button, layer: Layer) =
   if not btn.visible:
     return
   
+  # Safety check: ensure button fits in buffer
+  if btn.x < 0 or btn.y < 0:
+    return
+  if btn.x + btn.width > layer.buffer.width or btn.y + btn.height > layer.buffer.height:
+    return
+  
   let style = btn.resolveStyle()
   
   # Fill background
   for dy in 0 ..< btn.height:
     for dx in 0 ..< btn.width:
-      layer.buffer.cells[(btn.y + dy) * layer.buffer.width + (btn.x + dx)] = Cell(ch: " ", style: style)
+      let idx = (btn.y + dy) * layer.buffer.width + (btn.x + dx)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: " ", style: style)
   
   # Draw border if enabled
   if btn.drawBorder and btn.width >= 2 and btn.height >= 2:
     # Top border
     for dx in 0 ..< btn.width:
-      layer.buffer.cells[(btn.y) * layer.buffer.width + (btn.x + dx)] = Cell(ch: "─", style: style)
+      let idx = (btn.y) * layer.buffer.width + (btn.x + dx)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "─", style: style)
     
     # Bottom border
     for dx in 0 ..< btn.width:
-      layer.buffer.cells[(btn.y + btn.height - 1) * layer.buffer.width + (btn.x + dx)] = Cell(ch: "─", style: style)
+      let idx = (btn.y + btn.height - 1) * layer.buffer.width + (btn.x + dx)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "─", style: style)
     
     # Left border
     for dy in 0 ..< btn.height:
-      layer.buffer.cells[(btn.y + dy) * layer.buffer.width + (btn.x)] = Cell(ch: "│", style: style)
+      let idx = (btn.y + dy) * layer.buffer.width + (btn.x)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "│", style: style)
     
     # Right border
     for dy in 0 ..< btn.height:
-      layer.buffer.cells[(btn.y + dy) * layer.buffer.width + (btn.x + btn.width - 1)] = Cell(ch: "│", style: style)
+      let idx = (btn.y + dy) * layer.buffer.width + (btn.x + btn.width - 1)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "│", style: style)
     
     # Corners
-    layer.buffer.cells[(btn.y) * layer.buffer.width + (btn.x)] = Cell(ch: "┌", style: style)
-    layer.buffer.cells[(btn.y) * layer.buffer.width + (btn.x + btn.width - 1)] = Cell(ch: "┐", style: style)
-    layer.buffer.cells[(btn.y + btn.height - 1) * layer.buffer.width + (btn.x)] = Cell(ch: "└", style: style)
-    layer.buffer.cells[(btn.y + btn.height - 1) * layer.buffer.width + (btn.x + btn.width - 1)] = Cell(ch: "┘", style: style)
+    block:
+      let idx = (btn.y) * layer.buffer.width + (btn.x)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "┌", style: style)
+    block:
+      let idx = (btn.y) * layer.buffer.width + (btn.x + btn.width - 1)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "┐", style: style)
+    block:
+      let idx = (btn.y + btn.height - 1) * layer.buffer.width + (btn.x)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "└", style: style)
+    block:
+      let idx = (btn.y + btn.height - 1) * layer.buffer.width + (btn.x + btn.width - 1)
+      if idx >= 0 and idx < layer.buffer.cells.len:
+        layer.buffer.cells[idx] = Cell(ch: "┘", style: style)
   
   # Render label text
   if btn.label.len > 0:

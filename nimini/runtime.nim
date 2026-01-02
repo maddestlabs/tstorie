@@ -1,6 +1,6 @@
 # Clean, strict, Nim compatible runtime for Nimini
 
-import std/[tables, math, strutils, sequtils]
+import std/[tables, math, strutils, sequtils, random]
 import ast
 
 # ------------------------------------------------------------------------------
@@ -17,7 +17,8 @@ type
     vkFunction,
     vkMap,
     vkArray,
-    vkPointer     # Raw pointer value
+    vkPointer,    # Raw pointer value
+    vkRand        # Random number generator state
 
 
   NativeFunc* = proc(env: ref Env; args: seq[Value]): Value
@@ -40,6 +41,7 @@ type
     map*: Table[string, Value]
     arr*: seq[Value]
     ptrVal*: pointer  # For pointer values
+    randState*: Rand  # For isolated RNG state
 
   Env* = object
     vars*: Table[string, Value]
@@ -69,6 +71,7 @@ proc `$`*(v: Value): string =
       first = false
     result.add("}")
   of vkPointer: result = "<pointer>"
+  of vkRand: result = "<Rand>"
 
 # ------------------------------------------------------------------------------
 # Value Constructors
@@ -137,6 +140,10 @@ proc newMapValue*(): Value =
 
 proc valArray*(elements: seq[Value] = @[]): Value =
   Value(kind: vkArray, arr: elements)
+
+proc valRand*(rng: Rand): Value =
+  ## Create a Value containing an isolated RNG state
+  Value(kind: vkRand, randState: rng)
 
 # Map access operators
 proc `[]`*(v: Value; key: string): Value =
@@ -222,6 +229,7 @@ proc valuesEqual*(a, b: Value): bool =
   of vkArray: return false     # Arrays need deep comparison (not implemented)
   of vkMap: return false       # Maps need deep comparison (not implemented)
   of vkPointer: return a.ptrVal == b.ptrVal
+  of vkRand: return false      # RNG states are not comparable
 
 proc toBool*(v: Value): bool =
   ## Convert a value to boolean. Exported for use in stdlib.
@@ -235,12 +243,14 @@ proc toBool*(v: Value): bool =
   of vkMap: v.map.len > 0
   of vkArray: v.arr.len > 0
   of vkPointer: v.ptrVal != nil
+  of vkRand: true  # RNG states are always truthy
 
 proc toFloat*(v: Value): float =
   ## Convert a value to float. Exported for use in stdlib.
   case v.kind
   of vkInt: float(v.i)
   of vkFloat: v.f
+  of vkRand: 0.0  # Can't convert RNG to float
   of vkString:
     try:
       parseFloat(v.s)
@@ -258,6 +268,7 @@ proc toInt*(v: Value): int =
   case v.kind
   of vkInt: v.i
   of vkFloat: int(v.f)
+  of vkRand: 0  # Can't convert RNG to int
   of vkString:
     try:
       parseInt(v.s)
@@ -322,6 +333,39 @@ proc execBlock(sts: seq[Stmt]; env: ref Env): ExecResult
 # Function call --------------------------------------------------------
 
 proc evalCall(name: string; args: seq[Expr]; env: ref Env): Value =
+  # Check for isolated RNG function calls (rand with Rand as first arg)
+  if name in ["rand", "randFloat", "sample", "shuffle", "choice"] and args.len > 0:
+    # Evaluate first arg to check if it's a Rand
+    let firstArgVal = evalExpr(args[0], env)
+    if firstArgVal.kind == vkRand:
+      # This is an isolated RNG call - redirect to isolated version
+      let isolatedName = case name
+        of "rand": "randIsolated"
+        of "randFloat": "randFloatIsolated"
+        of "sample", "choice": "sampleIsolated"
+        of "shuffle": "shuffleIsolated"
+        else: name
+      
+      # Get the isolated function
+      let isolatedFn = getVar(env, isolatedName)
+      if isolatedFn.kind == vkFunction and isolatedFn.fnVal.isNative:
+        var argVals: seq[Value] = @[]
+        for a in args:
+          argVals.add evalExpr(a, env)
+        let result = isolatedFn.fnVal.native(env, argVals)
+        
+        # For var semantics, we need to update the original value
+        # If first arg is a simple identifier, update it
+        if args[0].kind == ekIdent:
+          defineVar(env, args[0].ident, argVals[0])
+        elif args[0].kind == ekDot:
+          # Field access - need to update the field
+          let target = evalExpr(args[0].dotTarget, env)
+          if target.kind == vkMap:
+            target.map[args[0].dotField] = argVals[0]
+        
+        return result
+  
   # Handle built-in string methods (when first arg is the target object)
   if args.len > 0 and name in ["toUpper", "toLower", "strip", "trim"]:
     let target = evalExpr(args[0], env)

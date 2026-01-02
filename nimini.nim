@@ -30,7 +30,7 @@
 ##   let program = compileSource(myCode, getNimFrontend())
 
 import nimini/[ast, runtime, tokenizer, plugin, parser, codegen, codegen_ext, backend, frontend]
-import nimini/stdlib/seqops
+import nimini/stdlib/[seqops, procgen]
 
 # backends allow exporting generated code in various languages
 import nimini/backends/[nim_backend, python_backend, javascript_backend]
@@ -139,6 +139,24 @@ proc initStdlib*() =
   registerNative("shuffle", niminiShuffle,
     imports = @["random"],
     description = "Randomly shuffle sequence in place")
+  
+  # Isolated RNG functions (new - for deterministic generation)
+  registerNative("initRand", niminiInitRand,
+    imports = @["random"],
+    description = "Create isolated RNG instance with seed for deterministic generation")
+  # Internal isolated versions (called automatically when first arg is Rand)
+  registerNative("randIsolated", niminiRandIsolated,
+    imports = @["random"],
+    description = "Internal: Isolated rand(rng, max) function")
+  registerNative("randFloatIsolated", niminiRandFloatIsolated,
+    imports = @["random"],
+    description = "Internal: Isolated randFloat(rng, max) function")
+  registerNative("sampleIsolated", niminiSampleIsolated,
+    imports = @["random"],
+    description = "Internal: Isolated sample(rng, seq) function")
+  registerNative("shuffleIsolated", niminiShuffleIsolated,
+    imports = @["random"],
+    description = "Internal: Isolated shuffle(rng, seq) function")
   
   # Type conversion functions (built-in)
   registerNative("int", niminiToInt,
@@ -273,6 +291,78 @@ proc initStdlib*() =
   registerNative("radToDeg", niminiRadToDeg,
     imports = @["math"],
     description = "Convert radians to degrees")
+  
+  # Procedural Generation Primitives - Math
+  registerNative("idiv", niminiIdiv,
+    description = "Integer division")
+  registerNative("imod", niminiImod,
+    description = "Integer modulo")
+  registerNative("iabs", niminiIabs,
+    description = "Integer absolute value")
+  registerNative("sign", niminiSign,
+    description = "Sign of number (-1, 0, or 1)")
+  registerNative("clamp", niminiClamp,
+    description = "Clamp value to range")
+  registerNative("wrap", niminiWrap,
+    description = "Wrap value within range")
+  registerNative("lerp", niminiLerp,
+    description = "Linear interpolation (t=0..1000)")
+  registerNative("smoothstep", niminiSmoothstep,
+    description = "Smooth interpolation curve (t=0..1000)")
+  registerNative("map", niminiMap,
+    description = "Map value from one range to another")
+  
+  # Procedural Generation - Noise & Hash
+  registerNative("intHash", niminiIntHash,
+    description = "1D integer hash function")
+  registerNative("intHash2D", niminiIntHash2D,
+    description = "2D integer hash function")
+  registerNative("intHash3D", niminiIntHash3D,
+    description = "3D integer hash function")
+  registerNative("valueNoise2D", niminiValueNoise2D,
+    description = "2D value noise")
+  registerNative("smoothNoise2D", niminiSmoothNoise2D,
+    description = "2D smooth noise with bilinear interpolation")
+  registerNative("fractalNoise2D", niminiFractalNoise2D,
+    description = "2D fractal/multi-octave noise")
+  
+  # Procedural Generation - Distance metrics
+  registerNative("manhattanDist", niminiManhattanDist,
+    description = "Manhattan distance (grid-based)")
+  registerNative("chebyshevDist", niminiChebyshevDist,
+    description = "Chebyshev distance (8-way grid)")
+  registerNative("euclideanDist", niminiEuclideanDist,
+    description = "Euclidean distance (true distance)")
+  registerNative("euclideanDistSq", niminiEuclideanDistSq,
+    description = "Squared Euclidean distance (faster)")
+  
+  # Procedural Generation - Patterns
+  registerNative("checkerboard", niminiCheckerboard,
+    description = "Checkerboard pattern")
+  registerNative("stripes", niminiStripes,
+    description = "Vertical stripes pattern")
+  registerNative("concentricCircles", niminiConcentricCircles,
+    description = "Concentric circles pattern")
+  registerNative("spiralPattern", niminiSpiralPattern,
+    description = "Spiral pattern")
+  
+  # Procedural Generation - Easing
+  registerNative("easeLinear", niminiEaseLinear,
+    description = "Linear easing (no easing)")
+  registerNative("easeInQuad", niminiEaseInQuad,
+    description = "Quadratic ease in (slow start)")
+  registerNative("easeOutQuad", niminiEaseOutQuad,
+    description = "Quadratic ease out (slow end)")
+  registerNative("easeInOutQuad", niminiEaseInOutQuad,
+    description = "Quadratic ease in/out (slow both ends)")
+  registerNative("easeInCubic", niminiEaseInCubic,
+    description = "Cubic ease in (slower start)")
+  registerNative("easeOutCubic", niminiEaseOutCubic,
+    description = "Cubic ease out (slower end)")
+  
+  # Procedural Generation - Grid utilities
+  registerNative("inBounds", niminiInBounds,
+    description = "Check if coordinates are within grid bounds")
 
 export backend
 export nim_backend

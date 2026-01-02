@@ -1,13 +1,21 @@
 ## Animation Helpers Module
-## Reusable animation utilities
+## Reusable animation utilities for real-time UI and visual effects
 ## 
-## Note: This module expects Color, Style, AppState, Layer, and black() 
+## NOTE: This module is for FLOAT-BASED VISUAL ANIMATIONS.
+## For DETERMINISTIC PROCEDURAL GENERATION (seed-based systems),
+## use lib/procgen_primitives.nim instead, which provides INTEGER-BASED
+## easing functions that guarantee identical results across implementations.
+##
+## See ANIMATION_VS_PROCGEN_EASING.md for detailed comparison.
+## 
+## This module expects Color, Style, AppState, Layer, and black() 
 ## to be available from the importing/including context.
 
 import math
 
 # ================================================================
-# EASING FUNCTIONS
+# EASING FUNCTIONS (Float-based for smooth visual animations)
+# For deterministic procedural generation, use lib/procgen_primitives.nim
 # ================================================================
 
 proc easeLinear*(t: float): float = t

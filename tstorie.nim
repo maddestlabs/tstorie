@@ -15,6 +15,7 @@ import lib/figlet             # FIGlet font rendering (for parsing and rendering
 import lib/nimini_bridge      # Nimini API registration and bindings
 import lib/tui_bindings       # TUI widget nimini bindings
 import lib/ascii_art_bindings # ASCII art nimini bindings
+import lib/dungeon_bindings   # Dungeon generator nimini bindings
 
 when not defined(emscripten):
   import src/platform/terminal
