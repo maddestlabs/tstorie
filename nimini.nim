@@ -363,6 +363,44 @@ proc initStdlib*() =
   # Procedural Generation - Grid utilities
   registerNative("inBounds", niminiInBounds,
     description = "Check if coordinates are within grid bounds")
+  
+  # Shader Primitives - Trigonometry
+  registerNative("isin", niminiIsin,
+    description = "Integer sine: -1000..1000 for angle 0..3600 decidegrees")
+  registerNative("icos", niminiIcos,
+    description = "Integer cosine: -1000..1000 for angle 0..3600 decidegrees")
+  
+  # Shader Primitives - Polar coordinates
+  registerNative("polarDistance", niminiPolarDistance,
+    description = "Distance from center point")
+  registerNative("polarAngle", niminiPolarAngle,
+    description = "Angle from center (0..3600 decidegrees)")
+  
+  # Shader Primitives - Wave operations
+  registerNative("waveAdd", niminiWaveAdd,
+    description = "Add two waves with clamping")
+  registerNative("waveMultiply", niminiWaveMultiply,
+    description = "Multiply two waves together")
+  registerNative("waveMix", niminiWaveMix,
+    description = "Mix two waves (t=0..1000)")
+  
+  # Shader Primitives - Color palettes
+  registerNative("colorHeatmap", niminiColorHeatmap,
+    description = "Heatmap gradient (black→red→yellow→white)")
+  registerNative("colorPlasma", niminiColorPlasma,
+    description = "Plasma gradient (blue→purple→red→orange)")
+  registerNative("colorCoolWarm", niminiColorCoolWarm,
+    description = "Cool-warm gradient (blue→white→red)")
+  registerNative("colorFire", niminiColorFire,
+    description = "Fire gradient (black→red→orange→yellow)")
+  registerNative("colorOcean", niminiColorOcean,
+    description = "Ocean gradient (deep blue→cyan→white)")
+  registerNative("colorNeon", niminiColorNeon,
+    description = "Neon gradient (purple→pink→cyan→green)")
+  registerNative("colorMatrix", niminiColorMatrix,
+    description = "Matrix-style green gradient")
+  registerNative("colorGrayscale", niminiColorGrayscale,
+    description = "Grayscale gradient (black→white)")
 
 export backend
 export nim_backend

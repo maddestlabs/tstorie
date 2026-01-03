@@ -279,7 +279,7 @@ for y in 0..<height:
 
 # Show info
 draw(0, 0, height + 1, "Seed: " & str(seedValue) & " - Room-based with Smart Doors")
-draw(0, 0, height + 2, "Press R to regenerate | Same seed = Same dungeon! (Export-safe)")
+draw(0, 0, height + 2, "Press R or click/touch to regenerate | Same seed = Same dungeon! (Export-safe)")
 draw(0, 0, height + 3, "Rooms: " & str(len(rooms)) & " | Doors placed at corridor entrances")
 ```
 
@@ -291,6 +291,12 @@ if event.type == "text":
     initDungeon()
     return true
   return false
+
+# Handle mouse/touch input
+elif event.type == "mouse":
+  if event.action == "press":
+    initDungeon()
+    return true
 
 return false
 ```

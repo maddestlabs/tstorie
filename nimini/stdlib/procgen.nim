@@ -288,3 +288,98 @@ proc niminiPgWeightedChoice*(env: ref Env; args: seq[Value]): Value =
   
   args[0].randState = rng
   valInt(chosen)
+
+## ============================================================================
+## Shader Primitives Wrappers
+## ============================================================================
+
+proc niminiIsin*(env: ref Env; args: seq[Value]): Value =
+  ## Integer sine function: returns -1000..1000 for angle in decidegrees (0..3600)
+  if args.len != 1:
+    quit "isin requires 1 argument (angle in decidegrees)"
+  valInt(isin(toInt(args[0])))
+
+proc niminiIcos*(env: ref Env; args: seq[Value]): Value =
+  ## Integer cosine function: returns -1000..1000 for angle in decidegrees (0..3600)
+  if args.len != 1:
+    quit "icos requires 1 argument (angle in decidegrees)"
+  valInt(icos(toInt(args[0])))
+
+proc niminiPolarDistance*(env: ref Env; args: seq[Value]): Value =
+  ## Calculate distance from center point
+  if args.len != 4:
+    quit "polarDistance requires 4 arguments (x, y, centerX, centerY)"
+  valInt(polarDistance(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiPolarAngle*(env: ref Env; args: seq[Value]): Value =
+  ## Calculate angle from center point (returns 0..3600 decidegrees)
+  if args.len != 4:
+    quit "polarAngle requires 4 arguments (x, y, centerX, centerY)"
+  valInt(polarAngle(toInt(args[0]), toInt(args[1]), toInt(args[2]), toInt(args[3])))
+
+proc niminiWaveAdd*(env: ref Env; args: seq[Value]): Value =
+  ## Add two waves together with clamping
+  if args.len != 2:
+    quit "waveAdd requires 2 arguments"
+  valInt(waveAdd(toInt(args[0]), toInt(args[1])))
+
+proc niminiWaveMultiply*(env: ref Env; args: seq[Value]): Value =
+  ## Multiply two waves together
+  if args.len != 2:
+    quit "waveMultiply requires 2 arguments"
+  valInt(waveMultiply(toInt(args[0]), toInt(args[1])))
+
+proc niminiWaveMix*(env: ref Env; args: seq[Value]): Value =
+  ## Mix two waves with interpolation factor (t=0..1000)
+  if args.len != 3:
+    quit "waveMix requires 3 arguments (wave1, wave2, t)"
+  valInt(waveMix(toInt(args[0]), toInt(args[1]), toInt(args[2])))
+
+proc niminiColorHeatmap*(env: ref Env; args: seq[Value]): Value =
+  ## Get heatmap color for value (0..255)
+  if args.len != 1:
+    quit "colorHeatmap requires 1 argument (value 0..255)"
+  valInt(colorHeatmap(toInt(args[0])).toInt())
+
+proc niminiColorPlasma*(env: ref Env; args: seq[Value]): Value =
+  ## Get plasma color for value (0..255)
+  if args.len != 1:
+    quit "colorPlasma requires 1 argument (value 0..255)"
+  valInt(colorPlasma(toInt(args[0])).toInt())
+
+proc niminiColorCoolWarm*(env: ref Env; args: seq[Value]): Value =
+  ## Get cool-warm color for value (0..255)
+  if args.len != 1:
+    quit "colorCoolWarm requires 1 argument (value 0..255)"
+  valInt(colorCoolWarm(toInt(args[0])).toInt())
+
+proc niminiColorFire*(env: ref Env; args: seq[Value]): Value =
+  ## Get fire color for value (0..255)
+  if args.len != 1:
+    quit "colorFire requires 1 argument (value 0..255)"
+  valInt(colorFire(toInt(args[0])).toInt())
+
+proc niminiColorOcean*(env: ref Env; args: seq[Value]): Value =
+  ## Get ocean color for value (0..255)
+  if args.len != 1:
+    quit "colorOcean requires 1 argument (value 0..255)"
+  valInt(colorOcean(toInt(args[0])).toInt())
+
+proc niminiColorNeon*(env: ref Env; args: seq[Value]): Value =
+  ## Get neon color for value (0..255)
+  if args.len != 1:
+    quit "colorNeon requires 1 argument (value 0..255)"
+  valInt(colorNeon(toInt(args[0])).toInt())
+
+proc niminiColorMatrix*(env: ref Env; args: seq[Value]): Value =
+  ## Get matrix green color for value (0..255)
+  if args.len != 1:
+    quit "colorMatrix requires 1 argument (value 0..255)"
+  valInt(colorMatrix(toInt(args[0])).toInt())
+
+proc niminiColorGrayscale*(env: ref Env; args: seq[Value]): Value =
+  ## Get grayscale color for value (0..255)
+  if args.len != 1:
+    quit "colorGrayscale requires 1 argument (value 0..255)"
+  valInt(colorGrayscale(toInt(args[0])).toInt())
+

@@ -10,6 +10,7 @@ import strutils
 import "../nimini"
 import storie_types
 import audio_gen
+import terminal_shaders
 import ../src/types
 import ../src/layers
 import ../src/appstate
@@ -227,6 +228,24 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     colorMap.map["r"] = valInt(args[0].i)
     colorMap.map["g"] = valInt(args[1].i)
     colorMap.map["b"] = valInt(args[2].i)
+    return colorMap
+  
+  env.vars["unpackColor"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## unpackColor(packedRGB: int) -> color map {r, g, b}
+    ## Extracts RGB components from packed integer (0xRRGGBB)
+    ## Useful for converting color primitive outputs to usable colors
+    if args.len < 1:
+      raise newException(ValueError, "unpackColor() requires 1 argument: packed RGB integer")
+    
+    let packed = args[0].i
+    let r = (packed div 65536) mod 256  # (packed >> 16) & 0xFF
+    let g = (packed div 256) mod 256    # (packed >> 8) & 0xFF  
+    let b = packed mod 256              # packed & 0xFF
+    
+    let colorMap = valMap()
+    colorMap.map["r"] = valInt(r)
+    colorMap.map["g"] = valInt(g)
+    colorMap.map["b"] = valInt(b)
     return colorMap
   
   proc makeColorMap(r, g, b: int): Value =
@@ -516,4 +535,72 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     else: 0.35
     
     getAudioSys().playLaser(volume)
+  
+  # ================================================================
+  # TERMINAL SHADERS API
+  # ================================================================
+  
+  env.vars["initShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## initShader(effectId: int, layerId: int, x: int, y: int, width: int, height: int)
+    if args.len < 6:
+      raise newException(ValueError, "initShader() requires 6 arguments: effectId, layerId, x, y, width, height")
+    
+    let effectId = args[0].i
+    let layerId = args[1].i
+    let x = args[2].i
+    let y = args[3].i
+    let width = args[4].i
+    let height = args[5].i
+    
+    initShader(effectId, layerId, x, y, width, height)
+    return valNil()
+  
+  env.vars["updateShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## updateShader() - Update shader animation (call in on:update)
+    updateShader()
+    return valNil()
+  
+  env.vars["drawShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## drawShader(layerId: int|string) - Draw shader to specified layer (call in on:render)
+    if args.len < 1:
+      raise newException(ValueError, "drawShader() requires 1 argument: layerId")
+    
+    var layer: Layer = nil
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      # Access layer by index in layers array
+      if idx >= 0 and idx < appState.layers.len:
+        layer = appState.layers[idx]
+    elif args[0].kind == vkString:
+      let layerId = args[0].s
+      layer = getLayer(appState, layerId)
+    
+    if not layer.isNil:
+      drawShader(layer.buffer)
+    
+    return valNil()
+  
+  env.vars["setShaderEffect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setShaderEffect(effectId: int) - Change shader effect and reset animation
+    if args.len < 1:
+      raise newException(ValueError, "setShaderEffect() requires 1 argument: effectId")
+    
+    let effectId = args[0].i
+    setShaderEffect(effectId)
+    return valNil()
+  
+  env.vars["pauseShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## pauseShader() - Pause shader animation
+    pauseShader()
+    return valNil()
+  
+  env.vars["resumeShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## resumeShader() - Resume shader animation
+    resumeShader()
+    return valNil()
+  
+  env.vars["resetShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## resetShader() - Reset shader to frame 0
+    resetShader()
+    return valNil()
     return valNil()

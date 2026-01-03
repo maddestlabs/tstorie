@@ -145,9 +145,14 @@ proc fractalNoise2D*(x, y, octaves, scale, seed: int): int {.exportc: "pgFractal
     amplitude = amplitude div 2
     frequency = frequency div 2
     
-  # Normalize to [0..65535]
+  # Normalize to [0..65535] - avoid overflow by checking bounds
   if maxValue > 0:
-    result = (total * 65535) div maxValue
+    # Prevent overflow: if total would overflow when multiplied by 65535,
+    # do the division in a different order
+    if total > 32767:  # total * 65535 would exceed int32 max
+      result = total * (65535 div maxValue)
+    else:
+      result = (total * 65535) div maxValue
   else:
     result = 0
 
@@ -517,6 +522,194 @@ proc hsvToRgb*(h, s, v: int): IColor {.exportc: "pgHsvToRgb".} =
   of 3: icolor((p * 255) div 1000, (q * 255) div 1000, (v * 255) div 1000)
   of 4: icolor((t * 255) div 1000, (p * 255) div 1000, (v * 255) div 1000)
   else: icolor((v * 255) div 1000, (p * 255) div 1000, (q * 255) div 1000)
+
+## ============================================================================
+## SHADER PRIMITIVES
+## Building blocks for terminal shader effects
+## ============================================================================
+
+# Sine lookup table for fast integer trigonometry
+# Stores sin values * 1000 for angles 0-90 degrees
+const SIN_TABLE = [
+  0, 17, 35, 52, 70, 87, 105, 122, 139, 156, 174, 191, 208, 225, 242, 259,
+  276, 292, 309, 326, 342, 358, 375, 391, 407, 423, 438, 454, 469, 485, 500,
+  515, 530, 545, 559, 574, 588, 602, 616, 629, 643, 656, 669, 682, 695, 707,
+  719, 731, 743, 755, 766, 777, 788, 799, 809, 819, 829, 839, 848, 857, 866,
+  875, 883, 891, 899, 906, 914, 921, 927, 934, 940, 946, 951, 956, 961, 966,
+  970, 974, 978, 982, 985, 988, 990, 993, 995, 997, 999, 1000, 1000, 1000, 1000
+]
+
+proc isin*(angle: int): int {.exportc: "pgIsin".} =
+  ## Integer sine function
+  ## angle: in decidegrees (0..3600 = 0°..360°)
+  ## Returns: -1000..1000 (representing -1.0..1.0)
+  ## Examples: isin(0) = 0, isin(900) = 1000 (90°), isin(1800) = 0 (180°)
+  let a = ((angle mod 3600) + 3600) mod 3600  # Normalize to 0..3600
+  let quadrant = a div 900
+  let idx = (a mod 900) div 10
+  
+  case quadrant
+  of 0: SIN_TABLE[idx]           # 0-90°: positive, ascending
+  of 1: SIN_TABLE[90 - idx]      # 90-180°: positive, descending
+  of 2: -SIN_TABLE[idx]          # 180-270°: negative, descending
+  else: -SIN_TABLE[90 - idx]     # 270-360°: negative, ascending
+
+proc icos*(angle: int): int {.exportc: "pgIcos".} =
+  ## Integer cosine function
+  ## angle: in decidegrees (0..3600 = 0°..360°)
+  ## Returns: -1000..1000 (representing -1.0..1.0)
+  ## cos(x) = sin(x + 90°)
+  isin(angle + 900)
+
+proc polarDistance*(x, y, centerX, centerY: int): int {.exportc: "pgPolarDistance".} =
+  ## Calculate distance from point to center (integer sqrt)
+  ## Returns: distance in pixels
+  ## Useful for: ripple effects, radial patterns
+  euclideanDist(x, y, centerX, centerY)
+
+proc polarAngle*(x, y, centerX, centerY: int): int {.exportc: "pgPolarAngle".} =
+  ## Calculate angle from center to point
+  ## Returns: angle in decidegrees (0..3600 = 0°..360°)
+  ## Useful for: tunnel effects, rotational patterns
+  let dx = x - centerX
+  let dy = y - centerY
+  
+  if dx == 0 and dy == 0:
+    return 0
+  
+  # Integer arctan2 approximation using lookup
+  let adx = iabs(dx)
+  let ady = iabs(dy)
+  
+  var angle: int
+  if adx > ady:
+    # More horizontal, atan(dy/dx)
+    let ratio = (ady * 1000) div adx
+    # Linear approximation: atan(x) ≈ x for small x
+    angle = (ratio * 450) div 1000  # Scale to ~45° max
+  else:
+    # More vertical, 90° - atan(dx/dy)
+    if ady > 0:
+      let ratio = (adx * 1000) div ady
+      angle = 900 - (ratio * 450) div 1000
+    else:
+      angle = 0
+  
+  # Adjust for quadrant
+  if dx >= 0 and dy >= 0: angle        # Q1: 0-90
+  elif dx < 0 and dy >= 0: 1800 - angle  # Q2: 90-180
+  elif dx < 0 and dy < 0: 1800 + angle   # Q3: 180-270
+  else: 3600 - angle                     # Q4: 270-360
+
+proc waveAdd*(wave1, wave2: int): int {.exportc: "pgWaveAdd".} =
+  ## Add two wave values (with overflow protection)
+  ## wave1, wave2: typically -1000..1000
+  ## Returns: clamped sum
+  clamp(wave1 + wave2, -2000, 2000)
+
+proc waveMultiply*(wave1, wave2: int): int {.exportc: "pgWaveMultiply".} =
+  ## Multiply two normalized wave values
+  ## wave1, wave2: -1000..1000
+  ## Returns: -1000..1000
+  (wave1 * wave2) div 1000
+
+proc waveMix*(wave1, wave2, amount: int): int {.exportc: "pgWaveMix".} =
+  ## Mix/blend two wave values
+  ## amount: 0..1000 (0=all wave1, 1000=all wave2, 500=50/50 mix)
+  ## Returns: blended value
+  lerp(wave1, wave2, amount)
+
+proc mapToGradient5*(value: int, ramp: seq[int]): int {.exportc: "pgMapToGradient5".} =
+  ## Map value (0..1000) to 5-level gradient
+  ## ramp: array of 5 values to interpolate between
+  ## Returns: interpolated value from ramp
+  let idx = (value * 4) div 1000
+  let t = ((value * 4) mod 1000)
+  let i = clamp(idx, 0, 3)
+  lerp(ramp[i], ramp[i + 1], t)
+
+## Color palette functions for shader effects
+
+proc colorHeatmap*(value: int): IColor {.exportc: "pgColorHeatmap".} =
+  ## Heatmap color palette: black → red → yellow → white
+  ## value: 0..255
+  ## Useful for: fire effects, temperature visualization
+  let v = clamp(value, 0, 255)
+  if v < 85:
+    icolor(v * 3, 0, 0)
+  elif v < 170:
+    icolor(255, (v - 85) * 3, 0)
+  else:
+    let w = (v - 170) * 3
+    icolor(255, 255, w)
+
+proc colorPlasma*(value: int): IColor {.exportc: "pgColorPlasma".} =
+  ## Plasma/rainbow color palette
+  ## value: 0..255
+  ## Useful for: plasma effects, rainbow gradients
+  let v = clamp(value, 0, 255)
+  # Use HSV with varying hue
+  let h = (v * 360) div 255
+  hsvToRgb(h, 1000, 1000)
+
+proc colorCoolWarm*(value: int): IColor {.exportc: "pgColorCoolWarm".} =
+  ## Cool (blue) to warm (red) gradient
+  ## value: 0..255
+  ## Useful for: temperature maps, general gradients
+  let v = clamp(value, 0, 255)
+  let t = (v * 1000) div 255
+  icolor(
+    (t * 255) div 1000,
+    (1000 - iabs(t - 500) * 2) * 255 div 1000,
+    ((1000 - t) * 255) div 1000
+  )
+
+proc colorFire*(value: int): IColor {.exportc: "pgColorFire".} =
+  ## Fire gradient: black → red → orange → yellow
+  ## value: 0..255
+  ## Useful for: fire effects
+  let v = clamp(value, 0, 255)
+  if v < 64:
+    icolor(v * 4, 0, 0)
+  elif v < 128:
+    icolor(255, (v - 64) * 4, 0)
+  elif v < 192:
+    icolor(255, 128 + (v - 128) * 2, 0)
+  else:
+    icolor(255, 255, (v - 192) * 4)
+
+proc colorOcean*(value: int): IColor {.exportc: "pgColorOcean".} =
+  ## Deep blue to cyan gradient
+  ## value: 0..255
+  ## Useful for: water effects, ocean themes
+  let v = clamp(value, 0, 255)
+  icolor(0, v div 2, 128 + v div 2)
+
+proc colorNeon*(value: int): IColor {.exportc: "pgColorNeon".} =
+  ## Neon cyan-magenta gradient
+  ## value: 0..255
+  ## Useful for: cyber/neon aesthetics
+  let v = clamp(value, 0, 255)
+  let t = (v * 1000) div 255
+  let sinT = isin((t * 1800) div 1000)  # 0 to 180 degrees
+  icolor(
+    (t * 255) div 1000,
+    ((sinT + 1000) * 128) div 1000,
+    255
+  )
+
+proc colorMatrix*(value: int): IColor {.exportc: "pgColorMatrix".} =
+  ## Matrix-style green gradient
+  ## value: 0..255
+  ## Useful for: Matrix rain effect
+  let v = clamp(value, 0, 255)
+  icolor(0, v, v div 4)
+
+proc colorGrayscale*(value: int): IColor {.exportc: "pgColorGrayscale".} =
+  ## Simple grayscale
+  ## value: 0..255
+  let v = clamp(value, 0, 255)
+  icolor(v, v, v)
 
 ## ============================================================================
 ## EXPORT INFO

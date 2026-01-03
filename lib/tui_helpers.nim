@@ -54,56 +54,66 @@ proc tuiDraw(layer: int, x, y: int, text: string, style: Style) =
     gAppStateRef.layers[layer].buffer.writeText(x, y, text, style)
 
 # ==============================================================================
-# BOX DRAWING (Simple implementations)
+# BOX DRAWING
 # ==============================================================================
 
-proc drawBoxSimple*(layer: int, x, y, w, h: int, style: Style) =
-  ## Draw a simple box with classic corners
+proc drawBox*(layer: int, x, y, w, h: int, style: Style,
+              topLeft, top, topRight: string,
+              left, right: string,
+              bottomLeft, bottom, bottomRight: string) =
+  ## Draw a box with custom characters for each part
+  ## 
+  ## Example:
+  ##   drawBox(0, 5, 5, 20, 10, myStyle,
+  ##           "+", "-", "+",
+  ##           "|", "|", 
+  ##           "+", "-", "+")
+  ##
+  ## You can use any Unicode characters or ASCII art
+  
   # Corners
-  tuiDraw(layer, x, y, "┌", style)
-  tuiDraw(layer, x + w - 1, y, "┐", style)
-  tuiDraw(layer, x, y + h - 1, "└", style)
-  tuiDraw(layer, x + w - 1, y + h - 1, "┘", style)
+  tuiDraw(layer, x, y, topLeft, style)
+  tuiDraw(layer, x + w - 1, y, topRight, style)
+  tuiDraw(layer, x, y + h - 1, bottomLeft, style)
+  tuiDraw(layer, x + w - 1, y + h - 1, bottomRight, style)
   
   # Top and bottom edges
   for dx in 1 ..< w - 1:
-    tuiDraw(layer, x + dx, y, "─", style)
-    tuiDraw(layer, x + dx, y + h - 1, "─", style)
+    tuiDraw(layer, x + dx, y, top, style)
+    tuiDraw(layer, x + dx, y + h - 1, bottom, style)
   
   # Left and right edges
   for dy in 1 ..< h - 1:
-    tuiDraw(layer, x, y + dy, "│", style)
-    tuiDraw(layer, x + w - 1, y + dy, "│", style)
+    tuiDraw(layer, x, y + dy, left, style)
+    tuiDraw(layer, x + w - 1, y + dy, right, style)
+
+proc drawBoxSimple*(layer: int, x, y, w, h: int, style: Style) =
+  ## Draw a simple ASCII box (compatible with all terminals)
+  drawBox(layer, x, y, w, h, style,
+          "+", "-", "+",
+          "|", "|",
+          "+", "-", "+")
+
+proc drawBoxSingle*(layer: int, x, y, w, h: int, style: Style) =
+  ## Draw a box with single-line Unicode borders
+  drawBox(layer, x, y, w, h, style,
+          "┌", "─", "┐",
+          "│", "│",
+          "└", "─", "┘")
 
 proc drawBoxDouble*(layer: int, x, y, w, h: int, style: Style) =
-  ## Draw a box with double-line borders
-  tuiDraw(layer, x, y, "╔", style)
-  tuiDraw(layer, x + w - 1, y, "╗", style)
-  tuiDraw(layer, x, y + h - 1, "╚", style)
-  tuiDraw(layer, x + w - 1, y + h - 1, "╝", style)
-  
-  for dx in 1 ..< w - 1:
-    tuiDraw(layer, x + dx, y, "═", style)
-    tuiDraw(layer, x + dx, y + h - 1, "═", style)
-  
-  for dy in 1 ..< h - 1:
-    tuiDraw(layer, x, y + dy, "║", style)
-    tuiDraw(layer, x + w - 1, y + dy, "║", style)
+  ## Draw a box with double-line Unicode borders
+  drawBox(layer, x, y, w, h, style,
+          "╔", "═", "╗",
+          "║", "║",
+          "╚", "═", "╝")
 
 proc drawBoxRounded*(layer: int, x, y, w, h: int, style: Style) =
-  ## Draw a box with rounded corners
-  tuiDraw(layer, x, y, "╭", style)
-  tuiDraw(layer, x + w - 1, y, "╮", style)
-  tuiDraw(layer, x, y + h - 1, "╰", style)
-  tuiDraw(layer, x + w - 1, y + h - 1, "╯", style)
-  
-  for dx in 1 ..< w - 1:
-    tuiDraw(layer, x + dx, y, "─", style)
-    tuiDraw(layer, x + dx, y + h - 1, "─", style)
-  
-  for dy in 1 ..< h - 1:
-    tuiDraw(layer, x, y + dy, "│", style)
-    tuiDraw(layer, x + w - 1, y + dy, "│", style)
+  ## Draw a box with rounded Unicode corners
+  drawBox(layer, x, y, w, h, style,
+          "╭", "─", "╮",
+          "│", "│",
+          "╰", "─", "╯")
 
 proc fillBox*(layer: int, x, y, w, h: int, ch: string, style: Style) =
   ## Fill a rectangular area with a character
@@ -164,7 +174,7 @@ proc findClickedWidget*(mouseX, mouseY: int,
 
 proc drawButton*(layer: int, x, y, w, h: int, label: string,
                 isFocused: bool, isPressed: bool = false,
-                borderStyle: string = "classic") =
+                borderStyle: string = "single") =
   ## Draw a complete button widget
   let baseStyle = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
@@ -175,12 +185,14 @@ proc drawButton*(layer: int, x, y, w, h: int, label: string,
   else:
     # Box with centered label
     case borderStyle
+    of "simple":
+      drawBoxSimple(layer, x, y, w, h, baseStyle)
     of "double":
       drawBoxDouble(layer, x, y, w, h, baseStyle)
     of "rounded":
       drawBoxRounded(layer, x, y, w, h, baseStyle)
     else:
-      drawBoxSimple(layer, x, y, w, h, baseStyle)
+      drawBoxSingle(layer, x, y, w, h, baseStyle)
     
     drawCenteredText(layer, x, y, w, h, label, baseStyle)
 
@@ -190,18 +202,20 @@ proc drawLabel*(layer: int, x, y: int, text: string, style: Style) =
 
 proc drawTextBox*(layer: int, x, y, w, h: int, 
                  content: string, cursorPos: int,
-                 isFocused: bool, borderStyle: string = "classic") =
+                 isFocused: bool, borderStyle: string = "single") =
   ## Draw a text input box with cursor
   let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
   # Draw border
   case borderStyle
+  of "simple":
+    drawBoxSimple(layer, x, y, w, h, style)
   of "double":
     drawBoxDouble(layer, x, y, w, h, style)
   of "rounded":
     drawBoxRounded(layer, x, y, w, h, style)
   else:
-    drawBoxSimple(layer, x, y, w, h, style)
+    drawBoxSingle(layer, x, y, w, h, style)
   
   # Draw content (simple, no scrolling for now)
   let contentY = centerTextY(y, h)
@@ -250,18 +264,20 @@ proc drawCheckBox*(layer: int, x, y: int, label: string,
   tuiDraw(layer, x + 4, y, label, tuiGetStyle("default"))
 
 proc drawPanel*(layer: int, x, y, w, h: int, title: string,
-               borderStyle: string = "classic") =
+               borderStyle: string = "single") =
   ## Draw a titled panel/frame
   let style = tuiGetStyle("border")
   
   # Draw border
   case borderStyle
+  of "simple":
+    drawBoxSimple(layer, x, y, w, h, style)
   of "double":
     drawBoxDouble(layer, x, y, w, h, style)
   of "rounded":
     drawBoxRounded(layer, x, y, w, h, style)
   else:
-    drawBoxSimple(layer, x, y, w, h, style)
+    drawBoxSingle(layer, x, y, w, h, style)
   
   # Draw title in top border
   if title.len > 0:
@@ -341,7 +357,7 @@ proc layoutCentered*(containerX, containerY, containerW, containerH,
 # ==============================================================================
 
 # Export everything for use in other modules
-export drawBoxSimple, drawBoxDouble, drawBoxRounded, fillBox
+export drawBox, drawBoxSimple, drawBoxSingle, drawBoxDouble, drawBoxRounded, fillBox
 export centerTextX, centerTextY, drawCenteredText, truncateText
 export pointInRect, findClickedWidget
 export drawButton, drawLabel, drawTextBox, drawSlider, drawCheckBox

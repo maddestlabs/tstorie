@@ -55,7 +55,7 @@ for y in 0..<height:
 # Show status
 var steps = dungeonGetStep(dungeon)
 draw(0, 0, height + 1, "Seed: " & str(seedValue) & "  Steps: " & str(steps) & "  (Native Nim - Instant!)")
-draw(0, 0, height + 2, "Press R to regenerate")
+draw(0, 0, height + 2, "Press R or click/touch anywhere to regenerate")
 ```
 
 ```nim on:input
@@ -66,6 +66,12 @@ if event.type == "text":
     initDungeon()
     return true
   return false
+
+# Handle mouse/touch input
+elif event.type == "mouse":
+  if event.action == "press":
+    initDungeon()
+    return true
 
 return false
 ```
