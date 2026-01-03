@@ -480,27 +480,21 @@ proc handleClick(clickX: int, clickY: int): bool =
       return tryMove(pushDirX, pushDirY)
     else:
       # Player needs to move adjacent to box first
-      # Try each adjacent position around the box
-      var bestPath = ""
-      var bestPathLen = 999999
+      # Try each adjacent position around the box in order
       
       # Check position to the left of box
       var adjX = gridX - 1
       var adjY = gridY
       if not hasWall(adjX, adjY) and not hasBox(adjX, adjY):
-        var path = findPath(adjX, adjY)
-        if len(path) > 0 and len(path) < bestPathLen:
-          bestPathLen = len(path)
-          bestPath = path
+        if findPath(adjX, adjY):
+          return tryMove(nextMoveDX, nextMoveDY)
       
       # Check position to the right of box
       adjX = gridX + 1
       adjY = gridY
       if not hasWall(adjX, adjY) and not hasBox(adjX, adjY):
-        var path = findPath(adjX, adjY)
-        if len(path) > 0 and len(path) < bestPathLen:
-          bestPathLen = len(path)
-          bestPath = path
+        if findPath(adjX, adjY):
+          return tryMove(nextMoveDX, nextMoveDY)
       
       # Check position above box
       adjX = gridX
@@ -653,7 +647,7 @@ if len(levelBlocks) > 0:
   contentWrite("⠀")
   var status = "Moves: " & $moveCount
   if gameWon:
-    status = status & "　★ LEVEL COMPLETE! ★"
+    status = status & "　★ WIN ★"
   contentWrite(status)
   contentWrite("WASD: Move | R: Restart")
 

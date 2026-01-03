@@ -1,8 +1,8 @@
 ---
 title: "Dungeon Generator - Native Edition"
 author: "High-performance procedural dungeon using native Nim"
-minWidth: 80
-minHeight: 20
+minWidth: 60
+minHeight: 16
 ---
 
 # Dungeon Generator
@@ -14,8 +14,8 @@ Press **R** to regenerate with a new random seed.
 ```nim on:init
 # Global state
 var dungeon # Will hold pointer to DungeonGenerator
-var width = 79
-var height = 25
+var width = termWidth - 1
+var height = termHeight - 5
 var seedValue = 0
 
 # Initialize dungeon

@@ -22,8 +22,8 @@ const CORRIDOR = 3
 # Global state
 var grid: seq
 var rooms: seq
-var width = 79
-var height = 25
+var width = termWidth - 1
+var height = termHeight - 5
 var seedValue = 0
 
 # Configuration
