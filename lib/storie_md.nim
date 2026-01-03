@@ -54,7 +54,7 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
   if frontMatter.hasKey("theme"):
     let themeName = frontMatter["theme"]
     themeColors = getTheme(themeName)
-    result = applyTheme(themeColors)
+    result = applyTheme(themeColors, themeName)
   else:
     # Use default theme (Futurism) for colors even if no theme specified
     themeColors = getTheme("futurism")
@@ -403,6 +403,7 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
   result.styleSheet = parseStyleSheet(result.frontMatter)
   result.codeBlocks = @[]
   result.sections = @[]
+  result.embeddedContent = @[]
   
   var lines = content.splitLines()
   var i = 0
@@ -530,23 +531,74 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
       
       var headerParts = trimmed[3..^1].strip().split()
       
-      # Check for figlet:NAME blocks
-      if headerParts.len > 0 and headerParts[0].startsWith("figlet:"):
-        let fontName = headerParts[0][7..^1]  # Extract name after "figlet:"
-        # Extract figlet font content
-        var fontLines: seq[string] = @[]
-        inc i
-        while i < lines.len:
-          if lines[i].strip().startsWith("```"):
-            break
-          fontLines.add(lines[i])
+      # Check for embedded content blocks: figlet:NAME, data:NAME, custom:NAME
+      if headerParts.len > 0:
+        let header = headerParts[0]
+        
+        # Check for figlet:NAME blocks
+        if header.startsWith("figlet:"):
+          let fontName = header[7..^1]  # Extract name after "figlet:"
+          # Extract figlet font content
+          var fontLines: seq[string] = @[]
           inc i
-        # Store in global table
-        let fontContent = fontLines.join("\n")
-        gEmbeddedFigletFonts[fontName] = fontContent
-        inc i
-        continue
+          while i < lines.len:
+            if lines[i].strip().startsWith("```"):
+              break
+            fontLines.add(lines[i])
+            inc i
+          # Store in global table for runtime use
+          let fontContent = fontLines.join("\n")
+          gEmbeddedFigletFonts[fontName] = fontContent
+          # Also store in document for export
+          result.embeddedContent.add(EmbeddedContent(
+            name: fontName,
+            kind: FigletFont,
+            content: fontContent
+          ))
+          inc i
+          continue
+        
+        # Check for data:NAME blocks
+        elif header.startsWith("data:"):
+          let dataName = header[5..^1]  # Extract name after "data:"
+          # Extract data content
+          var dataLines: seq[string] = @[]
+          inc i
+          while i < lines.len:
+            if lines[i].strip().startsWith("```"):
+              break
+            dataLines.add(lines[i])
+            inc i
+          let dataContent = dataLines.join("\n")
+          result.embeddedContent.add(EmbeddedContent(
+            name: dataName,
+            kind: DataFile,
+            content: dataContent
+          ))
+          inc i
+          continue
+        
+        # Check for custom:NAME blocks
+        elif header.startsWith("custom:"):
+          let customName = header[7..^1]  # Extract name after "custom:"
+          # Extract custom content
+          var customLines: seq[string] = @[]
+          inc i
+          while i < lines.len:
+            if lines[i].strip().startsWith("```"):
+              break
+            customLines.add(lines[i])
+            inc i
+          let customContent = customLines.join("\n")
+          result.embeddedContent.add(EmbeddedContent(
+            name: customName,
+            kind: Custom,
+            content: customContent
+          ))
+          inc i
+          continue
       
+      # If we get here, it's a regular code block (nim on:*, etc.)
       if headerParts.len > 0 and headerParts[0] == "nim":
         var lifecycle = ""
         var language = "nim"

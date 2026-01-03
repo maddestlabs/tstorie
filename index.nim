@@ -7,6 +7,36 @@
 # This file only contains the application logic and lifecycle hooks
 
 # ================================================================
+# METADATA REGISTRATION - For Export System
+# ================================================================
+# Register function metadata at module load time so exports can discover them
+
+proc registerTStorieMetadata*() =
+  ## Register metadata for tStorie functions
+  ## This must be called before exports to ensure metadata is available
+  
+  # Figlet functions
+  gFunctionMetadata["figletLoadFont"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "Load a FIGlet font by name")
+  gFunctionMetadata["figletIsFontLoaded"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "Check if a FIGlet font is loaded")
+  gFunctionMetadata["figletRender"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "Render text using a loaded FIGlet font")
+  gFunctionMetadata["figletListAvailableFonts"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "List all available FIGlet fonts")
+  gFunctionMetadata["drawFigletText"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    dependencies: @["draw"],
+    description: "Draw FIGlet text to a layer")
+
+# Register metadata at module load
+registerTStorieMetadata()
+
+# ================================================================
 # NIMINI INTEGRATION - Helper Functions
 # ================================================================
 
@@ -1118,9 +1148,8 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_getSectionCount, nimini_getCurrentSectionIndex,
     # Code block access
     nimini_getSectionCodeBlocks, nimini_getCodeBlock, nimini_getCurrentSectionCodeBlocks,
-    nimini_getCodeBlockText,
-    # Figlet font rendering
-    figletLoadFont, figletIsFontLoaded, figletRender, figletListAvailableFonts, drawFigletText,
+    nimini_getCodeBlockText, nimini_getContent,
+    # Figlet font rendering - NOTE: Registered separately with metadata below
     # Browser API
     nimini_localStorage_setItem, nimini_localStorage_getItem, nimini_window_open,
     # Animation/transition helpers (simple, safe)
@@ -1137,6 +1166,24 @@ proc createNiminiContext(state: AppState): NiminiContext =
     # nimini_hasActiveTransitions, nimini_getTransitionBuffer, nimini_bufferGetCell,
     # nimini_bufferWidth, nimini_bufferHeight
   )
+  
+  # Register figlet functions with metadata for export system
+  registerNative("figletLoadFont", figletLoadFont, 
+    storieLibs = @["figlet"],
+    description = "Load a FIGlet font by name")
+  registerNative("figletIsFontLoaded", figletIsFontLoaded,
+    storieLibs = @["figlet"],
+    description = "Check if a FIGlet font is loaded")
+  registerNative("figletRender", figletRender,
+    storieLibs = @["figlet"],
+    description = "Render text using a loaded FIGlet font")
+  registerNative("figletListAvailableFonts", figletListAvailableFonts,
+    storieLibs = @["figlet"],
+    description = "List all available FIGlet fonts")
+  registerNative("drawFigletText", drawFigletText,
+    storieLibs = @["figlet"],
+    dependencies = @["draw"],
+    description = "Draw FIGlet text to a layer")
   
   # Register platform-specific figlet functions - removed, now unified
   
@@ -1177,6 +1224,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerNative("getCodeBlock", nimini_getCodeBlock)
   registerNative("getCurrentSectionCodeBlocks", nimini_getCurrentSectionCodeBlocks)
   registerNative("getCodeBlockText", nimini_getCodeBlockText)
+  registerNative("getContent", nimini_getContent)
   
   let ctx = NiminiContext(env: runtimeEnv)
   

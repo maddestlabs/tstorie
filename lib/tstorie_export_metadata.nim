@@ -93,6 +93,28 @@ proc registerTStorieExportMetadata*() =
     dependencies: @["loadFont"],
     description: "Render text in figlet font")
   
+  # Figlet nimini runtime functions -> lib/figlet
+  gFunctionMetadata["figletLoadFont"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "Load a FIGlet font by name")
+  
+  gFunctionMetadata["figletIsFontLoaded"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "Check if a FIGlet font is loaded")
+  
+  gFunctionMetadata["figletRender"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "Render text using a loaded FIGlet font")
+  
+  gFunctionMetadata["figletListAvailableFonts"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    description: "List all available FIGlet fonts")
+  
+  gFunctionMetadata["drawFigletText"] = FunctionMetadata(
+    storieLibs: @["figlet"],
+    dependencies: @["draw"],
+    description: "Draw FIGlet text to a layer")
+  
   # Audio functions -> lib/audio
   gFunctionMetadata["initAudio"] = FunctionMetadata(
     storieLibs: @["audio"],

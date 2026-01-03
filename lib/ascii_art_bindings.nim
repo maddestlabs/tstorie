@@ -243,6 +243,62 @@ proc nimini_drawBorderFull*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # ==============================================================================
+# NIMINI BINDINGS - ASCII ART CONTENT RENDERING
+# ==============================================================================
+
+proc nimini_drawAscii*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Draw ASCII art from a code block. Args: layer (int), x (int), y (int), artName (string), [style (Style)]
+  ## Convenience function that loads and draws ASCII art in one call
+  ## artName supports colon syntax: "ascii:logo" or just "logo" (assumes "ascii:" prefix)
+  if args.len < 4:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let artName = valueToString(args[3])
+  
+  # Build the block type identifier
+  let blockType = if artName.contains(":"): artName else: "ascii:" & artName
+  
+  # Get the getContent function from the environment
+  let getContentFunc = env.getVar("getContent")
+  if getContentFunc.kind != vkFunction or not getContentFunc.fnVal.isNative:
+    return valNil()
+  
+  # Call getContent to get the ASCII art lines
+  var getContentArgs = @[valString(blockType)]
+  let artLines = getContentFunc.fnVal.native(env, getContentArgs)
+  
+  if artLines.kind != vkArray or artLines.arr.len == 0:
+    return valNil()
+  
+  # Get the draw function from the environment
+  let drawFunc = env.getVar("draw")
+  if drawFunc.kind != vkFunction or not drawFunc.fnVal.isNative:
+    return valNil()
+  
+  # Get style if provided
+  let hasStyle = args.len >= 5
+  let style = if hasStyle: args[4] else: valNil()
+  
+  # Draw each line
+  var currentY = y
+  for lineVal in artLines.arr:
+    let line = valueToString(lineVal)
+    if hasStyle:
+      # Draw with style
+      var drawArgs = @[valInt(layer), valInt(x), valInt(currentY), valString(line), style]
+      discard drawFunc.fnVal.native(env, drawArgs)
+    else:
+      # Draw without style
+      var drawArgs = @[valInt(layer), valInt(x), valInt(currentY), valString(line)]
+      discard drawFunc.fnVal.native(env, drawArgs)
+    currentY += 1
+  
+  return valNil()
+
+# ==============================================================================
 # NIMINI BINDINGS - CRACK DETAILS
 # ==============================================================================
 
@@ -404,5 +460,10 @@ proc registerAsciiArtBindings*(drawProc: DrawProc, appState: ptr AppState = nil)
   registerNative("getBorderCorners", nimini_getBorderCorners,
     storieLibs = @["ascii_art"],
     description = "Get corner characters for border style")
+  
+  # Register ASCII art content rendering
+  registerNative("drawAscii", nimini_drawAscii,
+    storieLibs = @["ascii_art"],
+    description = "Draw ASCII art from a code block")
 
 export registerAsciiArtBindings, DrawProc

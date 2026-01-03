@@ -150,9 +150,10 @@ proc getTheme*(name: string): ThemeColors =
     # Default to Catppuccin if theme not found
     return CatppuccinMocha
 
-proc applyTheme*(theme: ThemeColors): StyleSheet =
+proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
   ## Convert a theme into a StyleSheet with standard style names
   ## This creates default styles that can be overridden individually
+  ## Applies theme-specific adjustments when themeName is provided
   result = initTable[string, StyleConfig]()
   
   # Default body text
@@ -195,9 +196,15 @@ proc applyTheme*(theme: ThemeColors): StyleSheet =
     dim: false
   )
   
-  # Links
+  # Links (with theme-specific adjustments)
+  var linkColor = theme.accent2
+  
+  # Futurism theme: use darker gray for regular links to contrast with aquamarine focused links
+  if themeName.toLowerAscii() in ["futurism", "future", "retrowave"]:
+    linkColor = (0xFF'u8, 0xFF'u8, 0xFF'u8)  # Darker gray, subdued
+  
   result["link"] = StyleConfig(
-    fg: theme.accent2,
+    fg: linkColor,
     bg: theme.bgPrimary,
     bold: false,
     italic: false,
@@ -498,12 +505,12 @@ proc applyEditorStyles*(theme: ThemeColors): StyleSheet =
 proc applyThemeByName*(name: string): StyleSheet =
   ## Convenience function to get and apply a theme by name
   let theme = getTheme(name)
-  return applyTheme(theme)
+  return applyTheme(theme, name)
 
 proc applyFullTheme*(themeName: string): StyleSheet =
   ## Apply both base and editor styles for a complete themed editor
   let theme = getTheme(themeName)
-  result = applyTheme(theme)
+  result = applyTheme(theme, themeName)
   
   # Merge in editor-specific styles
   for key, style in applyEditorStyles(theme):

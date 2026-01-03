@@ -23,6 +23,18 @@ type
     lifecycle*: string  ## Lifecycle hook: "render", "update", "init", "input", "shutdown", "enter", "exit"
     language*: string
   
+  EmbeddedContentKind* = enum
+    ## Types of embedded content blocks in markdown
+    FigletFont,    ## figlet:NAME blocks - FIGlet font data
+    DataFile,      ## data:NAME blocks - arbitrary data
+    Custom         ## custom:NAME blocks - custom content
+  
+  EmbeddedContent* = object
+    ## Embedded content block from markdown (non-executable data)
+    name*: string              ## The NAME part after the colon
+    kind*: EmbeddedContentKind ## Type of embedded content
+    content*: string           ## The actual content data
+  
   FrontMatter* = Table[string, string]
   
   MarkdownElement* = object
@@ -59,6 +71,7 @@ type
   MarkdownDocument* = object
     ## A complete parsed markdown document
     frontMatter*: FrontMatter
-    styleSheet*: StyleSheet      ## Style configurations from front matter
-    codeBlocks*: seq[CodeBlock]  ## Flat list of all code blocks (for backward compatibility)
-    sections*: seq[Section]      ## Structured section-based view
+    styleSheet*: StyleSheet           ## Style configurations from front matter
+    codeBlocks*: seq[CodeBlock]       ## Flat list of all code blocks (for backward compatibility)
+    sections*: seq[Section]           ## Structured section-based view
+    embeddedContent*: seq[EmbeddedContent]  ## Embedded data blocks (figlet fonts, data files, etc.)

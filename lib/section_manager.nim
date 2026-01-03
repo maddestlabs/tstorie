@@ -6,7 +6,7 @@
 ##
 ## Includes optional Nimini bindings when used with tstorie.
 
-import storie_types
+import storie_types, strutils
 export storie_types  # Re-export types so users get them automatically
 
 type
@@ -449,3 +449,25 @@ proc nimini_getCodeBlockText*(env: ref Env; args: seq[Value]): Value {.nimini.} 
     return valString("")
   
   return valString(codeBlocks[blockIndex].code)
+
+proc nimini_getContent*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get content from a code block in the current section
+  ## Args: blockName (string) - can include colon syntax like "ascii:logo" or just "lvl"
+  ## Returns: Array of strings (lines)
+  if gSectionMgr.isNil or args.len < 1:
+    return valArray(@[])
+  
+  let blockName = args[0].s
+  let sectionIdx = gSectionMgr[].getCurrentSectionIndex()
+  
+  # Get the content from the code block
+  let contentText = nimini_getCodeBlockText(env, @[valInt(sectionIdx), valString(blockName)]).s
+  if contentText.len == 0:
+    return valArray(@[])
+  
+  # Split into lines and return as array
+  let lines = contentText.splitLines()
+  var result: seq[Value] = @[]
+  for line in lines:
+    result.add(valString(line))
+  return valArray(result)

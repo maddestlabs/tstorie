@@ -357,3 +357,5 @@ proc getPatternExportMetadata*(): tuple[
   result.name = "ASCII Art Pattern Library"
   result.description = "Procedural ASCII art generation with seeded randomization"
   result.version = "1.0.0"
+
+

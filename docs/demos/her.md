@@ -1,5 +1,5 @@
 ---
-title: "t|HΞR"
+title: "t|HΞR Voice"
 author: "Maddest Labs"
 minWidth: 50
 minHeight: 14
@@ -15,17 +15,9 @@ styles.lines.bold: "true"
 styles.status.fg: "#00ffff"
 styles.status.bold: "true"
 
-# Location text
-styles.location.fg: "#ff0000"
-styles.location.italic: "true"
-
 # Accent/highlight
 styles.accent.fg: "#0ff4c6"
 styles.accent.bold: "true"
-
-# Warning/critical
-styles.warning.fg: "#ff5722"
-styles.warning.bold: "true"
 ---
 
 ```nim on:init

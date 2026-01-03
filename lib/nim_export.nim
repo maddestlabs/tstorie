@@ -1043,6 +1043,60 @@ proc generateSimpleEventHelpers*(): string =
   result &= "template type*(e: SimpleEvent): string = e.eventType\n"
   result &= "\n"
 
+proc generateEmbeddedContentSection*(doc: MarkdownDocument): string =
+  ## Generate compile-time embedded content from markdown data blocks
+  ## This includes figlet fonts, data files, and other embedded content
+  result = ""
+  
+  if doc.embeddedContent.len == 0:
+    return
+  
+  result &= "# ============================================================================\n"
+  result &= "# Embedded Content from Markdown\n"
+  result &= "# ============================================================================\n"
+  result &= "# This section contains data blocks embedded in the source markdown file.\n"
+  result &= "# Content is stored as compile-time strings for zero-overhead access.\n"
+  result &= "\n"
+  result &= "var gEmbeddedContent {.global.} = initTable[string, string]()\n"
+  result &= "\n"
+  result &= "proc initEmbeddedContent() =\n"
+  result &= "  ## Initialize embedded content at startup\n"
+  result &= "  ## This loads all embedded data blocks (figlet fonts, data files, etc.)\n"
+  
+  for content in doc.embeddedContent:
+    result &= "  \n"
+    result &= "  # Embedded content: " & content.name
+    case content.kind
+    of FigletFont:
+      result &= " (FIGlet font)\n"
+    of DataFile:
+      result &= " (data file)\n"
+    of Custom:
+      result &= " (custom)\n"
+    
+    # Use triple-quoted strings to avoid escaping issues
+    result &= "  gEmbeddedContent[\"" & content.name & "\"] = \"\"\"\n"
+    result &= content.content
+    result &= "\"\"\"\n"
+  
+  result &= "\n"
+  result &= "# Helper functions to access embedded content\n"
+  result &= "proc getEmbeddedContent*(name: string): string =\n"
+  result &= "  ## Get embedded content by name\n"
+  result &= "  ## Returns empty string if content doesn't exist\n"
+  result &= "  gEmbeddedContent.getOrDefault(name, \"\")\n"
+  result &= "\n"
+  result &= "proc hasEmbeddedContent*(name: string): bool =\n"
+  result &= "  ## Check if embedded content exists\n"
+  result &= "  gEmbeddedContent.hasKey(name)\n"
+  result &= "\n"
+  result &= "# Specific helpers for figlet fonts\n"
+  result &= "proc getEmbeddedFont*(name: string): string =\n"
+  result &= "  ## Get embedded FIGlet font by name\n"
+  result &= "  ## This is an alias for getEmbeddedContent for clarity\n"
+  result &= "  getEmbeddedContent(name)\n"
+  result &= "\n"
+
 proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"): string =
   ## Generate a complete, compilable Nim program from a markdown document
   ## This is the standalone mode (minimal runtime, direct execution)
@@ -1066,6 +1120,9 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   
   # User imports
   result &= generateImportSection(ctx)
+  
+  # Embedded content (figlet fonts, data files, etc.)
+  result &= generateEmbeddedContentSection(doc)
   
   # Global state
   result &= "# Global state\n"
@@ -1168,12 +1225,18 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "    gDefaultLayer = addLayer(gState, \"default\", 0)\n"
   result &= "    \n"
   
+  # Initialize embedded content if any
+  if doc.embeddedContent.len > 0:
+    result &= "    # Initialize embedded content (fonts, data, etc.)\n"
+    result &= "    initEmbeddedContent()\n"
+    result &= "    \n"
+  
   # Theme initialization
   if doc.frontMatter.hasKey("theme"):
     let themeName = doc.frontMatter["theme"]
     result &= "    # Load theme and stylesheet\n"
     result &= "    let theme = getTheme(\"" & themeName & "\")\n"
-    result &= "    gState.styleSheet = applyTheme(theme)\n"
+    result &= "    gState.styleSheet = applyTheme(theme, \"" & themeName & "\")\n"
     result &= "    gState.themeBackground = theme.bgPrimary\n"
     result &= "    \n"
   
@@ -1290,6 +1353,9 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   
   # User imports
   result &= generateImportSection(ctx)
+  
+  # Embedded content (figlet fonts, data files, etc.)
+  result &= generateEmbeddedContentSection(doc)
   
   # Global state (AppState now imported from src/types)
   result &= "# Global state\n"
@@ -1447,12 +1513,18 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "    gInputParser = newTerminalInputParser()\n"
   result &= "    \n"
   
+  # Initialize embedded content if any
+  if doc.embeddedContent.len > 0:
+    result &= "    # Initialize embedded content (fonts, data, etc.)\n"
+    result &= "    initEmbeddedContent()\n"
+    result &= "    \n"
+  
   # Theme initialization
   if doc.frontMatter.hasKey("theme"):
     let themeName = doc.frontMatter["theme"]
     result &= "    # Load theme and stylesheet\n"
     result &= "    let theme = getTheme(\"" & themeName & "\")\n"
-    result &= "    gState.styleSheet = applyTheme(theme)\n"
+    result &= "    gState.styleSheet = applyTheme(theme, \"" & themeName & "\")\n"
     result &= "    gState.themeBackground = theme.bgPrimary\n"
     result &= "    \n"
   
@@ -1768,7 +1840,7 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
     let themeName = doc.frontMatter["theme"]
     result.code &= "    # Load theme and stylesheet\n"
     result.code &= "    let theme = getTheme(\"" & themeName & "\")\n"
-    result.code &= "    gState.styleSheet = applyTheme(theme)\n"
+    result.code &= "    gState.styleSheet = applyTheme(theme, \"" & themeName & "\")\n"
     result.code &= "    gState.themeBackground = theme.bgPrimary\n"
     result.code &= "    \n"
   
