@@ -52,6 +52,14 @@ proc valueToStyle(v: Value): Style =
           let g = parseHexInt(hexStr[3..4])
           let b = parseHexInt(hexStr[5..6])
           style.fg = Color(r: uint8(r), g: uint8(g), b: uint8(b))
+      elif fgVal.kind == vkMap:
+        # Parse RGB map (from getStyle())
+        if fgVal.map.hasKey("r") and fgVal.map.hasKey("g") and fgVal.map.hasKey("b"):
+          style.fg = Color(
+            r: uint8(valueToInt(fgVal.map["r"])),
+            g: uint8(valueToInt(fgVal.map["g"])),
+            b: uint8(valueToInt(fgVal.map["b"]))
+          )
     
     # Background color
     if v.map.hasKey("bg"):
@@ -63,6 +71,14 @@ proc valueToStyle(v: Value): Style =
           let g = parseHexInt(hexStr[3..4])
           let b = parseHexInt(hexStr[5..6])
           style.bg = Color(r: uint8(r), g: uint8(g), b: uint8(b))
+      elif bgVal.kind == vkMap:
+        # Parse RGB map (from getStyle())
+        if bgVal.map.hasKey("r") and bgVal.map.hasKey("g") and bgVal.map.hasKey("b"):
+          style.bg = Color(
+            r: uint8(valueToInt(bgVal.map["r"])),
+            g: uint8(valueToInt(bgVal.map["g"])),
+            b: uint8(valueToInt(bgVal.map["b"]))
+          )
     
     # Style attributes
     if v.map.hasKey("bold"):
@@ -443,6 +459,283 @@ proc nimini_layoutCentered*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valMap(result)
 
 # ==============================================================================
+# INPUT HANDLING BINDINGS
+# ==============================================================================
+
+proc nimini_handleTextInput*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## handleTextInput(text, cursorPos, content) -> [newCursorPos, newContent, handled]
+  if args.len < 3:
+    return valArray(@[valInt(0), valString(""), valBool(false)])
+  
+  let text = valueToString(args[0])
+  var cursorPos = valueToInt(args[1])
+  var content = valueToString(args[2])
+  
+  let handled = handleTextInput(text, cursorPos, content)
+  
+  return valArray(@[valInt(cursorPos), valString(content), valBool(handled)])
+
+proc nimini_handleBackspace*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## handleBackspace(cursorPos, content) -> [newCursorPos, newContent, handled]
+  if args.len < 2:
+    return valArray(@[valInt(0), valString(""), valBool(false)])
+  
+  var cursorPos = valueToInt(args[0])
+  var content = valueToString(args[1])
+  
+  let handled = handleBackspace(cursorPos, content)
+  
+  return valArray(@[valInt(cursorPos), valString(content), valBool(handled)])
+
+proc nimini_handleArrowKeys*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## handleArrowKeys(keyCode, value, minVal, maxVal, step) -> [newValue, handled]
+  if args.len < 5:
+    return valArray(@[valFloat(0.0), valBool(false)])
+  
+  let keyCode = valueToInt(args[0])
+  var value = valueToFloat(args[1])
+  let minVal = valueToFloat(args[2])
+  let maxVal = valueToFloat(args[3])
+  let step = valueToFloat(args[4])
+  
+  let handled = handleArrowKeys(keyCode, value, minVal, maxVal, step)
+  
+  return valArray(@[valFloat(value), valBool(handled)])
+
+# ==============================================================================
+# RADIO BUTTON BINDINGS
+# ==============================================================================
+
+proc nimini_drawRadioButton*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawRadioButton(layer, x, y, label, isSelected, isFocused)
+  if args.len < 6:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let label = valueToString(args[3])
+  let isSelected = valueToBool(args[4])
+  let isFocused = valueToBool(args[5])
+  
+  drawRadioButton(layer, x, y, label, isSelected, isFocused)
+  return valNil()
+
+proc nimini_drawRadioGroup*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawRadioGroup(layer, x, y, options, selected, focusIndex)
+  if args.len < 6:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  
+  var options: seq[string] = @[]
+  if args[3].kind == vkArray:
+    for v in args[3].arr:
+      options.add(valueToString(v))
+  
+  let selected = valueToInt(args[4])
+  let focusIndex = valueToInt(args[5])
+  
+  drawRadioGroup(layer, x, y, options, selected, focusIndex)
+  return valNil()
+
+# ==============================================================================
+# DROPDOWN BINDINGS
+# ==============================================================================
+
+proc nimini_drawDropdown*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawDropdown(layer, x, y, w, options, selected, isOpen, isFocused)
+  if args.len < 8:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  
+  var options: seq[string] = @[]
+  if args[4].kind == vkArray:
+    for v in args[4].arr:
+      options.add(valueToString(v))
+  
+  let selected = valueToInt(args[5])
+  let isOpen = valueToBool(args[6])
+  let isFocused = valueToBool(args[7])
+  
+  drawDropdown(layer, x, y, w, options, selected, isOpen, isFocused)
+  return valNil()
+
+# ==============================================================================
+# LIST BINDINGS
+# ==============================================================================
+
+proc nimini_drawList*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawList(layer, x, y, w, h, items, selected, scrollOffset, isFocused)
+  if args.len < 9:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  let h = valueToInt(args[4])
+  
+  var items: seq[string] = @[]
+  if args[5].kind == vkArray:
+    for v in args[5].arr:
+      items.add(valueToString(v))
+  
+  let selected = valueToInt(args[6])
+  let scrollOffset = valueToInt(args[7])
+  let isFocused = valueToBool(args[8])
+  
+  drawList(layer, x, y, w, h, items, selected, scrollOffset, isFocused)
+  return valNil()
+
+# ==============================================================================
+# TEXT AREA BINDINGS
+# ==============================================================================
+
+proc nimini_drawTextArea*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawTextArea(layer, x, y, w, h, lines, cursorLine, cursorCol, scrollY, isFocused)
+  if args.len < 10:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  let h = valueToInt(args[4])
+  
+  var lines: seq[string] = @[]
+  if args[5].kind == vkArray:
+    for v in args[5].arr:
+      lines.add(valueToString(v))
+  
+  let cursorLine = valueToInt(args[6])
+  let cursorCol = valueToInt(args[7])
+  let scrollY = valueToInt(args[8])
+  let isFocused = valueToBool(args[9])
+  
+  drawTextArea(layer, x, y, w, h, lines, cursorLine, cursorCol, scrollY, isFocused)
+  return valNil()
+
+# ==============================================================================
+# TOOLTIP BINDINGS
+# ==============================================================================
+
+proc nimini_drawTooltip*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawTooltip(layer, x, y, text)
+  if args.len < 4:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let text = valueToString(args[3])
+  
+  drawTooltip(layer, x, y, text)
+  return valNil()
+
+# ==============================================================================
+# TAB CONTAINER BINDINGS
+# ==============================================================================
+
+proc nimini_drawTabBar*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawTabBar(layer, x, y, w, tabs, activeTab)
+  if args.len < 6:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  
+  var tabs: seq[string] = @[]
+  if args[4].kind == vkArray:
+    for v in args[4].arr:
+      tabs.add(valueToString(v))
+  
+  let activeTab = valueToInt(args[5])
+  
+  drawTabBar(layer, x, y, w, tabs, activeTab)
+  return valNil()
+
+proc nimini_drawTabContent*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawTabContent(layer, x, y, w, h, [borderStyle])
+  if args.len < 5:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  let h = valueToInt(args[4])
+  let borderStyle = if args.len >= 6: valueToString(args[5]) else: "single"
+  
+  drawTabContent(layer, x, y, w, h, borderStyle)
+  return valNil()
+
+# ==============================================================================
+# FORM LAYOUT BINDINGS
+# ==============================================================================
+
+proc nimini_layoutForm*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## layoutForm(startX, startY, labelWidth, fieldWidth, fieldHeight, spacing, fieldCount)
+  ## Returns array of maps with keys: labelX, labelY, fieldX, fieldY
+  if args.len < 7:
+    return valArray(@[])
+  
+  let startX = valueToInt(args[0])
+  let startY = valueToInt(args[1])
+  let labelWidth = valueToInt(args[2])
+  let fieldWidth = valueToInt(args[3])
+  let fieldHeight = valueToInt(args[4])
+  let spacing = valueToInt(args[5])
+  let fieldCount = valueToInt(args[6])
+  
+  let positions = layoutForm(startX, startY, labelWidth, fieldWidth, fieldHeight, spacing, fieldCount)
+  
+  var result: seq[Value] = @[]
+  for pos in positions:
+    var map = initTable[string, Value]()
+    map["labelX"] = valInt(pos.labelX)
+    map["labelY"] = valInt(pos.labelY)
+    map["fieldX"] = valInt(pos.fieldX)
+    map["fieldY"] = valInt(pos.fieldY)
+    result.add(valMap(map))
+  
+  return valArray(result)
+
+# ==============================================================================
+# ENHANCED TEXT BOX BINDINGS
+# ==============================================================================
+
+proc nimini_drawTextBoxWithScroll*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawTextBoxWithScroll(layer, x, y, w, h, content, cursorPos, scrollOffset, isFocused, [borderStyle])
+  ## Returns new scroll offset
+  if args.len < 9:
+    return valInt(0)
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  let h = valueToInt(args[4])
+  let content = valueToString(args[5])
+  let cursorPos = valueToInt(args[6])
+  let scrollOffset = valueToInt(args[7])
+  let isFocused = valueToBool(args[8])
+  let borderStyle = if args.len >= 10: valueToString(args[9]) else: "single"
+  
+  let newScrollOffset = drawTextBoxWithScroll(layer, x, y, w, h, content, cursorPos, 
+                                              scrollOffset, isFocused, borderStyle)
+  
+  return valInt(newScrollOffset)
+
+# ==============================================================================
 # REGISTRATION
 # ==============================================================================
 
@@ -537,5 +830,66 @@ proc registerTUIHelperBindings*(env: ref Env) =
   registerNative("layoutCentered", nimini_layoutCentered,
     storieLibs = @["tui_helpers"],
     description = "Center an item within a container")
+  
+  # Input handling
+  registerNative("handleTextInput", nimini_handleTextInput,
+    storieLibs = @["tui_helpers"],
+    description = "Handle text input for text fields")
+  
+  registerNative("handleBackspace", nimini_handleBackspace,
+    storieLibs = @["tui_helpers"],
+    description = "Handle backspace for text fields")
+  
+  registerNative("handleArrowKeys", nimini_handleArrowKeys,
+    storieLibs = @["tui_helpers"],
+    description = "Handle arrow keys for sliders/numeric inputs")
+  
+  # Radio buttons
+  registerNative("drawRadioButton", nimini_drawRadioButton,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a single radio button with label")
+  
+  registerNative("drawRadioGroup", nimini_drawRadioGroup,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a group of radio buttons")
+  
+  # Dropdown
+  registerNative("drawDropdown", nimini_drawDropdown,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a dropdown/select widget")
+  
+  # List
+  registerNative("drawList", nimini_drawList,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a scrollable list with keyboard navigation")
+  
+  # Text area
+  registerNative("drawTextArea", nimini_drawTextArea,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a multi-line text area with scrolling")
+  
+  # Tooltip
+  registerNative("drawTooltip", nimini_drawTooltip,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a tooltip (floating help text)")
+  
+  # Tab container
+  registerNative("drawTabBar", nimini_drawTabBar,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a tab bar at the top of a container")
+  
+  registerNative("drawTabContent", nimini_drawTabContent,
+    storieLibs = @["tui_helpers"],
+    description = "Draw the content area below tabs")
+  
+  # Form layout
+  registerNative("layoutForm", nimini_layoutForm,
+    storieLibs = @["tui_helpers"],
+    description = "Calculate positions for form fields")
+  
+  # Enhanced text box
+  registerNative("drawTextBoxWithScroll", nimini_drawTextBoxWithScroll,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a text input box with horizontal scrolling")
 
 export registerTUIHelperBindings

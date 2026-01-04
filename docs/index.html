@@ -876,9 +876,16 @@
                         
                         // Set custom uniforms
                         for (const name in customUniforms) {
-                            const value = customUniforms[name];
+                            let value = customUniforms[name];
                             const location = uniformLocations[name];
                             if (location) {
+                                // Special handling for cellSize - get live values from terminal
+                                if (name === 'cellSize' && window.terminal) {
+                                    // Don't multiply by DPR - the canvas buffer is already DPR-scaled
+                                    // and resolution uniform matches the buffer size
+                                    value = [window.terminal.charWidth, window.terminal.charHeight];
+                                }
+                                
                                 if (typeof value === 'number') {
                                     gl.uniform1f(location, value);
                                 } else if (Array.isArray(value)) {

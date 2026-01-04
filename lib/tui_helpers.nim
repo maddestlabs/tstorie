@@ -353,6 +353,308 @@ proc layoutCentered*(containerX, containerY, containerW, containerH,
   result.y = containerY + (containerH - itemH) div 2
 
 # ==============================================================================
+# INPUT HANDLING HELPERS
+# ==============================================================================
+
+proc handleTextInput*(text: string, cursorPos: var int, content: var string): bool =
+  ## Handle text input for text fields
+  ## Returns true if input was handled
+  content = content & text
+  cursorPos = cursorPos + 1
+  return true
+
+proc handleBackspace*(cursorPos: var int, content: var string): bool =
+  ## Handle backspace for text fields
+  ## Returns true if input was handled
+  if cursorPos > 0 and content.len > 0:
+    content = content[0..<content.len - 1]
+    cursorPos = cursorPos - 1
+    return true
+  return false
+
+proc handleArrowKeys*(keyCode: int, value: var float, minVal, maxVal, step: float): bool =
+  ## Handle arrow keys for sliders/numeric inputs
+  ## keyCode: 37=Left, 38=Up, 39=Right, 40=Down
+  ## Returns true if input was handled
+  if keyCode == 37 or keyCode == 40:  # Left or Down
+    value = value - step
+    if value < minVal:
+      value = minVal
+    return true
+  elif keyCode == 39 or keyCode == 38:  # Right or Up
+    value = value + step
+    if value > maxVal:
+      value = maxVal
+    return true
+  return false
+
+# ==============================================================================
+# RADIO BUTTON WIDGET
+# ==============================================================================
+
+proc drawRadioButton*(layer: int, x, y: int, label: string,
+                     isSelected: bool, isFocused: bool) =
+  ## Draw a single radio button with label
+  let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
+  
+  # Draw radio button
+  tuiDraw(layer, x, y, "(", style)
+  let selectChar = if isSelected: "•" else: " "
+  tuiDraw(layer, x + 1, y, selectChar, style)
+  tuiDraw(layer, x + 2, y, ")", style)
+  
+  # Draw label
+  tuiDraw(layer, x + 4, y, label, tuiGetStyle("default"))
+
+proc drawRadioGroup*(layer: int, x, y: int, options: seq[string], 
+                    selected: int, focusIndex: int) =
+  ## Draw a group of radio buttons (vertical layout)
+  ## focusIndex: which option is focused (-1 for none)
+  for i in 0..<options.len:
+    let optY = y + i
+    let isSelected = i == selected
+    let isFocused = i == focusIndex
+    drawRadioButton(layer, x, optY, options[i], isSelected, isFocused)
+
+# ==============================================================================
+# DROPDOWN/SELECT WIDGET
+# ==============================================================================
+
+proc drawDropdown*(layer: int, x, y, w: int, options: seq[string],
+                  selected: int, isOpen: bool, isFocused: bool) =
+  ## Draw a dropdown/select widget
+  let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
+  
+  if not isOpen:
+    # Draw closed dropdown
+    drawBoxSingle(layer, x, y, w, 3, style)
+    
+    # Draw selected option
+    if selected >= 0 and selected < options.len:
+      let selectedText = truncateText(options[selected], w - 4)
+      tuiDraw(layer, x + 2, y + 1, selectedText, tuiGetStyle("default"))
+    
+    # Draw dropdown arrow
+    tuiDraw(layer, x + w - 3, y + 1, "▼", style)
+  else:
+    # Draw open dropdown with options
+    let dropHeight = min(options.len + 2, 10)  # Max 10 items visible
+    drawBoxSingle(layer, x, y, w, dropHeight, style)
+    
+    # Draw options
+    for i in 0..<min(options.len, 8):
+      let optY = y + 1 + i
+      let optText = truncateText(options[i], w - 4)
+      let optStyle = if i == selected: tuiGetStyle("info") else: tuiGetStyle("default")
+      tuiDraw(layer, x + 2, optY, optText, optStyle)
+
+# ==============================================================================
+# LIST/MENU WIDGET
+# ==============================================================================
+
+proc drawList*(layer: int, x, y, w, h: int, items: seq[string], 
+              selected: int, scrollOffset: int, isFocused: bool) =
+  ## Draw a scrollable list with keyboard navigation
+  let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
+  drawBoxSingle(layer, x, y, w, h, style)
+  
+  # Draw visible items
+  let maxVisible = h - 2
+  let endIdx = min(scrollOffset + maxVisible, items.len)
+  
+  for i in scrollOffset..<endIdx:
+    let itemY = y + 1 + (i - scrollOffset)
+    let itemText = truncateText(items[i], w - 4)
+    let itemStyle = if i == selected: tuiGetStyle("info") else: tuiGetStyle("default")
+    
+    if i == selected:
+      # Highlight selected item
+      fillBox(layer, x + 1, itemY, w - 2, 1, " ", tuiGetStyle("button"))
+    
+    tuiDraw(layer, x + 2, itemY, itemText, itemStyle)
+  
+  # Draw scrollbar if needed
+  if items.len > maxVisible:
+    let scrollbarHeight = h - 2
+    let scrollbarPos = int((float(scrollOffset) / float(items.len - maxVisible)) * float(scrollbarHeight - 1))
+    tuiDraw(layer, x + w - 1, y + 1 + scrollbarPos, "█", tuiGetStyle("warning"))
+
+# ==============================================================================
+# TEXT AREA (MULTI-LINE)
+# ==============================================================================
+
+proc drawTextArea*(layer: int, x, y, w, h: int, lines: seq[string],
+                  cursorLine, cursorCol, scrollY: int, isFocused: bool) =
+  ## Draw a multi-line text area with scrolling
+  let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
+  drawBoxSingle(layer, x, y, w, h, style)
+  
+  # Draw visible lines
+  let maxVisible = h - 2
+  let endLine = min(scrollY + maxVisible, lines.len)
+  
+  for i in scrollY..<endLine:
+    let lineY = y + 1 + (i - scrollY)
+    let lineText = if lines[i].len > w - 4:
+                     lines[i][0..<(w - 4)]
+                   else:
+                     lines[i]
+    tuiDraw(layer, x + 2, lineY, lineText, tuiGetStyle("default"))
+    
+    # Draw cursor if on this line and focused
+    if isFocused and i == cursorLine:
+      let cursorX = x + 2 + min(cursorCol, w - 4)
+      tuiDraw(layer, cursorX, lineY, "_", tuiGetStyle("warning"))
+  
+  # Line number indicator
+  let lineInfo = $(cursorLine + 1) & ":" & $(cursorCol + 1)
+  tuiDraw(layer, x + 2, y + h - 1, lineInfo, tuiGetStyle("info"))
+
+# ==============================================================================
+# TOOLTIP WIDGET
+# ==============================================================================
+
+proc drawTooltip*(layer: int, x, y: int, text: string) =
+  ## Draw a tooltip (floating help text)
+  let w = text.len + 4
+  let h = 3
+  let style = tuiGetStyle("warning")
+  
+  # Draw semi-transparent background (using dim style)
+  fillBox(layer, x, y, w, h, " ", tuiGetStyle("button"))
+  drawBoxSingle(layer, x, y, w, h, style)
+  tuiDraw(layer, x + 2, y + 1, text, style)
+
+# ==============================================================================
+# TAB CONTAINER WIDGET
+# ==============================================================================
+
+proc drawTabBar*(layer: int, x, y, w: int, tabs: seq[string], activeTab: int) =
+  ## Draw a tab bar at the top of a container
+  var currentX = x + 1
+  
+  for i in 0..<tabs.len:
+    let tabText = " " & tabs[i] & " "
+    let tabWidth = tabText.len
+    let style = if i == activeTab: tuiGetStyle("info") else: tuiGetStyle("border")
+    
+    # Draw tab
+    if i == activeTab:
+      # Active tab
+      tuiDraw(layer, currentX, y, "┌", style)
+      for dx in 1..<tabWidth - 1:
+        tuiDraw(layer, currentX + dx, y, "─", style)
+      tuiDraw(layer, currentX + tabWidth - 1, y, "┐", style)
+      tuiDraw(layer, currentX, y + 1, "│", style)
+      tuiDraw(layer, currentX + tabWidth - 1, y + 1, "│", style)
+    else:
+      # Inactive tab
+      tuiDraw(layer, currentX, y + 1, "│", style)
+      tuiDraw(layer, currentX + tabWidth - 1, y + 1, "│", style)
+    
+    # Tab label
+    tuiDraw(layer, currentX + 1, y + 1, tabs[i], style)
+    currentX += tabWidth + 1
+
+proc drawTabContent*(layer: int, x, y, w, h: int, borderStyle: string = "single") =
+  ## Draw the content area below tabs
+  let style = tuiGetStyle("border")
+  
+  # Draw top line connecting to tabs
+  tuiDraw(layer, x, y, "├", style)
+  for dx in 1..<w - 1:
+    tuiDraw(layer, x + dx, y, "─", style)
+  tuiDraw(layer, x + w - 1, y, "┤", style)
+  
+  # Draw sides and bottom
+  for dy in 1..<h - 1:
+    tuiDraw(layer, x, y + dy, "│", style)
+    tuiDraw(layer, x + w - 1, y + dy, "│", style)
+  
+  tuiDraw(layer, x, y + h - 1, "└", style)
+  for dx in 1..<w - 1:
+    tuiDraw(layer, x + dx, y + h - 1, "─", style)
+  tuiDraw(layer, x + w - 1, y + h - 1, "┘", style)
+
+# ==============================================================================
+# FORM LAYOUT HELPER
+# ==============================================================================
+
+proc layoutForm*(startX, startY, labelWidth, fieldWidth, fieldHeight, 
+                spacing: int, fieldCount: int): seq[tuple[labelX, labelY, fieldX, fieldY: int]] =
+  ## Calculate positions for form fields (label + input pairs)
+  result = @[]
+  var currentY = startY
+  
+  for i in 0..<fieldCount:
+    let labelX = startX
+    let labelY = currentY + (fieldHeight div 2)  # Vertically center label
+    let fieldX = startX + labelWidth + 2
+    let fieldY = currentY
+    
+    result.add((labelX, labelY, fieldX, fieldY))
+    currentY += fieldHeight + spacing
+
+# ==============================================================================
+# ENHANCED TEXT BOX WITH SCROLLING
+# ==============================================================================
+
+proc drawTextBoxWithScroll*(layer: int, x, y, w, h: int, content: string,
+                           cursorPos, scrollOffset: int, isFocused: bool,
+                           borderStyle: string = "single"): int =
+  ## Draw a text input box with horizontal scrolling
+  ## Returns the new scroll offset
+  let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
+  
+  # Draw border
+  case borderStyle
+  of "simple":
+    drawBoxSimple(layer, x, y, w, h, style)
+  of "double":
+    drawBoxDouble(layer, x, y, w, h, style)
+  of "rounded":
+    drawBoxRounded(layer, x, y, w, h, style)
+  else:
+    drawBoxSingle(layer, x, y, w, h, style)
+  
+  # Calculate visible area
+  let contentY = centerTextY(y, h)
+  let maxLen = w - 4  # Leave padding
+  
+  # Calculate scroll offset to keep cursor visible
+  var newScrollOffset = scrollOffset
+  if cursorPos < newScrollOffset:
+    newScrollOffset = cursorPos
+  elif cursorPos >= newScrollOffset + maxLen:
+    newScrollOffset = cursorPos - maxLen + 1
+  
+  # Extract visible portion
+  let visibleStart = newScrollOffset
+  let visibleEnd = min(content.len, visibleStart + maxLen)
+  let visibleContent = if visibleStart < content.len:
+                         content[visibleStart..<visibleEnd]
+                       else:
+                         ""
+  
+  # Draw content
+  tuiDraw(layer, x + 2, contentY, visibleContent, style)
+  
+  # Draw cursor if focused
+  if isFocused and cursorPos >= 0 and cursorPos <= content.len:
+    let relativeCursorPos = cursorPos - newScrollOffset
+    if relativeCursorPos >= 0 and relativeCursorPos < maxLen:
+      let cursorX = x + 2 + relativeCursorPos
+      tuiDraw(layer, cursorX, contentY, "_", tuiGetStyle("warning"))
+  
+  # Draw scroll indicators
+  if newScrollOffset > 0:
+    tuiDraw(layer, x + 1, contentY, "◀", tuiGetStyle("warning"))
+  if visibleEnd < content.len:
+    tuiDraw(layer, x + w - 2, contentY, "▶", tuiGetStyle("warning"))
+  
+  return newScrollOffset
+
+# ==============================================================================
 # EXPORTS
 # ==============================================================================
 
@@ -363,3 +665,13 @@ export pointInRect, findClickedWidget
 export drawButton, drawLabel, drawTextBox, drawSlider, drawCheckBox
 export drawPanel, drawProgressBar, drawSeparator
 export layoutVertical, layoutHorizontal, layoutGrid, layoutCentered
+# New exports
+export handleTextInput, handleBackspace, handleArrowKeys
+export drawRadioButton, drawRadioGroup
+export drawDropdown
+export drawList
+export drawTextArea
+export drawTooltip
+export drawTabBar, drawTabContent
+export layoutForm
+export drawTextBoxWithScroll

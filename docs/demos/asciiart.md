@@ -18,8 +18,8 @@ var frameArt = getContent("ascii:frame")
 clear()
 
 # Basic ASCII Art
-draw(0, 2, 2, "Basic ASCII Art:")
-drawAscii(0, 2, 3, "robot")
+draw(0, 0, 0, "Basic ASCII Art:")
+drawAscii(0, 1, 1, "robot")
 
 # With Style
 draw(0, 2, 12, "With Style:")

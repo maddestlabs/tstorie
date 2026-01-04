@@ -5,6 +5,7 @@ minWidth: 28
 minHeight: 12
 theme: "outrun"
 emoji: "⬛⬜🔲😶🟨❎"
+hideHeadings: "true"
 ---
 
 # Intro
@@ -18,7 +19,7 @@ emoji: "⬛⬜🔲😶🟨❎"
 #####
 ```
 ⠀
-- [Next Level](#two_boxes) | [How to Play](#instructions)
+- [Next Level](#two_boxes) | [?](#instructions)
 
 # Two Boxes
 ⠀
@@ -31,7 +32,7 @@ emoji: "⬛⬜🔲😶🟨❎"
 #######
 ```
 ⠀
-- [Next Level](#the_corridor) | [How to Play](#instructions)
+- [Next Level](#the_corridor) | [?](#instructions)
 
 # The Corridor
 ⠀
@@ -45,7 +46,7 @@ emoji: "⬛⬜🔲😶🟨❎"
 ########
 ```
 
-- [Next Level](#cross_pattern) | [How to Play](#instructions)
+- [Next Level](#cross_pattern) | [?](#instructions)
 
 # Cross Pattern
 ⠀
@@ -61,22 +62,18 @@ emoji: "⬛⬜🔲😶🟨❎"
 #########
 ```
 
-- [Restart](#intro) | [How to Play](#instructions)
+- [Restart](#intro) | [?](#instructions)
 
 # Instructions
-⠀
-**How to Play:**
-⠀
 ```nim on:enter
 contentClear()
 contentWrite("-" & playerChar & " You are the player")
 contentWrite("-" & boxChar & " Push bloxes onto goals")
 contentWrite("-" & goalChar & " Goal markers")
-contentWrite("-" & boxOnGoalChar & " Box on goal")
+contentWrite("-" & boxOnGoalChar & " Blox on goal")
 contentWrite("-" & wallChar & " Walls")
 ```
 ⠀
-**Rules:**
 - You can only push bloxes, not pull them
 - You cannot push two bloxes at once
 - Get all bloxes onto the goal markers to win!

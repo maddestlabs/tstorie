@@ -410,6 +410,9 @@ async function inittstorie() {
         }
         terminal = new TStorieTerminal(canvas, customFont, customFontSize);
         
+        // Expose terminal globally for shader system to access cell dimensions
+        window.terminal = terminal;
+        
         console.log('Terminal created:', terminal.cols, 'x', terminal.rows);
         
         // Initialize WASM module

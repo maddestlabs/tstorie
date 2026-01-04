@@ -226,14 +226,14 @@ proc buildStyleCode(style: Style, colorSupport: int): string =
   else:
     codes.add($toAnsi8(style.fg))
   
-  if not (style.bg.r == 0 and style.bg.g == 0 and style.bg.b == 0):
-    case colorSupport
-    of 16777216:
-      codes.add("48;2;" & $style.bg.r & ";" & $style.bg.g & ";" & $style.bg.b)
-    of 256:
-      codes.add("48;5;" & $toAnsi256(style.bg))
-    else:
-      codes.add($(toAnsi8(style.bg) + 10))
+  # Always output background color to ensure theme backgrounds are applied
+  case colorSupport
+  of 16777216:
+    codes.add("48;2;" & $style.bg.r & ";" & $style.bg.g & ";" & $style.bg.b)
+  of 256:
+    codes.add("48;5;" & $toAnsi256(style.bg))
+  else:
+    codes.add($(toAnsi8(style.bg) + 10))
   
   result.add(codes.join(";") & "m")
 

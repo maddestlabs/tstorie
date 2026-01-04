@@ -187,7 +187,14 @@ proc draw(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let x = valueToInt(args[1])
   let y = valueToInt(args[2])
   let text = args[3].s
-  let style = if args.len >= 5: valueToStyle(args[4]) else: gTextStyle
+  
+  # Use theme's default style if no style is provided
+  let style = if args.len >= 5:
+    valueToStyle(args[4])
+  elif not storieCtx.isNil and storieCtx.styleSheet.hasKey("default"):
+    storieCtx.styleSheet["default"].toStyle()
+  else:
+    gTextStyle
   
   layer.buffer.writeText(x, y, text, style)
   return valNil()
@@ -255,7 +262,14 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let w = valueToInt(args[3])
   let h = valueToInt(args[4])
   let ch = args[5].s
-  let style = if args.len >= 7: valueToStyle(args[6]) else: gTextStyle
+  
+  # Use theme's default style if no style is provided
+  let style = if args.len >= 7:
+    valueToStyle(args[6])
+  elif not storieCtx.isNil and storieCtx.styleSheet.hasKey("default"):
+    storieCtx.styleSheet["default"].toStyle()
+  else:
+    gTextStyle
   
   layer.buffer.fillRect(x, y, w, h, ch, style)
   return valNil()
@@ -380,6 +394,9 @@ proc nimini_getStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## getStyle(name: string) -> Style map
   ## Retrieve a named style from the stylesheet defined in front matter
   if args.len < 1:
+    # No style name provided, try to get "default" from stylesheet first
+    if not storieCtx.isNil and storieCtx.styleSheet.hasKey("default"):
+      return styleConfigToValue(storieCtx.styleSheet["default"])
     return styleConfigToValue(getDefaultStyleConfig())
   
   let styleName = args[0].s
@@ -388,7 +405,9 @@ proc nimini_getStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if not storieCtx.isNil and storieCtx.styleSheet.hasKey(styleName):
     return styleConfigToValue(storieCtx.styleSheet[styleName])
   
-  # Fallback to default style
+  # Fallback to "default" entry in stylesheet, then hardcoded default
+  if not storieCtx.isNil and storieCtx.styleSheet.hasKey("default"):
+    return styleConfigToValue(storieCtx.styleSheet["default"])
   return styleConfigToValue(getDefaultStyleConfig())
 
 proc nimini_getThemes(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -771,8 +790,14 @@ proc writeTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
     of "WrapJustify": wrapMode = WrapJustify
     else: discard
   
+  # Use theme's default style
+  let style = if not storieCtx.isNil and storieCtx.styleSheet.hasKey("default"):
+    storieCtx.styleSheet["default"].toStyle()
+  else:
+    gTextStyle
+  
   discard layout.writeTextBox(layer.buffer, x, y, width, height, text, 
-                       hAlign, vAlign, wrapMode, gTextStyle)
+                       hAlign, vAlign, wrapMode, style)
   return valNil()
 
 # ================================================================

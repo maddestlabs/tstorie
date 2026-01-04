@@ -1,8 +1,8 @@
 ---
 title: "Dungeon Generator - Native Edition"
 author: "High-performance procedural dungeon using native Nim"
-minWidth: 60
-minHeight: 16
+minWidth: 40
+minHeight: 14
 ---
 
 # Dungeon Generator

@@ -11,7 +11,7 @@ This demo shows the new layout module capabilities.
 # Clear screen
 var w = getTermWidth()
 var h = getTermHeight()
-# draw(0, 0, 0, w, h, " ")
+clear()
 
 # Title bar - centered
 draw(0, 0, 0, w, 1, title, "AlignCenter", "AlignTop", "WrapNone")

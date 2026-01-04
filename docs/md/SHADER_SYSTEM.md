@@ -40,6 +40,26 @@ Your shader automatically receives these uniforms:
 - `uniform float time` - Time in seconds since shader start
 - `uniform vec2 resolution` - Canvas resolution in pixels
 
+## Cell-Aware Uniforms
+
+For shaders that need to align with terminal character cells (like grid effects), use the special `cellSize` uniform:
+
+```javascript
+uniforms: {
+    cellSize: [10.0, 20.0]  // Will be automatically updated with actual cell dimensions
+}
+```
+
+The system will automatically replace this with the terminal's actual character cell dimensions (including device pixel ratio scaling). This allows effects to perfectly align with the text grid.
+
+**Example use cases:**
+- Grid overlays that match character cells
+- Cell-based effects (per-character bloom, etc.)
+- Alignment guides for ASCII art
+- Graph paper backgrounds
+
+See the `graphpaper.js` shader for a complete example.
+
 ## Vertex Shader
 
 The vertex shader should output texture coordinates:

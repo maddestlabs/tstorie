@@ -110,6 +110,16 @@ const
     accent2:      (0x2a'u8, 0xa1'u8, 0x98'u8),  # Cyan
     accent3:      (0x85'u8, 0x99'u8, 0x00'u8)   # Green
   )
+  
+  Coffee* = ThemeColors(
+    bgPrimary:    (0xf2'u8, 0xd3'u8, 0xac'u8),  # Cream
+    bgSecondary:  (0x73'u8, 0x14'u8, 0x25'u8),  # Dark burgundy
+    fgPrimary:    (0x26'u8, 0x03'u8, 0x24'u8),  # Deep purple-brown
+    fgSecondary:  (0xbf'u8, 0x8c'u8, 0x6f'u8),  # Tan
+    accent1:      (0xbf'u8, 0x34'u8, 0x34'u8),  # Rich red
+    accent2:      (0xbf'u8, 0x8c'u8, 0x6f'u8),  # Tan
+    accent3:      (0xf2'u8, 0xd3'u8, 0xac'u8)   # Cream accent
+  )
 
 proc getAvailableThemes*(): seq[string] =
   ## Get list of all available theme names
@@ -122,7 +132,8 @@ proc getAvailableThemes*(): seq[string] =
     "cyberpunk",
     "terminal",
     "solarized-dark",
-    "futurism"
+    "futurism",
+    "coffee"
   ]
 
 proc getTheme*(name: string): ThemeColors =
@@ -146,6 +157,8 @@ proc getTheme*(name: string): ThemeColors =
     return SolarizedDark
   of "futurism", "future", "retrowave":
     return Futurism
+  of "coffee", "chocolate":
+    return Coffee
   else:
     # Default to Catppuccin if theme not found
     return CatppuccinMocha
@@ -165,6 +178,9 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     underline: false,
     dim: false
   )
+  
+  # Default style (same as body) - used when no explicit style is provided
+  result["default"] = result["body"]
   
   # Primary heading (h1)
   result["heading"] = StyleConfig(
