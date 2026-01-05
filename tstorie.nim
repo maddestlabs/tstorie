@@ -14,7 +14,9 @@ import lib/layout             # Text layout utilities
 import lib/figlet             # FIGlet font rendering (for parsing and rendering)
 import lib/nimini_bridge      # Nimini API registration and bindings
 import lib/ascii_art_bindings # ASCII art nimini bindings
+import lib/ansi_art_bindings  # ANSI art nimini bindings
 import lib/dungeon_bindings   # Dungeon generator nimini bindings
+import lib/particles_bindings # Particle system nimini bindings
 
 when not defined(emscripten):
   import src/platform/terminal
@@ -29,6 +31,37 @@ include lib/canvas            # Canvas navigation system
 include lib/audio             # Audio system
 
 const version = "0.1.0"
+
+# ================================================================
+# ARCHITECTURE OVERVIEW
+# ================================================================
+#
+# tStorie is organized into modules:
+#
+# /src/ - Core engine modules (imported)
+#   - types.nim: Core type definitions
+#   - layers.nim: Layer and buffer operations
+#   - appstate.nim: Application state management
+#   - input.nim: Input parsing and event handling
+#   - params.nim: URL/CLI parameter management
+#   - runtime_api.nim: Runtime API and lifecycle (INCLUDED)
+#   - platform/: Platform-specific code (terminal, etc.)
+#
+# /lib/ - Feature modules (imported or included)
+#   - storie_types.nim: Markdown document types
+#   - storie_md.nim: Markdown parser
+#   - section_manager.nim: Section navigation
+#   - canvas.nim: Canvas presentation system (INCLUDED)
+#   - animation.nim: Animation and easing (INCLUDED)
+#   - audio.nim: Audio generation (INCLUDED)
+#   - figlet.nim: FIGlet font rendering
+#   - tui_helpers.nim: TUI widgets and helpers
+#
+# Note: runtime_api.nim (formerly index.nim) is INCLUDED to share
+# namespace and provide lifecycle callbacks. Most other modules are
+# imported for proper encapsulation.
+#
+# ================================================================
 
 # ================================================================
 # INPUT EVENT TYPES (imported from src/types)
@@ -315,7 +348,7 @@ proc listCachedModules*(): seq[string] =
 # API registration and helper templates now in lib/nimini_bridge.nim
 
 # ================================================================
-# INDEX.NIM INTEGRATION - Types and Globals
+# RUNTIME API INTEGRATION - Types and Globals
 # ================================================================
 
 type
@@ -340,6 +373,8 @@ type
     fgLayer: Layer
     # Section management
     sectionMgr: SectionManager   # Section manager handles all section state
+    # Embedded content (figlet fonts, data files, ANSI art, etc.)
+    embeddedContent*: seq[EmbeddedContent]  # For getContent() access
     # Global event handlers
     globalRenderHandlers*: seq[GlobalHandler]
     globalUpdateHandlers*: seq[GlobalHandler]
@@ -450,7 +485,7 @@ var gWaitingForGist*: bool = false
 var gShowingDimensionWarning*: bool = false  # Flag to skip layer compositing
 
 # ================================================================
-# HELPER FUNCTIONS FOR INDEX.NIM (used by both native and WASM)
+# HELPER FUNCTIONS FOR RUNTIME API (used by both native and WASM)
 # ================================================================
 
 # Helper to convert Value to int (handles both int and float values)
@@ -485,8 +520,8 @@ when not defined(emscripten):
   var onShutdown*: proc(state: AppState) = nil
   var onInput*: proc(state: AppState, event: InputEvent): bool = nil
   
-  # Directly include index.nim
-  include "index"
+  # Include runtime API from src/
+  include src/runtime_api
   
   proc callOnSetup(state: AppState) =
     if not onInit.isNil:
@@ -525,15 +560,15 @@ when defined(emscripten):
   var gEmSetUrlParamCalls: int = 0
   var gFlushWasmParamsCalls: int = 0
   
-  # For WASM builds, include index.nim directly
+  # For WASM builds, include runtime API from src/
   var onInit*: proc(state: AppState) = nil
   var onUpdate*: proc(state: AppState, dt: float) = nil
   var onRender*: proc(state: AppState) = nil
   var onShutdown*: proc(state: AppState) = nil
   var onInput*: proc(state: AppState, event: InputEvent): bool = nil
   
-  # Directly include index.nim
-  include "index"
+  # Include runtime API from src/
+  include src/runtime_api
   
   # Define callback wrapper procs that call the user-defined callbacks
   proc userInit(state: AppState) =
@@ -550,7 +585,6 @@ when defined(emscripten):
   
   # Direct render caller for WASM
   proc renderStorie(state: AppState) =
-    # Call the render logic from index.nim directly
     if storieCtx.isNil:
       return
     
@@ -620,7 +654,6 @@ when defined(emscripten):
     flushWasmParams()
     
     # Apply theme parameter if present (will be applied in initStorieContext)
-    # Theme parameter is checked after markdown loads in index.nim
   
   proc checkAndRenderDimensionWarning(): bool =
     ## Check if dimensions meet requirements and render warning if not.
@@ -693,7 +726,12 @@ when defined(emscripten):
     return false
   
   proc emUpdate(deltaMs: float) {.exportc.} =
-    let dt = deltaMs / 1000.0
+    var dt = deltaMs / 1000.0
+    
+    # Clamp deltaTime to prevent extreme values (0 to 100ms = 0.0 to 0.1 seconds)
+    # This prevents float accumulation errors from propagating
+    dt = max(0.0, min(dt, 0.1))
+    
     globalState.totalTime += dt
     globalState.frameCount += 1
     
@@ -717,7 +755,7 @@ when defined(emscripten):
     if not storieCtx.isNil:
       for codeBlock in storieCtx.codeBlocks:
         if codeBlock.lifecycle == "update":
-          discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
+          discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState, deltaTime = dt)
     
     # Note: Don't clear buffer here - compositeLayers will do it with theme background
     
@@ -860,12 +898,12 @@ when defined(emscripten):
     if ctrl != 0: mods.incl ModCtrl
     
     let event = InputEvent(kind: KeyEvent, keyCode: keyCode, keyMods: mods, keyAction: Press)
-    # Call inputHandler directly (defined in index.nim via include)
+    # Call inputHandler directly
     discard inputHandler(globalState, event)
   
   proc emHandleTextInput(text: cstring) {.exportc.} =
     let event = InputEvent(kind: TextEvent, text: $text)
-    # Call inputHandler directly (defined in index.nim via include)
+    # Call inputHandler directly
     discard inputHandler(globalState, event)
   
   proc emHandleMouseClick(x, y, button, shift, alt, ctrl: int) {.exportc.} =
@@ -881,7 +919,7 @@ when defined(emscripten):
       else: Unknown
     
     let event = InputEvent(kind: MouseEvent, button: mouseButton, mouseX: x, mouseY: y, mods: mods, action: Press)
-    # Call inputHandler directly (defined in index.nim via include)
+    # Call inputHandler directly
     discard inputHandler(globalState, event)
   
   proc emHandleMouseRelease(x, y, button, shift, alt, ctrl: int) {.exportc.} =
@@ -897,14 +935,14 @@ when defined(emscripten):
       else: Unknown
     
     let event = InputEvent(kind: MouseEvent, button: mouseButton, mouseX: x, mouseY: y, mods: mods, action: Release)
-    # Call inputHandler directly (defined in index.nim via include)
+    # Call inputHandler directly
     discard inputHandler(globalState, event)
   
   proc emHandleMouseMove(x, y: int) {.exportc.} =
     globalState.lastMouseX = x
     globalState.lastMouseY = y
     let event = InputEvent(kind: MouseMoveEvent, moveX: x, moveY: y, moveMods: {})
-    # Call inputHandler directly (defined in index.nim via include)
+    # Call inputHandler directly
     discard inputHandler(globalState, event)
   
   proc emSetWaitingForGist() {.exportc.} =
@@ -993,6 +1031,7 @@ when defined(emscripten):
         storieCtx.sectionMgr = newSectionManager(doc.sections)
         storieCtx.frontMatter = doc.frontMatter
         storieCtx.styleSheet = doc.styleSheet
+        storieCtx.embeddedContent = doc.embeddedContent
 
         # Parse minWidth and minHeight from front matter (WASM fix)
         storieCtx.minWidth = 0
@@ -1013,6 +1052,14 @@ when defined(emscripten):
         # Also update globalState styleSheet for API access
         globalState.styleSheet = doc.styleSheet
         
+        # Update global default style from stylesheet
+        if doc.styleSheet.hasKey("default"):
+          # Use explicit "default" style if defined
+          setDefaultStyleConfig(doc.styleSheet["default"])
+        elif doc.styleSheet.hasKey("body"):
+          # Fallback: use "body" style background/foreground for default
+          setDefaultStyleConfig(doc.styleSheet["body"])
+        
         # Check if theme parameter is set and override the stylesheet
         if hasParamDirect("theme"):
           let themeName = getParamDirect("theme")
@@ -1021,6 +1068,13 @@ when defined(emscripten):
               let newStyleSheet = applyThemeByName(themeName)
               storieCtx.styleSheet = newStyleSheet
               globalState.styleSheet = newStyleSheet
+              # Update global default style from theme
+              if newStyleSheet.hasKey("default"):
+                # Use explicit "default" style if defined
+                setDefaultStyleConfig(newStyleSheet["default"])
+              elif newStyleSheet.hasKey("body"):
+                # Fallback: use "body" style background/foreground for default
+                setDefaultStyleConfig(newStyleSheet["body"])
               # Re-register canvas bindings with new stylesheet (use default layer)
               if globalState.layers.len > 0:
                 registerCanvasBindings(addr globalState.layers[0].buffer, addr globalState, addr storieCtx.styleSheet)

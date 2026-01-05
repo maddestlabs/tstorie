@@ -27,6 +27,7 @@ type
     ## Types of embedded content blocks in markdown
     FigletFont,    ## figlet:NAME blocks - FIGlet font data
     DataFile,      ## data:NAME blocks - arbitrary data
+    AnsiArt,       ## ansi:NAME blocks - ANSI escape sequence art
     Custom         ## custom:NAME blocks - custom content
   
   EmbeddedContent* = object
@@ -46,7 +47,7 @@ type
     linkUrl*: string
   
   ContentBlockKind* = enum
-    TextBlock, CodeBlock_Content, HeadingBlock
+    TextBlock, CodeBlock_Content, HeadingBlock, PreformattedBlock, AnsiBlock
   
   ContentBlock* = object
     ## A block of content within a section (text, code, or heading)
@@ -59,6 +60,10 @@ type
     of HeadingBlock:
       level*: int
       title*: string
+    of PreformattedBlock:
+      content*: string
+    of AnsiBlock:
+      ansiContent*: string  ## Raw ANSI escape sequence content (parsed at render time)
   
   Section* = object
     ## A section represents a heading and all content until the next heading

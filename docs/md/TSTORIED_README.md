@@ -100,7 +100,6 @@ See [docs/md/TSTORIED_LESSONS.md](docs/md/TSTORIED_LESSONS.md) for architectural
 ```
 tstoried.nim              # Main editor application (463 lines)
 lib/
-  editor_base.nim         # Basic types (Color, Style, InputEvent)
   gist_api.nim            # GitHub Gist API wrapper
   storie_types.nim        # Core TStorie types
   storie_themes.nim       # Theme definitions

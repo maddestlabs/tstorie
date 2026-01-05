@@ -119,56 +119,15 @@ proc isDone*(anim: Animation): bool =
 # ================================================================
 # PARTICLE SYSTEM
 # ================================================================
-
-type
-  Particle* = object
-    x*, y*: float
-    vx*, vy*: float
-    life*: float
-    maxLife*: float
-    char*: string
-    color*: Color
-
-proc newParticle*(x, y, vx, vy, life: float, char: string, color: Color): Particle =
-  Particle(x: x, y: y, vx: vx, vy: vy, life: life, maxLife: life, char: char, color: color)
-
-proc update*(p: var Particle, dt: float, gravity: float = 0.0) =
-  p.x += p.vx * dt
-  p.y += p.vy * dt
-  p.vy += gravity * dt
-  p.life -= dt
-
-proc isAlive*(p: Particle): bool =
-  p.life > 0.0
-
-proc render*(p: Particle, state: AppState) =
-  if p.isAlive():
-    let alpha = p.life / p.maxLife
-    var color = p.color
-    # Fade out based on life
-    color.r = uint8(float(color.r) * alpha)
-    color.g = uint8(float(color.g) * alpha)
-    color.b = uint8(float(color.b) * alpha)
-    
-    let style = Style(fg: color, bg: black())
-    let ix = int(p.x)
-    let iy = int(p.y)
-    if ix >= 0 and ix < state.termWidth and iy >= 0 and iy < state.termHeight:
-      state.currentBuffer.write(ix, iy, p.char, style)
-
-proc renderToLayer*(p: Particle, layer: Layer) =
-  if p.isAlive():
-    let alpha = p.life / p.maxLife
-    var color = p.color
-    color.r = uint8(float(color.r) * alpha)
-    color.g = uint8(float(color.g) * alpha)
-    color.b = uint8(float(color.b) * alpha)
-    
-    let style = Style(fg: color, bg: black())
-    let ix = int(p.x)
-    let iy = int(p.y)
-    if ix >= 0 and ix < layer.buffer.width and iy >= 0 and iy < layer.buffer.height:
-      layer.buffer.write(ix, iy, p.char, style)
+# 
+# NOTE: Basic particle primitives have been moved to lib/particles.nim
+# which provides a full-featured native particle system with:
+# - Bulk update/render for 1000+ particles at 60 FPS
+# - Environmental parameters (gravity, wind, turbulence, damping)
+# - Collision detection with configurable responses
+# - Built-in emitter behaviors (rain, snow, fire, etc.)
+# 
+# For simple single-particle helpers, use the particles module instead.
 
 # ================================================================
 # TRANSITION STATE MANAGERS

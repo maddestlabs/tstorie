@@ -1,8 +1,8 @@
 ---
 title: "Canvas Presentation Demo"
 author: "Maddest Labs"
-minWidth: 80
-minHeight: 24
+minWidth: 60
+minHeight: 12
 theme: "futurism"
 ---
 
@@ -49,9 +49,15 @@ canvasRender()
 canvasUpdate()
 ```
 
-# Welcome to TStorie Presentations
+# Canvas Presentations
 ⠀
-**Canvas-based slide presentations** with smooth panning and hierarchical navigation.
+```ascii
+| Month    | Savings |
+| -------- | ------- |
+| January  | $250    |
+| February | $80     |
+| March    | $420    |
+```
 ⠀
 This demo showcases the presentation mode of the canvas system, where arrow keys navigate between slides instead of following links.
 ⠀
@@ -85,7 +91,7 @@ The presentation system inherits all the visual capabilities of TStorie:
 
 ## Code Integration
 ⠀
-Presentations can include live Nimini code blocks:
+Presentations can include live Nim code blocks:
 ⠀
 ```nim
 var slideCount = 0

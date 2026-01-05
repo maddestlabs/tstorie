@@ -23,6 +23,46 @@ print "t|Storie walkthrough initialized"
 
 # Initialize canvas system - start at section 1
 initCanvas(1)
+
+# Initialize particle systems
+var bgStyle = getStyle("default")
+var bgR = int(bgStyle.bg.r)
+var bgG = int(bgStyle.bg.g)
+var bgB = int(bgStyle.bg.b)
+
+particleInit("sparkles", 500)
+particleInit("rain", 400)
+particleInit("fire", 300)
+
+# Set background colors
+particleSetBackgroundColor("sparkles", bgR, bgG, bgB)
+particleSetBackgroundColor("rain", bgR, bgG, bgB)
+particleSetBackgroundColor("fire", bgR, bgG, bgB)
+
+# Configure sparkles (manual emission on click)
+particleConfigureSparkles("sparkles", 10.0)
+particleSetEmitterPos("sparkles", float(termWidth / 2), float(termHeight / 2))
+# Speed up sparkles with higher velocity range
+particleSetVelocityRange("sparkles", -15.0, -15.0, 15.0, 15.0)
+# Set short lifetime so particles disappear quickly
+particleSetLifeRange("sparkles", 0.1, 0.4)
+# Disable automatic emission - only emit on manual clicks
+particleSetEmitRate("sparkles", 0.0)
+
+# Configure rain
+particleConfigureRain("rain", 20.0)
+particleSetEmitterPos("rain", 0.0, 0.0)
+particleSetEmitterSize("rain", float(termWidth), 1.0)
+particleSetCollision("rain", true, 3)  # Destroy on collision
+
+# Configure fire at bottom
+particleConfigureFire("fire", 70.0)
+particleSetEmitterPos("fire", float(termWidth / 2), float(termHeight - 1))
+particleSetEmitterSize("fire", 30.0, 1.0)
+
+var rainActive = false
+var inFinalStats = false
+var metrics = getSectionMetrics()
 ```
 
 ```nim on:input
@@ -37,6 +77,10 @@ if event.type == "key":
 
 elif event.type == "mouse":
   if event.action == "press":
+    # Emit sparkles on mouse click
+    particleSetEmitterPos("sparkles", float(event.x), float(event.y))
+    particleEmit("sparkles", 30)
+    
     var handled = canvasHandleMouse(event.x, event.y, event.button, true)
     if handled:
       return true
@@ -47,66 +91,101 @@ return false
 
 ```nim on:render
 clear()
+
 canvasRender()
+
+# Render rain behind text but after canvas (so it's visible)
+if rainActive:
+  particleRender("rain", 0)
+
+# Render fire behind content (only in Final Stats section)
+if inFinalStats:
+  particleRender("fire", 0)
+
+# Render sparkles on top of everything
+particleRender("sparkles", 0)
 ```
 
 ```nim on:update
 canvasUpdate()
+
+# Update all active particle systems
+particleUpdate("sparkles", deltaTime)
+
+if rainActive:
+  # Update rain emitter position to match terminal width
+  particleSetEmitterSize("rain", float(termWidth), 1.0)
+  particleUpdate("rain", deltaTime)
+
+# Update fire emitter position to bottom of current section
+if inFinalStats:
+  metrics = getSectionMetrics()
+  particleSetEmitterPos("fire", metrics.x, metrics.y - 1)
+  particleUpdate("fire", deltaTime)
 ```
 
-# welcome
+# Welcome to
 ⠀
-Welcome to **t|Storie** - the abominable, little terminal engine that could, but probably shouldn't!
+```ansi
+[38;2;0;217;142m  ▄  [0m [1;37m█[0m [38;2;100;100;100m▄▄▄▄   ▄                     [0m
+[38;2;0;217;142m ▄█▄ [0m [1;37m█[0m [38;2;100;100;100m█     ▄█▄  ▄▄▄▄ ▄▄▄▄ ▄  ▄▄▄▄▄[0m
+[38;2;0;217;142m  █  [0m [1;37m█[0m [38;2;100;100;100m▀▀▀▀▄  █   █  █ █    █  █▄▄▄█[0m
+[38;2;0;217;142m  █  [0m [1;37m█[0m [38;2;100;100;100m    █  █   █  █ █    █  █    [0m
+[38;2;0;217;142m  ▀▀ [0m [1;37m█[0m [38;2;100;100;100m▀▀▀▀   ▀▀  ▀▀▀▀ ▀    ▀  ▀▀▀▀▀[0m
+```
 ⠀
-You're currently experiencing t|Storie's **canvas-based interactive fiction system**. This walkthrough will guide you through the engine's key features.
-⠀
-Using simple Markdown syntax combined with embedded code blocks, you can create everything from documentation and slide presentations to full adventure games.
+The abominable, little terminal engine that could,
+but probably shouldn't!
 ⠀
 **Ready to explore?**
 ⠀
-➛ [Start the tour](#tour_start)  
-➛ [Learn about Markdown first](#what_is_markdown)  
-➛ [Skip to advanced features](#advanced_hub)
+- [Start the tour](#tour_start)  
+- [Learn about Markdown first](#what_is_markdown)  
+- [Skip to advanced features](#advanced_hub)
+
+```nim on:enter
+rainActive = false
+```
 
 # What is Markdown?
 ⠀
-Markdown is a simple, plain text language that lets you create formatted documents quickly using basic symbols. Think of it like a simpler, more readable version of HTML.
+Markdown is a simple, plain text language that lets you create formatted documents quickly using basic symbols. It's how you naturally write in Notepad, with special symbols for emphasis.
 ⠀
 For example:
 - `# Heading` creates a heading
 - `**bold**` creates **bold** text
 - `[link](#url)` creates a clickable link
 ⠀
-t|Storie extends Markdown by allowing you to embed executable code blocks that can respond to events, render graphics, and create interactive experiences.
+t|Storie extends Markdown with code blocks that can respond to events, render graphics, and create interactive experiences.
 ⠀
-➛ [Continue the tour](#tour_start)  
-➛ [Return to start](#welcome)
+- [Continue the tour](#tour_start)  
+- [Return to start](#welcome_to)
 
 # Tour Start
 ⠀
 **The Journey Begins**
 ⠀
-t|Storie parses Markdown documents into **sections** (separated by headings) and renders them in a large interactive canvas. You're navigating this document right now using the clickable links!
+t|Storie parses Markdown documents into **Sections** (separated by headings) and renders them in a large interactive canvas.
 ⠀
-Each section can contain:
+Each Section can contain:
 - **Rich text content** - Markdown-formatted text
-- **Links** - Navigate between sections
+- **Links** - Navigate between Sections
 - **Code blocks** - Executable Nim code that runs in response to events
 - **Front matter** - Configuration variables in YAML format
 ⠀
 Let's explore each feature:
 ⠀
-➛ [Front Matter Variables](#frontmatter_section)  
-➛ [Markdown Sections](#markdown_sections)  
-➛ [Canvas & Rendering](#canvas_rendering)  
-➛ [Interactive Code](#interactive_code)  
-➛ [Skip to the end](#journey_complete)
+- [Front Matter Variables](#frontmatter)
+- [Markdown Sections](#markdown_sections)
+- [Canvas & Rendering](#canvas_rendering)
+- [Interactive Code](#interactive_code)
+- [Skip to the end](#journey_complete)
 
-# frontmatter_section
+# Frontmatter
 ⠀
 At the top of any t|Storie document, you can define variables in YAML format:
 
-```
+```ascii
 ---
 title: "My Story"
 author: "Your Name"
@@ -119,35 +198,35 @@ These variables become **global variables** in your code blocks! For example, th
 ⠀
 Front matter is perfect for configuration, game state, or any data you want to access throughout your document.
 ⠀
-➛ [Continue to Markdown sections](#markdown_sections)  
-➛ [Back to tour start](#tour_start)
+- [Continue to Markdown sections](#markdown_sections)  
+- [Back to tour start](#tour_start)
 
 ```nim on:enter
 visitedFrontmatter = true
 explorerLevel++
 ```
 
-# markdown_sections {"hidden": true}
+# Markdown Sections {"hidden": true}
 ⠀
-Each `# Heading` in your document creates a new **section**. Sections are the building blocks of your interactive experience.
+Each `# Heading` in your document creates a new **Section**. Sections are the building blocks of your interactive experience.
 ⠀
 Sections can be:
 - **Visible** - Show up in the table of contents
 - **Hidden** - Marked with `{"hidden": true}` metadata
 - **One-time** - Marked with `{"removeAfterVisit": "true"}`
 ⠀
-Right now, you're in a hidden section that's navigable via links but doesn't appear in the main contents listing. This is perfect for creating branching narratives!
+Right now, you're in a hidden Section that's navigable via links but doesn't appear in the main contents listing. This is perfect for creating branching narratives!
 ⠀
-➛ [Learn about canvas rendering](#canvas_rendering)  
-➛ [Jump to interactive code](#interactive_code)  
-➛ [Back to tour start](#tour_start)
+- [Learn about canvas rendering](#canvas_rendering)  
+- [Jump to interactive code](#interactive_code)  
+- [Back to tour start](#tour_start)
 
 ```nim on:enter
 visitedMarkdown = true
 explorerLevel++
 ```
 
-# canvas_rendering
+# Canvas Rendering
 ⠀
 t|Storie provides a powerful terminal-based canvas with multiple layers:
 ⠀
@@ -156,22 +235,18 @@ t|Storie provides a powerful terminal-based canvas with multiple layers:
 - `clear(layer)` - Clear a layer
 - `fillRect(layer, x, y, w, h, char)` - Fill a rectangle
 ⠀
-**Layer names:**
-- `"background"` - Background layer
-- `"foreground"` - Foreground layer
-⠀
 Use `on:render` code blocks to draw each frame!
 ⠀
-➛ [Explore interactive code](#interactive_code)  
-➛ [See a rendering example](#render_example)  
-➛ [Back to tour](#tour_start)
+- [Explore interactive code](#interactive_code)  
+- [See a rendering example](#render_example)  
+- [Back to tour](#tour_start)
 
 ```nim on:enter
 visitedRendering = true
 explorerLevel++
 ```
 
-# render_example
+# Render Example
 ⠀
 Here's a simple rendering code block:
 
@@ -189,10 +264,10 @@ This code would run **every frame** and:
 ⠀
 You can combine multiple layers to create complex UIs and graphics!
 ⠀
-➛ [Continue to interactive code](#interactive_code)  
-➛ [Back to canvas info](#canvas_rendering)
+- [Continue to interactive code](#interactive_code)  
+- [Back to canvas info](#canvas_rendering)
 
-# interactive_code
+# Interactive Code
 ⠀
 t|Storie supports several event types:
 ⠀
@@ -206,27 +281,27 @@ You can track state with variables, respond to player input, and create fully in
 ⠀
 The canvas navigation system you're using right now is built with these code blocks.
 ⠀
-➛ [Learn about advanced features](#advanced_hub)  
-➛ [Complete the tour](#journey_complete)  
-➛ [Back to tour start](#tour_start)
+- [Learn about advanced features](#advanced_hub)  
+- [Complete the tour](#journey_complete)  
+- [Back to tour start](#tour_start)
 
 ```nim on:enter
 visitedInteractive = true
 explorerLevel++
 ```
 
-# advanced_hub
+# Advanced Hub
 ⠀
 Ready to dive deeper? t|Storie includes powerful features for creating sophisticated interactive experiences:
 ⠀
-➛ [Animation & Effects](#animation_features)  
-➛ [Audio System](#audio_features)  
-➛ [State Management](#state_management)  
-➛ [Layout & Themes](#layout_themes)  
-➛ [Gist Integration](#gist_integration)  
-➛ [Complete the tour](#journey_complete)
+- [Animation & Effects](#animation_features)  
+- [Audio System](#audio_features)  
+- [State Management](#state_management)  
+- [Layout & Themes](#layout_themes)  
+- [Gist Integration](#gist_integration)  
+- [Complete the tour](#journey_complete)
 
-# animation_features
+# Animation Features
 ⠀
 t|Storie includes built-in animation helpers:
 - **Transitions** - Smooth property changes
@@ -241,7 +316,12 @@ Combined with the rendering system, you can create:
 ⠀
 Check out `lib/animation.nim` and `lib/transition_helpers.nim` for the full API.
 ⠀
-➛ [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced_hub)
+
+```nim on:enter
+# Start raining when entering Animation Features section
+rainActive = true
+```
 
 # audio_features
 ⠀
@@ -259,9 +339,9 @@ Perfect for:
 ⠀
 See `lib/audio.nim`, `lib/audio_gen.nim`, and `lib/audio_nodes.nim` for details.
 ⠀
-➛ [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced_hub)
 
-# state_management
+# State Management
 ⠀
 Manage complex application state with:
 ⠀
@@ -280,9 +360,9 @@ Manage complex application state with:
 - One-time visits
 - Conditional content
 ⠀
-➛ [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced_hub)
 
-# layout_themes
+# Layout Themes
 ⠀
 Customize your experience:
 ⠀
@@ -299,29 +379,22 @@ Customize your experience:
 ⠀
 Check `lib/layout.nim` and `lib/storie_themes.nim`.
 ⠀
-➛ [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced_hub)
 
-# gist_integration
+# Gist Integration
 ⠀
 **GitHub Gist Integration**
 ⠀
 Load and share documents easily:
-⠀
 - Create a Markdown file in a GitHub Gist
 - Get the Gist ID
-- Load it directly in t|Storie
+- Load it directly in t|Storie with `?content=gistid`
 ⠀
-Perfect for:
-- Sharing stories
-- Collaborative editing
-- Version control
-- Easy publishing
+GitHub Gist is totally free, facilitates sharing and collaboration and includes built-in version control. Made a mistake in your code? No problem, just revert back to previous version.
 ⠀
-See `lib/gist_api.nim` for the implementation.
-⠀
-➛ [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced_hub)
 
-# journey_complete
+# Journey Complete
 ⠀
 Congratulations! You've explored t|Storie and learned about:
 ⠀
@@ -332,10 +405,21 @@ Congratulations! You've explored t|Storie and learned about:
 ✓ Event handling
 ✓ Advanced features
 ⠀
-➛ [What's Next](#whats_next)
-➛ [Return to start](#welcome)
+- [What's Next](#whats_next)
+- [Return to start](#welcome_to)
 
-# whats_next
+```nim on:enter
+# Activate fire particles in this section
+inFinalStats = true
+```
+
+```nim on:exit
+# Deactivate fire when leaving Final Stats section
+inFinalStats = false
+particleClear("fire")
+```
+
+# Whats Next
 ⠀
 Check out these example documents:
 - `docs/demos/depths.md` - Full dungeon adventure
@@ -343,11 +427,11 @@ Check out these example documents:
 ⠀
 Or dive into the source code in `lib/` to see how it all works!
 ⠀
-➛ [Start over](#welcome)  
-➛ [Explore advanced features](#advanced_hub)  
-➛ [See your explorer stats](#final_stats)
+- [Start over](#welcome_to)  
+- [Explore advanced features](#advanced_hub)  
+- [See your explorer stats](#final_stats)
 
-# final_stats
+# Final Stats
 ⠀
 **Your Explorer Stats**
 ⠀
@@ -369,10 +453,8 @@ if visitedInteractive:
 ⠀
 You've completed the t|Storie walkthrough!
 ⠀
-**Pro Tip:** You can create similar interactive documents for tutorials, games, presentations, or anything else you can imagine!
-⠀
-➛ [Start over](#welcome)  
-➛ [Return to journey complete](#journey_complete)
+- [Start over](#welcome_to)  
+- [Return to journey complete](#journey_complete)
 
 ```nim on:render
 # Display explorer level at the bottom

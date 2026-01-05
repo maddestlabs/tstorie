@@ -130,8 +130,23 @@ proc dim*(c: Color): Color =
   ## Create a dimmed version of a color
   Color(r: c.r div 2, g: c.g div 2, b: c.b div 2)
 
+# Global default style - can be overridden
+var gGlobalDefaultStyle* = Style(
+  fg: white(), 
+  bg: black(), 
+  bold: false, 
+  underline: false, 
+  italic: false, 
+  dim: false
+)
+
 proc defaultStyle*(): Style =
-  Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
+  ## Get the global default style
+  return gGlobalDefaultStyle
+
+proc setGlobalDefaultStyle*(style: Style) =
+  ## Set the global default style
+  gGlobalDefaultStyle = style
 
 # ================================================================
 # COLOR UTILITIES FOR ANSI CONVERSION

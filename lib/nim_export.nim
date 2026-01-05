@@ -1071,6 +1071,8 @@ proc generateEmbeddedContentSection*(doc: MarkdownDocument): string =
       result &= " (FIGlet font)\n"
     of DataFile:
       result &= " (data file)\n"
+    of AnsiArt:
+      result &= " (ANSI art)\n"
     of Custom:
       result &= " (custom)\n"
     
@@ -1134,6 +1136,26 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "  var gTerminalState: TerminalState\n"
   result &= "\n"
   
+  # Style helper function (must come before drawing API)
+  result &= "# Style helper function\n"
+  result &= "proc getStyle(name: string): Style =\n"
+  result &= "  if gState.styleSheet.hasKey(name):\n"
+  result &= "    let sc = gState.styleSheet[name]\n"
+  result &= "    result = Style(\n"
+  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
+  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
+  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
+  result &= "  elif gState.styleSheet.hasKey(\"default\"):\n"
+  result &= "    # Use theme's default style as fallback\n"
+  result &= "    let sc = gState.styleSheet[\"default\"]\n"
+  result &= "    result = Style(\n"
+  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
+  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
+  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
+  result &= "  else:\n"
+  result &= "    result = defaultStyle()\n"
+  result &= "\n"
+  
   # Unified Drawing API
   result &= "# Unified Drawing API - works with any layer\n"
   result &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
@@ -1173,22 +1195,6 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "proc str(x: float): string = $x\n"
   result &= "proc str(x: bool): string = $x\n"
   result &= "proc str(x: string): string = x\n"
-  result &= "proc getStyle(name: string): Style =\n"
-  result &= "  if gState.styleSheet.hasKey(name):\n"
-  result &= "    let sc = gState.styleSheet[name]\n"
-  result &= "    result = Style(\n"
-  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
-  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
-  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
-  result &= "  elif gState.styleSheet.hasKey(\"default\"):\n"
-  result &= "    # Use theme's default style as fallback\n"
-  result &= "    let sc = gState.styleSheet[\"default\"]\n"
-  result &= "    result = Style(\n"
-  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
-  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
-  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
-  result &= "  else:\n"
-  result &= "    result = defaultStyle()\n"
   result &= "\n"
   
   # Global variables
@@ -1370,6 +1376,26 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   # Add simplified event API
   result &= generateSimpleEventHelpers()
   
+  # Style helper function (must come before drawing API)
+  result &= "# Style helper function\n"
+  result &= "proc getStyle(name: string): Style =\n"
+  result &= "  if gState.styleSheet.hasKey(name):\n"
+  result &= "    let sc = gState.styleSheet[name]\n"
+  result &= "    result = Style(\n"
+  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
+  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
+  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
+  result &= "  elif gState.styleSheet.hasKey(\"default\"):\n"
+  result &= "    # Use theme's default style as fallback\n"
+  result &= "    let sc = gState.styleSheet[\"default\"]\n"
+  result &= "    result = Style(\n"
+  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
+  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
+  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
+  result &= "  else:\n"
+  result &= "    result = defaultStyle()\n"
+  result &= "\n"
+  
   # Unified Drawing API
   result &= "# Unified Drawing API - works with any layer\n"
   result &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
@@ -1409,22 +1435,6 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "proc str(x: float): string = $x\n"
   result &= "proc str(x: bool): string = $x\n"
   result &= "proc str(x: string): string = x\n"
-  result &= "proc getStyle(name: string): Style =\n"
-  result &= "  if gState.styleSheet.hasKey(name):\n"
-  result &= "    let sc = gState.styleSheet[name]\n"
-  result &= "    result = Style(\n"
-  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
-  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
-  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
-  result &= "  elif gState.styleSheet.hasKey(\"default\"):\n"
-  result &= "    # Use theme's default style as fallback\n"
-  result &= "    let sc = gState.styleSheet[\"default\"]\n"
-  result &= "    result = Style(\n"
-  result &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
-  result &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
-  result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
-  result &= "  else:\n"
-  result &= "    result = defaultStyle()\n"
   result &= "\n"
   
   # Global variables
@@ -1699,6 +1709,26 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   # Add simplified event API
   result.code &= generateSimpleEventHelpers()
   
+  # Style helper function (must come before drawing API)
+  result.code &= "# Style helper function\n"
+  result.code &= "proc getStyle(name: string): Style =\n"
+  result.code &= "  if gState.styleSheet.hasKey(name):\n"
+  result.code &= "    let sc = gState.styleSheet[name]\n"
+  result.code &= "    result = Style(\n"
+  result.code &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
+  result.code &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
+  result.code &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
+  result.code &= "  elif gState.styleSheet.hasKey(\"default\"):\n"
+  result.code &= "    # Use theme's default style as fallback\n"
+  result.code &= "    let sc = gState.styleSheet[\"default\"]\n"
+  result.code &= "    result = Style(\n"
+  result.code &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
+  result.code &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
+  result.code &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
+  result.code &= "  else:\n"
+  result.code &= "    result = defaultStyle()\n"
+  result.code &= "\n"
+  
   # Unified Drawing API
   result.code &= "# Unified Drawing API - works with any layer\n"
   result.code &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
@@ -1738,22 +1768,6 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "proc str(x: float): string = $x\n"
   result.code &= "proc str(x: bool): string = $x\n"
   result.code &= "proc str(x: string): string = x\n"
-  result.code &= "proc getStyle(name: string): Style =\n"
-  result.code &= "  if gState.styleSheet.hasKey(name):\n"
-  result.code &= "    let sc = gState.styleSheet[name]\n"
-  result.code &= "    result = Style(\n"
-  result.code &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
-  result.code &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
-  result.code &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
-  result.code &= "  elif gState.styleSheet.hasKey(\\\"default\\\"):\n"
-  result.code &= "    # Use theme's default style as fallback\n"
-  result.code &= "    let sc = gState.styleSheet[\\\"default\\\"]\n"
-  result.code &= "    result = Style(\n"
-  result.code &= "      fg: Color(r: sc.fg.r, g: sc.fg.g, b: sc.fg.b),\n"
-  result.code &= "      bg: Color(r: sc.bg.r, g: sc.bg.g, b: sc.bg.b),\n"
-  result.code &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
-  result.code &= "  else:\n"
-  result.code &= "    result = defaultStyle()\n"
   result.code &= "\n"
   
   # Global variables

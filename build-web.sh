@@ -8,28 +8,26 @@ show_help() {
 TStorie WASM compiler v$VERSION
 Compile TStorie for web deployment
 
-Usage: ./build-web.sh [OPTIONS] [FILE]
-
-Arguments:
-  FILE                   Nim file to compile (default: index.nim)
-                        Can be specified with or without .nim extension
+Usage: ./build-web.sh [OPTIONS]
 
 Options:
   -h, --help            Show this help message
   -v, --version         Show version information
   -d, --debug           Compile in debug mode (default is release with size optimization)
   -s, --serve           Start a local web server after compilation
-  -o, --output DIR      Output directory (default: web)
+  -o, --output DIR      Output directory (default: docs)
 
 Examples:
-  ./build-web.sh                          # Compile index.nim to WASM
-  ./build-web.sh example_boxes            # Compile example_boxes.nim to WASM
-  ./build-web.sh -d example_boxes         # Compile in debug mode
+  ./build-web.sh                          # Compile to WASM
+  ./build-web.sh -d                       # Compile in debug mode
   ./build-web.sh -s                       # Compile and serve
   ./build-web.sh -o docs                  # Output to docs/ (for GitHub Pages)
   ./build-web.sh -o .                     # Output to root directory
 
 The compiled files will be placed in the specified output directory.
+
+Note: Application logic is in src/runtime_api.nim
+      (formerly index.nim, now part of the core engine)
 
 Requirements:
   - Nim compiler with Emscripten support
@@ -47,7 +45,6 @@ EOF
 
 RELEASE_MODE="-d:release --opt:size -d:strip -d:useMalloc"
 SERVE=false
-USER_FILE=""
 OUTPUT_DIR="docs"
 
 # Parse arguments
@@ -84,13 +81,9 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
-            if [ -z "$USER_FILE" ]; then
-                USER_FILE="$1"
-            else
-                echo "Error: Multiple files specified. Only one file can be compiled at a time."
-                exit 1
-            fi
-            shift
+            echo "Unknown argument: $1"
+            echo "Use --help for usage information"
+            exit 1
             ;;
     esac
 done
@@ -108,34 +101,10 @@ if ! command -v emcc &> /dev/null; then
     exit 1
 fi
 
-# Determine file to use
-if [ -z "$USER_FILE" ]; then
-    FILE_BASE="index"
-else
-    # Remove .nim extension if provided
-    FILE_BASE="${USER_FILE%.nim}"
-fi
-
-# Check if file exists, try examples/ directory if not found in current location
-if [ ! -f "${FILE_BASE}.nim" ]; then
-    if [ ! -z "$USER_FILE" ] && [ -f "examples/${FILE_BASE}.nim" ]; then
-        FILE_BASE="examples/${FILE_BASE}"
-        echo "Found file in examples directory: ${FILE_BASE}.nim"
-    else
-        echo "Error: File not found: ${FILE_BASE}.nim"
-        if [ -z "$USER_FILE" ]; then
-            echo "Hint: Create an index.nim file or specify a different file to compile"
-        else
-            echo "Hint: File not found in current directory or examples/ directory"
-        fi
-        exit 1
-    fi
-fi
-
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-echo "Compiling tstorie to WASM with ${FILE_BASE}.nim..."
+echo "Compiling tstorie to WASM..."
 echo "Output directory: $OUTPUT_DIR"
 echo ""
 
@@ -153,7 +122,6 @@ NIM_OPTS="c
   --clang.cpp.exe:emcc
   --clang.cpp.linkerexe:emcc
   -d:emscripten
-  -d:userFile=$FILE_BASE
   -d:noSignalHandler
   --threads:off
   --exceptions:goto

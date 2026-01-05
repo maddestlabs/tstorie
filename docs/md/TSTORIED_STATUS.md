@@ -16,12 +16,7 @@
 - Error handling with `GistError`
 - Convenience functions for markdown files
 
-### 3. Base Types for Editor
-- **File**: [lib/editor_base.nim](lib/editor_base.nim)
-- Lightweight Color, Style, Layer, InputEvent types
-- Standalone foundation that doesn't depend on full tstorie
-
-### 4. Editor Widgets  
+### 3. Editor Widgets  
 - **File**: [lib/tui_editor.nim](lib/tui_editor.nim)
 - **TextBox**: Multi-line text editor with cursor, line numbers, scrolling
 - **ListView**: File/gist browser with keyboard navigation
@@ -54,7 +49,7 @@ Split into:
 **Cons**: Requires refactoring existing tstorie.nim
 
 #### Option B: Duplicate Foundation
-- `tstoried.nim` uses only lib/ modules + editor_base.nim
+- `tstoried.nim` uses only lib/ modules
 - Implements its own minimal terminal loop
 - Independent of tstorie.nim
 
@@ -76,7 +71,7 @@ Split into:
 2. **If Option B (Standalone)**:
    - Create minimal terminal init/shutdown in tstoried.nim
    - Implement simple input polling loop
-   - Use editor_base.nim types exclusively
+   - Use lib/ module types directly
    - Build standalone TUI widget system
 
 3. **If Option A (Refactor)**:
@@ -109,7 +104,7 @@ For fastest path to working editor:
 Implement:
 1. Simple terminal setup (hideCursor, enableRawMode, etc.)
 2. Basic input loop (readChar + parse to InputEvent)
-3. Render loop using editor_base Layer types
+3. Render loop using lib/ module types
 4. Connect existing TextBox/ListView widgets
 5. Hook up gist_api for load/save
 

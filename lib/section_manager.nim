@@ -451,13 +451,38 @@ proc nimini_getCodeBlockText*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   return valString(codeBlocks[blockIndex].code)
 
 proc nimini_getContent*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get content from a code block in the current section
-  ## Args: blockName (string) - can include colon syntax like "ascii:logo" or just "lvl"
+  ## Get content from a code block in the current section OR from embedded content
+  ## Args: blockName (string) - can include colon syntax like "ascii:logo", "ansi:logo", or just "lvl"
   ## Returns: Array of strings (lines)
-  if gSectionMgr.isNil or args.len < 1:
+  if args.len < 1:
     return valArray(@[])
   
   let blockName = args[0].s
+  
+  # Check if this is a request for embedded content (figlet:, data:, ansi:, custom:)
+  # Embedded content is stored globally and accessed via gEmbeddedContent
+  if blockName.contains(":"):
+    let parts = blockName.split(":")
+    if parts.len == 2:
+      let contentType = parts[0]  # figlet, data, ansi, custom
+      let contentName = parts[1]  # The actual name
+      
+      # Check if we have this embedded content via the global getContent helper
+      let getEmbeddedFunc = env.getVar("getEmbeddedContent")
+      if getEmbeddedFunc.kind == vkFunction and getEmbeddedFunc.fnVal.isNative:
+        let contentVal = getEmbeddedFunc.fnVal.native(env, @[valString(contentName)])
+        if contentVal.kind == vkString and contentVal.s.len > 0:
+          # Split into lines and return as array
+          let lines = contentVal.s.splitLines()
+          var result: seq[Value] = @[]
+          for line in lines:
+            result.add(valString(line))
+          return valArray(result)
+  
+  # Fall back to code block lookup for section-specific content
+  if gSectionMgr.isNil:
+    return valArray(@[])
+  
   let sectionIdx = gSectionMgr[].getCurrentSectionIndex()
   
   # Get the content from the code block

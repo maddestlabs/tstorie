@@ -1,11 +1,9 @@
 ---
-title: "The Depths of Khel-Daran"
+title: "Depths Beckoning"
 author: "Maddest Labs"
 minWidth: 60
 minHeight: 18
 theme: "nord"
-styles.lines.fg: "#ffffff"
-styles.lines.bold: "true"
 ---
 
 ```nim on:init
@@ -52,9 +50,6 @@ return false
 clear()
 canvasRender()
 
-# Draw cracked, branch-like ASCII art borders ON TOP using layer 1
-var borderStyle = getStyle("lines")
-
 # Top border with cracks
 var x = 0
 while x < termWidth:
@@ -68,7 +63,7 @@ while x < termWidth:
     char = "╥"
   elif x % 17 == 8:
     char = "┴"
-  draw(0, x, 0, char, borderStyle)
+  draw(0, x, 0, char)
   x = x + 1
 
 # Bottom border with cracks
@@ -84,7 +79,7 @@ while x < termWidth:
     char = "╨"
   elif x % 19 == 11:
     char = "┬"
-  draw(0, x, termHeight - 1, char, borderStyle)
+  draw(0, x, termHeight - 1, char)
   x = x + 1
 
 # Left border with vertical cracks
@@ -100,7 +95,7 @@ while y < termHeight - 1:
     char = "╞"
   elif y % 16 == 10:
     char = "┤"
-  draw(0, 0, y, char, borderStyle)
+  draw(0, 0, y, char)
   y = y + 1
 
 # Right border with vertical cracks
@@ -116,35 +111,35 @@ while y < termHeight - 1:
     char = "╡"
   elif y % 17 == 11:
     char = "├"
-  draw(0, termWidth - 1, y, char, borderStyle)
+  draw(0, termWidth - 1, y, char)
   y = y + 1
 
 # Corner pieces - weathered and broken
-draw(0, 0, 0, "╔", borderStyle)
-draw(0, termWidth - 1, 0, "╗", borderStyle)
-draw(0, 0, termHeight - 1, "╚", borderStyle)
-draw(0, termWidth - 1, termHeight - 1, "╝", borderStyle)
+draw(0, 0, 0, "╔")
+draw(0, termWidth - 1, 0, "╗")
+draw(0, 0, termHeight - 1, "╚")
+draw(0, termWidth - 1, termHeight - 1, "╝")
 
 # Add some additional crack details
 # Top left area cracks
 if termWidth > 10:
-  draw(0, 5, 0, "┯", borderStyle)
-  draw(0, 5, 1, "╽", borderStyle)
+  draw(0, 5, 0, "┯")
+  draw(0, 5, 1, "╽")
   
 # Top right area cracks
 if termWidth > 10:
-  draw(0, termWidth - 6, 0, "┯", borderStyle)
-  draw(0, termWidth - 6, 1, "╽", borderStyle)
+  draw(0, termWidth - 6, 0, "┯")
+  draw(0, termWidth - 6, 1, "╽")
 
 # Bottom left area cracks
 if termHeight > 5:
-  draw(0, 4, termHeight - 1, "┷", borderStyle)
-  draw(0, 4, termHeight - 2, "╿", borderStyle)
+  draw(0, 4, termHeight - 1, "┷")
+  draw(0, 4, termHeight - 2, "╿")
 
 # Bottom right area cracks
 if termWidth > 10 and termHeight > 5:
-  draw(0, termWidth - 7, termHeight - 1, "┷", borderStyle)
-  draw(0, termWidth - 7, termHeight - 2, "╿", borderStyle)
+  draw(0, termWidth - 7, termHeight - 1, "┷")
+  draw(0, termWidth - 7, termHeight - 2, "╿")
 ```
 
 ```nim on:update

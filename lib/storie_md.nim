@@ -598,6 +598,27 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           ))
           inc i
           continue
+        
+        # Check for ansi:NAME blocks
+        elif header.startsWith("ansi:"):
+          let ansiName = header[5..^1]  # Extract name after "ansi:"
+          # Extract ANSI art content
+          var ansiLines: seq[string] = @[]
+          inc i
+          while i < lines.len:
+            if lines[i].strip().startsWith("```"):
+              break
+            ansiLines.add(lines[i])
+            inc i
+          let ansiContent = ansiLines.join("\n")
+          # Store the raw ANSI content - parsing happens at runtime
+          result.embeddedContent.add(EmbeddedContent(
+            name: ansiName,
+            kind: AnsiArt,
+            content: ansiContent
+          ))
+          inc i
+          continue
       
       # If we get here, it's a regular code block (nim on:*, etc.)
       if headerParts.len > 0 and headerParts[0] == "nim":
@@ -657,7 +678,7 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           ))
           hasCurrentSection = true
       else:
-        # Non-Nim code block - parse it as a data block (e.g., lvl, json, txt, etc.)
+        # Non-Nim code block - could be data block or preformatted text
         var language = if headerParts.len > 0: headerParts[0] else: ""
         
         # Extract code block content
@@ -669,43 +690,108 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           codeLines.add(lines[i])
           inc i
         
-        # Create the code block (no lifecycle for non-Nim blocks)
-        let codeBlock = CodeBlock(
-          code: codeLines.join("\n"),
-          lifecycle: "",  # Data blocks don't have lifecycle
-          language: language
-        )
-        
-        # Add to flat list
-        result.codeBlocks.add(codeBlock)
-        
-        # Add to current section
-        if hasCurrentSection:
-          currentSection.blocks.add(ContentBlock(
-            kind: CodeBlock_Content,
-            codeBlock: codeBlock
-          ))
+        # Check if this is a ```ascii block (preformatted text)
+        if language == "ascii":
+          # Create preformatted text block (renders without backticks)
+          let content = codeLines.join("\n")
+          
+          # Add to current section
+          if hasCurrentSection:
+            currentSection.blocks.add(ContentBlock(
+              kind: PreformattedBlock,
+              content: content
+            ))
+          else:
+            # Create default section if needed
+            inc sectionCounter
+            let sectionId = "section_" & $sectionCounter
+            currentSection = Section(
+              id: sectionId,
+              title: "",
+              level: 1,
+              blocks: @[],
+              metadata: initTable[string, string]()
+            )
+            currentSection.blocks.add(ContentBlock(
+              kind: HeadingBlock,
+              level: 1,
+              title: ""
+            ))
+            currentSection.blocks.add(ContentBlock(
+              kind: PreformattedBlock,
+              content: content
+            ))
+            hasCurrentSection = true
+        # Check if this is a ```ansi block (ANSI art with colors)
+        elif language == "ansi":
+          # Store raw ANSI content (will be parsed at render time)
+          let ansiContent = codeLines.join("\n")
+          
+          # Add to current section
+          if hasCurrentSection:
+            currentSection.blocks.add(ContentBlock(
+              kind: AnsiBlock,
+              ansiContent: ansiContent
+            ))
+          else:
+            # Create default section if needed
+            inc sectionCounter
+            let sectionId = "section_" & $sectionCounter
+            currentSection = Section(
+              id: sectionId,
+              title: "",
+              level: 1,
+              blocks: @[],
+              metadata: initTable[string, string]()
+            )
+            currentSection.blocks.add(ContentBlock(
+              kind: HeadingBlock,
+              level: 1,
+              title: ""
+            ))
+            currentSection.blocks.add(ContentBlock(
+              kind: AnsiBlock,
+              ansiContent: ansiContent
+            ))
+            hasCurrentSection = true
         else:
-          # Create default section if needed
-          inc sectionCounter
-          let sectionId = "section_" & $sectionCounter
-          currentSection = Section(
-            id: sectionId,
-            title: "",
-            level: 1,
-            blocks: @[],
-            metadata: initTable[string, string]()
+          # Create the code block (no lifecycle for non-Nim blocks)
+          let codeBlock = CodeBlock(
+            code: codeLines.join("\n"),
+            lifecycle: "",  # Data blocks don't have lifecycle
+            language: language
           )
-          currentSection.blocks.add(ContentBlock(
-            kind: HeadingBlock,
-            level: 1,
-            title: ""
-          ))
-          currentSection.blocks.add(ContentBlock(
-            kind: CodeBlock_Content,
-            codeBlock: codeBlock
-          ))
-          hasCurrentSection = true
+          
+          # Add to flat list
+          result.codeBlocks.add(codeBlock)
+          
+          # Add to current section
+          if hasCurrentSection:
+            currentSection.blocks.add(ContentBlock(
+              kind: CodeBlock_Content,
+              codeBlock: codeBlock
+            ))
+          else:
+            # Create default section if needed
+            inc sectionCounter
+            let sectionId = "section_" & $sectionCounter
+            currentSection = Section(
+              id: sectionId,
+              title: "",
+              level: 1,
+              blocks: @[],
+              metadata: initTable[string, string]()
+            )
+            currentSection.blocks.add(ContentBlock(
+              kind: HeadingBlock,
+              level: 1,
+              title: ""
+            ))
+            currentSection.blocks.add(ContentBlock(
+              kind: CodeBlock_Content,
+              codeBlock: codeBlock
+            ))
+            hasCurrentSection = true
     else:
       # Regular text line - add to buffer
       textBuffer.add(line)

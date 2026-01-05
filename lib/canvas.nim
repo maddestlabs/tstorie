@@ -14,10 +14,13 @@ else:
     import src/charwidth
 
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
-import section_manager
+import section_manager, ansi_parser
 
 # Forward declare global for nimini environment (set during rendering)
 var gNiminiEnv {.global.}: pointer = nil
+
+# Global storage for parsed ANSI buffers (keyed by section ID + block index)
+var gAnsiBuffers {.global.} = initTable[string, TermBuffer]()
 
 # Helper to get current section index from section manager (source of truth)
 proc getCurrentSectionIdx*(): int =
@@ -54,16 +57,32 @@ proc toStyle*(config: StyleConfig): Style =
     dim: config.dim
   )
 
+# Global default style - can be overridden by setDefaultStyle()
+var gDefaultStyleConfig* = StyleConfig(
+  fg: (255'u8, 255'u8, 255'u8),
+  bg: (0'u8, 0'u8, 0'u8),
+  bold: false,
+  italic: false,
+  underline: false,
+  dim: false
+)
+
 proc getDefaultStyleConfig*(): StyleConfig =
   ## Get default style configuration
-  StyleConfig(
-    fg: (255'u8, 255'u8, 255'u8),
-    bg: (0'u8, 0'u8, 0'u8),
-    bold: false,
-    italic: false,
-    underline: false,
-    dim: false
-  )
+  return gDefaultStyleConfig
+
+proc setDefaultStyleConfig*(config: StyleConfig) =
+  ## Set the global default style configuration
+  gDefaultStyleConfig = config
+  # Also update the types.nim global default Style
+  setGlobalDefaultStyle(Style(
+    fg: Color(r: config.fg.r, g: config.fg.g, b: config.fg.b),
+    bg: Color(r: config.bg.r, g: config.bg.g, b: config.bg.b),
+    bold: config.bold,
+    italic: config.italic,
+    underline: config.underline,
+    dim: config.dim
+  ))
 
 # ================================================================
 # TYPE DEFINITIONS
@@ -1011,6 +1030,22 @@ proc getSectionRawContent(section: Section): string =
         lines.add("{{CONTENT_BUFFER}}")
         contentBufferInserted = true
       # Skip other code blocks in content rendering
+    of PreformattedBlock:
+      # Add preformatted text directly (renders as-is without backticks)
+      lines.add(blk.content)
+    of AnsiBlock:
+      # Parse ANSI content to a styled buffer for later rendering
+      # Convert bracket notation to actual ANSI escape sequences first
+      let convertedContent = convertBracketNotationToAnsi(blk.ansiContent)
+      let ansiBuffer = parseAnsiToBuffer(convertedContent)
+      
+      # Store the buffer with a unique key
+      let bufferKey = section.id & "_ansi_" & $lines.len
+      gAnsiBuffers[bufferKey] = ansiBuffer
+      
+      # Add a marker line so we know where to render the ANSI buffer
+      # This marker will be recognized during rendering
+      lines.add("{{ANSI:" & bufferKey & "}}")
   
   return lines.join("\n")
 
@@ -1220,6 +1255,39 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
           maxLinkTextWidth = linkTextWidth
       if maxLinkTextWidth > maxVisualWidth:
         maxVisualWidth = maxLinkTextWidth
+    elif line.startsWith("{{ANSI:") and line.endsWith("}}"):
+      # ANSI block marker - render the styled buffer
+      let bufferKey = line[7..^3]  # Extract key from {{ANSI:key}}
+      if gAnsiBuffers.hasKey(bufferKey):
+        let ansiBuffer = gAnsiBuffers[bufferKey]
+        # Render each line of the ANSI buffer with its styled cells
+        for y in 0 ..< ansiBuffer.height:
+          if contentY >= screenY + layout.height:
+            break
+          # Only render if contentY is within buffer bounds
+          if contentY >= 0 and contentY < buffer.height:
+            var lineWidth = 0
+            var maxNonSpaceX = 0  # Track actual content width
+            for x in 0 ..< ansiBuffer.width:
+              let idx = y * ansiBuffer.width + x
+              if idx < ansiBuffer.cells.len:
+                let cell = ansiBuffer.cells[idx]
+                # Only render non-empty cells (skip spaces with default background)
+                # This prevents overwriting buffer cells with black backgrounds
+                if cell.ch != " " or cell.style.bg.r != 0 or cell.style.bg.g != 0 or cell.style.bg.b != 0:
+                  # Render each cell with its style, with proper bounds checking
+                  if contentX + x >= 0 and contentX + x < buffer.width:
+                    let bufIdx = contentY * buffer.width + (contentX + x)
+                    if bufIdx >= 0 and bufIdx < buffer.cells.len:
+                      buffer.cells[bufIdx] = cell
+                      lineWidth = x + 1
+                      if cell.ch != " ":
+                        maxNonSpaceX = x + 1
+            # Use actual visual width (excluding trailing spaces)
+            if maxNonSpaceX > maxVisualWidth:
+              maxVisualWidth = maxNonSpaceX
+          contentY += 1
+        contentY -= 1  # Adjust for the increment below
     elif "**" in line or "*" in line:
       # Line with markdown formatting - wrap it first
       let wrapped = wrapText(line, maxContentWidth)

@@ -288,13 +288,17 @@
         
         const fontUrl = urlParams.get('font');
         const fontSizeParam = urlParams.get('fontsize');
-        const shaderGistId = urlParams.get('shader');
+        const shaderParam = urlParams.get('shader');
+        
+        // Parse multiple shaders separated by '+' (which becomes space in URL params)
+        // e.g., ?shader=invert+crt will load both invert and crt shaders
+        const shaderNames = shaderParam ? shaderParam.split(/\s+/).map(s => s.trim()).filter(s => s) : [];
         
         // Gist/demo loading state
         let gistMarkdown = null;
         let moduleReady = false;
         let gistReady = false;
-        let shaderCode = null;
+        let shaderCodes = [];  // Array of shader code objects: [{name, code}, ...]
         let shaderReady = false;
         
         // Load from localStorage if specified
@@ -350,10 +354,6 @@
         
         if (demoName) {
             console.log('Loading demo:', demoName);
-        }
-        
-        if (shaderGistId) {
-            console.log('Shader parameter detected:', shaderGistId);
         }
         
         // Load custom font if specified
@@ -535,8 +535,8 @@
                     console.error('inittstorie function not found. Make sure tstorie.js is loaded.');
                 }
                 
-                // Initialize shader system if shader is loaded
-                if (shaderGistId && shaderReady) {
+                // Initialize shader system if shaders are loaded
+                if (shaderNames.length > 0 && shaderReady) {
                     initShaderSystem();
                 }
                 
@@ -620,55 +620,68 @@
                 });
         }
         
-        // Fetch shader if specified
-        if (shaderGistId) {
-            progress.textContent = 'Loading shader ' + shaderGistId + '...';
-            
-            // First try to load from local shaders folder
-            var localShaderUrl = 'shaders/' + shaderGistId + '.js';
-            console.log('Attempting to load shader from:', localShaderUrl);
-            
-            fetch(localShaderUrl)
-                .then(function(response) {
-                    if (!response.ok) {
-                        // Local file not found, try loading from Gist
-                        console.log('Local shader not found, trying Gist API...');
-                        return fetch('https://api.github.com/gists/' + shaderGistId)
-                            .then(function(gistResponse) {
-                                if (!gistResponse.ok) {
-                                    throw new Error('Shader not found locally or in gist (HTTP ' + gistResponse.status + ')');
-                                }
-                                return gistResponse.json();
-                            })
-                            .then(function(gist) {
-                                // Find first .js file in gist
-                                var jsFile = null;
-                                for (var filename in gist.files) {
-                                    if (filename.endsWith('.js')) {
-                                        jsFile = gist.files[filename];
-                                        break;
+        // Function to load a single shader by name
+        function loadSingleShader(shaderName) {
+            return new Promise(function(resolve, reject) {
+                var localShaderUrl = 'shaders/' + shaderName + '.js';
+                console.log('Loading shader:', shaderName, 'from', localShaderUrl);
+                
+                fetch(localShaderUrl)
+                    .then(function(response) {
+                        if (!response.ok) {
+                            // Local file not found, try loading from Gist
+                            console.log('Local shader not found, trying Gist API for:', shaderName);
+                            return fetch('https://api.github.com/gists/' + shaderName)
+                                .then(function(gistResponse) {
+                                    if (!gistResponse.ok) {
+                                        throw new Error('Shader "' + shaderName + '" not found locally or in gist (HTTP ' + gistResponse.status + ')');
                                     }
-                                }
-                                
-                                if (jsFile) {
-                                    console.log('Found shader file in gist:', jsFile.filename);
-                                    return { content: jsFile.content, source: 'gist', filename: jsFile.filename };
-                                } else {
-                                    throw new Error('No .js file found in shader gist');
-                                }
+                                    return gistResponse.json();
+                                })
+                                .then(function(gist) {
+                                    // Find first .js file in gist
+                                    var jsFile = null;
+                                    for (var filename in gist.files) {
+                                        if (filename.endsWith('.js')) {
+                                            jsFile = gist.files[filename];
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (jsFile) {
+                                        console.log('Found shader file in gist:', jsFile.filename);
+                                        return { name: shaderName, content: jsFile.content, source: 'gist', filename: jsFile.filename };
+                                    } else {
+                                        throw new Error('No .js file found in shader gist: ' + shaderName);
+                                    }
+                                });
+                        } else {
+                            // Local file found, return its content
+                            return response.text().then(function(content) {
+                                return { name: shaderName, content: content, source: 'local', filename: shaderName + '.js' };
                             });
-                    } else {
-                        // Local file found, return its content
-                        console.log('Loading shader from local file:', localShaderUrl);
-                        return response.text().then(function(content) {
-                            return { content: content, source: 'local', filename: shaderGistId + '.js' };
-                        });
-                    }
-                })
-                .then(function(result) {
-                    shaderCode = result.content;
+                        }
+                    })
+                    .then(resolve)
+                    .catch(reject);
+            });
+        }
+        
+        // Fetch all shaders if specified
+        if (shaderNames.length > 0) {
+            const shaderCountText = shaderNames.length === 1 ? '1 shader' : shaderNames.length + ' shaders';
+            progress.textContent = 'Loading ' + shaderCountText + ': ' + shaderNames.join('+') + '...';
+            console.log('Loading shader chain:', shaderNames);
+            
+            // Load all shaders in parallel
+            Promise.all(shaderNames.map(loadSingleShader))
+                .then(function(results) {
+                    shaderCodes = results;
                     shaderReady = true;
-                    progress.textContent = 'Loaded shader from ' + result.source + ': ' + result.filename;
+                    
+                    const sources = results.map(r => r.source).join(', ');
+                    progress.textContent = 'Loaded ' + shaderCountText + ' from ' + sources;
+                    console.log('All shaders loaded successfully:', results.map(r => r.name).join(' → '));
                     
                     // Initialize shader system if module is ready
                     if (moduleReady) {
@@ -676,9 +689,9 @@
                     }
                 })
                 .catch(function(error) {
-                    console.error('Error loading shader:', error);
+                    console.error('Error loading shaders:', error);
                     progress.textContent = 'Shader error: ' + error.message;
-                    shaderCode = null;
+                    shaderCodes = [];
                 });
         }
     </script>
@@ -688,13 +701,13 @@
         let shaderSystem = null;
         
         function initShaderSystem() {
-            if (!shaderCode || !canvas) {
-                console.log('Cannot init shader system - missing code or canvas');
+            if (!shaderCodes || shaderCodes.length === 0 || !canvas) {
+                console.log('Cannot init shader system - missing shader code or canvas');
                 return;
             }
             
             try {
-                console.log('Initializing shader system...');
+                console.log('Initializing multi-shader system with', shaderCodes.length, 'shader(s):', shaderCodes.map(s => s.name).join(' → '));
                 
                 // Store original terminal canvas reference
                 const terminalCanvas = canvas;
@@ -777,38 +790,82 @@
                 // Update canvas reference for shader rendering
                 canvas = webglCanvas;
                 
-                // Evaluate shader code (should define getShaderConfig())
-                eval(shaderCode);
-                
-                if (typeof getShaderConfig !== 'function') {
-                    throw new Error('Shader must export getShaderConfig() function');
-                }
-                
-                const config = getShaderConfig();
-                if (!config.vertexShader || !config.fragmentShader) {
-                    throw new Error('Shader config must include vertexShader and fragmentShader');
-                }
-                
                 // Create WebGL context from new canvas
                 const gl = webglCanvas.getContext('webgl') || webglCanvas.getContext('experimental-webgl');
                 if (!gl) {
                     throw new Error('WebGL not supported');
                 }
                 
-                // Compile shaders
-                const vertexShader = createShader(gl, gl.VERTEX_SHADER, config.vertexShader);
-                const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, config.fragmentShader);
+                // Compile all shader programs
+                const shaderPrograms = [];
                 
-                const program = gl.createProgram();
-                gl.attachShader(program, vertexShader);
-                gl.attachShader(program, fragmentShader);
-                gl.linkProgram(program);
-                
-                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-                    throw new Error('Shader program link failed: ' + gl.getProgramInfoLog(program));
+                for (let i = 0; i < shaderCodes.length; i++) {
+                    const shaderInfo = shaderCodes[i];
+                    console.log('Compiling shader', i + 1, '/', shaderCodes.length, ':', shaderInfo.name);
+                    
+                    // Create isolated scope for eval to avoid variable conflicts
+                    const getShaderConfig = (function() {
+                        eval(shaderInfo.content);
+                        if (typeof getShaderConfig !== 'function') {
+                            throw new Error('Shader "' + shaderInfo.name + '" must export getShaderConfig() function');
+                        }
+                        return getShaderConfig();
+                    })();
+                    
+                    if (!getShaderConfig.vertexShader || !getShaderConfig.fragmentShader) {
+                        throw new Error('Shader "' + shaderInfo.name + '" config must include vertexShader and fragmentShader');
+                    }
+                    
+                    // For shaders after the first, remove Y-flip from vertex shader
+                    // The first shader flips to read from terminal canvas correctly
+                    // Subsequent shaders read from framebuffers that are already correctly oriented
+                    let vertexShader = getShaderConfig.vertexShader;
+                    if (i > 0) {
+                        // Remove the Y-flip line
+                        vertexShader = vertexShader.replace(/vUv\.y\s*=\s*1\.0\s*-\s*vUv\.y\s*;/g, '// Y-flip removed for chained shader');
+                    }
+                    
+                    // Compile vertex and fragment shaders
+                    const vertShader = createShader(gl, gl.VERTEX_SHADER, vertexShader);
+                    const fragShader = createShader(gl, gl.FRAGMENT_SHADER, getShaderConfig.fragmentShader);
+                    
+                    const program = gl.createProgram();
+                    gl.attachShader(program, vertShader);
+                    gl.attachShader(program, fragShader);
+                    gl.linkProgram(program);
+                    
+                    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                        throw new Error('Shader "' + shaderInfo.name + '" program link failed: ' + gl.getProgramInfoLog(program));
+                    }
+                    
+                    // Get attribute and uniform locations
+                    const posLocation = gl.getAttribLocation(program, 'position');
+                    const timeLocation = gl.getUniformLocation(program, 'time');
+                    const resolutionLocation = gl.getUniformLocation(program, 'resolution');
+                    const textureLocation = gl.getUniformLocation(program, 'contentTexture');
+                    
+                    // Get custom uniform locations
+                    const customUniforms = getShaderConfig.uniforms || {};
+                    const uniformLocations = {};
+                    for (const name in customUniforms) {
+                        uniformLocations[name] = gl.getUniformLocation(program, name);
+                    }
+                    
+                    shaderPrograms.push({
+                        name: shaderInfo.name,
+                        program: program,
+                        posLocation: posLocation,
+                        timeLocation: timeLocation,
+                        resolutionLocation: resolutionLocation,
+                        textureLocation: textureLocation,
+                        customUniforms: customUniforms,
+                        uniformLocations: uniformLocations
+                    });
                 }
                 
-                // Create fullscreen quad
+                console.log('Successfully compiled', shaderPrograms.length, 'shader program(s)');
+                
+                // Create fullscreen quad (shared by all shaders)
                 const positions = new Float32Array([
                     -1, -1,  1, -1,  -1, 1,
                     -1, 1,   1, -1,   1, 1
@@ -818,94 +875,153 @@
                 gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
                 gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
                 
-                // Create texture for terminal canvas
-                const texture = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, texture);
+                // Create texture for terminal canvas (input to first shader)
+                const terminalTexture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, terminalTexture);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 
-                // Get attribute and uniform locations
-                const posLocation = gl.getAttribLocation(program, 'position');
-                const timeLocation = gl.getUniformLocation(program, 'time');
-                const resolutionLocation = gl.getUniformLocation(program, 'resolution');
-                const textureLocation = gl.getUniformLocation(program, 'contentTexture');
+                // Create framebuffers for multi-pass rendering
+                // We need (N-1) framebuffers for N shaders (last shader renders to screen)
+                const framebuffers = [];
                 
-                // Get custom uniform locations if defined
-                const customUniforms = config.uniforms || {};
-                const uniformLocations = {};
-                for (const name in customUniforms) {
-                    uniformLocations[name] = gl.getUniformLocation(program, name);
+                function createFramebuffer(w, h) {
+                    const fb = gl.createFramebuffer();
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                    
+                    const texture = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                    
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+                    
+                    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                        throw new Error('Framebuffer is not complete');
+                    }
+                    
+                    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                    return { framebuffer: fb, texture: texture };
                 }
+                
+                // Create framebuffers for all but the last shader
+                for (let i = 0; i < shaderPrograms.length - 1; i++) {
+                    framebuffers.push(createFramebuffer(webglCanvas.width, webglCanvas.height));
+                }
+                
+                console.log('Created', framebuffers.length, 'intermediate framebuffer(s)');
                 
                 const startTime = Date.now();
                 
+                // Function to resize framebuffers
+                function resizeFramebuffers(w, h) {
+                    console.log('Resizing framebuffers to', w, 'x', h);
+                    for (let i = 0; i < framebuffers.length; i++) {
+                        const fb = framebuffers[i];
+                        gl.bindTexture(gl.TEXTURE_2D, fb.texture);
+                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                    }
+                    gl.bindTexture(gl.TEXTURE_2D, null);
+                }
+                
                 shaderSystem = {
                     gl: gl,
-                    program: program,
+                    shaderPrograms: shaderPrograms,
                     terminalCanvas: terminalCanvas,
                     visibleCanvas: webglCanvas,
-                    texture: texture,
+                    terminalTexture: terminalTexture,
+                    framebuffers: framebuffers,
                     posBuffer: posBuffer,
-                    posLocation: posLocation,
-                    timeLocation: timeLocation,
-                    resolutionLocation: resolutionLocation,
-                    textureLocation: textureLocation,
-                    uniformLocations: uniformLocations,
-                    customUniforms: customUniforms,
                     startTime: startTime,
                     animationId: null,
+                    lastWidth: webglCanvas.width,
+                    lastHeight: webglCanvas.height,
+                    resizeFramebuffers: resizeFramebuffers,
                     
                     render: function() {
-                        // Update texture from terminal canvas (which is still rendering)
-                        gl.bindTexture(gl.TEXTURE_2D, texture);
+                        // Check if canvas size changed and resize framebuffers
+                        if (webglCanvas.width !== this.lastWidth || webglCanvas.height !== this.lastHeight) {
+                            this.lastWidth = webglCanvas.width;
+                            this.lastHeight = webglCanvas.height;
+                            resizeFramebuffers(webglCanvas.width, webglCanvas.height);
+                        }
+                        
+                        // Update terminal texture from terminal canvas
+                        gl.bindTexture(gl.TEXTURE_2D, terminalTexture);
                         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, terminalCanvas);
                         
                         // Set viewport to match canvas
                         gl.viewport(0, 0, webglCanvas.width, webglCanvas.height);
                         
-                        // Use shader program
-                        gl.useProgram(program);
-                        
-                        // Set uniforms
                         const time = (Date.now() - startTime) / 1000.0;
-                        gl.uniform1f(timeLocation, time);
-                        gl.uniform2f(resolutionLocation, webglCanvas.width, webglCanvas.height);
-                        gl.uniform1i(textureLocation, 0);
                         
-                        // Set custom uniforms
-                        for (const name in customUniforms) {
-                            let value = customUniforms[name];
-                            const location = uniformLocations[name];
-                            if (location) {
-                                // Special handling for cellSize - get live values from terminal
-                                if (name === 'cellSize' && window.terminal) {
-                                    // Don't multiply by DPR - the canvas buffer is already DPR-scaled
-                                    // and resolution uniform matches the buffer size
-                                    value = [window.terminal.charWidth, window.terminal.charHeight];
-                                }
-                                
-                                if (typeof value === 'number') {
-                                    gl.uniform1f(location, value);
-                                } else if (Array.isArray(value)) {
-                                    if (value.length === 2) {
-                                        gl.uniform2f(location, value[0], value[1]);
-                                    } else if (value.length === 3) {
-                                        gl.uniform3f(location, value[0], value[1], value[2]);
-                                    } else if (value.length === 4) {
-                                        gl.uniform4f(location, value[0], value[1], value[2], value[3]);
+                        // Multi-pass rendering: each shader reads from previous output
+                        for (let i = 0; i < shaderPrograms.length; i++) {
+                            const shader = shaderPrograms[i];
+                            const isLastShader = (i === shaderPrograms.length - 1);
+                            
+                            // Bind framebuffer for this pass (null = render to screen)
+                            if (isLastShader) {
+                                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                            } else {
+                                gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[i].framebuffer);
+                            }
+                            
+                            // Use this shader's program
+                            gl.useProgram(shader.program);
+                            
+                            // Bind input texture (terminal for first shader, previous framebuffer for others)
+                            const inputTexture = (i === 0) ? terminalTexture : framebuffers[i - 1].texture;
+                            gl.activeTexture(gl.TEXTURE0);
+                            gl.bindTexture(gl.TEXTURE_2D, inputTexture);
+                            
+                            // Set standard uniforms
+                            if (shader.timeLocation) {
+                                gl.uniform1f(shader.timeLocation, time);
+                            }
+                            if (shader.resolutionLocation) {
+                                gl.uniform2f(shader.resolutionLocation, webglCanvas.width, webglCanvas.height);
+                            }
+                            if (shader.textureLocation) {
+                                gl.uniform1i(shader.textureLocation, 0);
+                            }
+                            
+                            // Set custom uniforms
+                            for (const name in shader.customUniforms) {
+                                let value = shader.customUniforms[name];
+                                const location = shader.uniformLocations[name];
+                                if (location) {
+                                    // Special handling for cellSize - get live values from terminal
+                                    if (name === 'cellSize' && window.terminal) {
+                                        value = [window.terminal.charWidth, window.terminal.charHeight];
+                                    }
+                                    
+                                    if (typeof value === 'number') {
+                                        gl.uniform1f(location, value);
+                                    } else if (Array.isArray(value)) {
+                                        if (value.length === 2) {
+                                            gl.uniform2f(location, value[0], value[1]);
+                                        } else if (value.length === 3) {
+                                            gl.uniform3f(location, value[0], value[1], value[2]);
+                                        } else if (value.length === 4) {
+                                            gl.uniform4f(location, value[0], value[1], value[2], value[3]);
+                                        }
                                     }
                                 }
                             }
+                            
+                            // Draw fullscreen quad
+                            gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+                            gl.enableVertexAttribArray(shader.posLocation);
+                            gl.vertexAttribPointer(shader.posLocation, 2, gl.FLOAT, false, 0, 0);
+                            
+                            gl.drawArrays(gl.TRIANGLES, 0, 6);
                         }
-                        
-                        // Draw fullscreen quad
-                        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-                        gl.enableVertexAttribArray(posLocation);
-                        gl.vertexAttribPointer(posLocation, 2, gl.FLOAT, false, 0, 0);
-                        
-                        gl.drawArrays(gl.TRIANGLES, 0, 6);
                         
                         // Continue render loop
                         this.animationId = requestAnimationFrame(() => this.render());

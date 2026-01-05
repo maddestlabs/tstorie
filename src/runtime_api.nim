@@ -1,10 +1,35 @@
-# TStorie entry point
+# Runtime API Implementation
 # 
-# Note: This file is included by tstorie.nim and has access to all tstorie types and lib modules.
-# When compiling, use: nim c tstorie.nim -d:userFile=index (or ./build.sh / ./build-web.sh)
-
-# NOTE: Imports, includes, types, and globals are now in tstorie.nim to avoid duplication
-# This file only contains the application logic and lifecycle hooks
+# This file contains the runtime API and lifecycle management for tStorie.
+# It was previously named index.nim but has been moved to src/ for better organization.
+#
+# Contents:
+# - Nimini integration helpers (type conversion, print, etc.)
+# - Style conversion between nimini and native types
+# - Unified drawing API (draw, clear, fillRect, writeTextBox)
+# - Random number generation wrappers
+# - Global event handler management (render/update/input hooks)
+# - Theme and stylesheet management  
+# - Mouse handling wrappers
+# - Browser API wrappers (localStorage, window.open, etc.)
+# - Canvas system initialization
+# - Layout module wrappers
+# - Animation and easing functions
+# - FIGlet font loading and rendering
+# - Nimini context creation and API registration
+# - Code block execution engine
+# - Markdown loading and variable expansion
+# - Lifecycle callbacks (onInit, onUpdate, onRender, onInput, onShutdown)
+#
+# This file is included (not imported) by tstorie.nim to share namespace.
+# All tstorie types, lib modules, and globals are available from the parent scope.
+#
+# Future refactoring opportunities:
+# - Split into focused modules: drawing_api.nim, style_api.nim, animation_api.nim,
+#   figlet_api.nim, event_handlers.nim, lifecycle.nim
+# - Convert from 'include' to 'import' pattern once circular dependencies are resolved
+# - Move lifecycle callbacks to a separate lifecycle.nim module
+# - Consider creating a unified API registration module
 
 # ================================================================
 # METADATA REGISTRATION - For Export System
@@ -389,6 +414,49 @@ proc clearGlobalHandlers*() =
 proc nimini_defaultStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## defaultStyle() -> Style map
   return styleConfigToValue(getDefaultStyleConfig())
+
+proc nimini_setDefaultStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## setDefaultStyle(style: map) -> nil
+  ## Override the global default style used throughout the system
+  if args.len < 1 or args[0].kind != vkMap:
+    return valNil()
+  
+  var config = getDefaultStyleConfig()  # Start with current defaults
+  let styleMap = args[0].map
+  
+  # Update fields if present in the map
+  if styleMap.hasKey("fg"):
+    let fgVal = styleMap["fg"]
+    if fgVal.kind == vkArray and fgVal.arr.len == 3:
+      config.fg = (
+        uint8(fgVal.arr[0].i),
+        uint8(fgVal.arr[1].i),
+        uint8(fgVal.arr[2].i)
+      )
+  
+  if styleMap.hasKey("bg"):
+    let bgVal = styleMap["bg"]
+    if bgVal.kind == vkArray and bgVal.arr.len == 3:
+      config.bg = (
+        uint8(bgVal.arr[0].i),
+        uint8(bgVal.arr[1].i),
+        uint8(bgVal.arr[2].i)
+      )
+  
+  if styleMap.hasKey("bold") and styleMap["bold"].kind == vkBool:
+    config.bold = styleMap["bold"].b
+  
+  if styleMap.hasKey("italic") and styleMap["italic"].kind == vkBool:
+    config.italic = styleMap["italic"].b
+  
+  if styleMap.hasKey("underline") and styleMap["underline"].kind == vkBool:
+    config.underline = styleMap["underline"].b
+  
+  if styleMap.hasKey("dim") and styleMap["dim"].kind == vkBool:
+    config.dim = styleMap["dim"].b
+  
+  setDefaultStyleConfig(config)
+  return valNil()
 
 proc nimini_getStyle(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## getStyle(name: string) -> Style map
@@ -1128,6 +1196,25 @@ proc drawFigletText(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   return valNil()
 
+proc getEmbeddedContent(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get embedded content by name. Args: name (string)
+  ## Returns: content string or empty string if not found
+  if args.len < 1:
+    return valString("")
+  
+  let name = args[0].s
+  
+  # Check if storieCtx has embedded content
+  if storieCtx.isNil or storieCtx.embeddedContent.len == 0:
+    return valString("")
+  
+  # Search for the content by name
+  for content in storieCtx.embeddedContent:
+    if content.name == name:
+      return valString(content.content)
+  
+  return valString("")
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -1146,8 +1233,10 @@ proc createNiminiContext(state: AppState): NiminiContext =
   
   # Register ASCII art bindings and dungeon generator
   registerAsciiArtBindings(drawWrapper, addr state)
+  registerAnsiArtBindings(runtimeEnv, drawWrapper)
   registerDungeonBindings()
   registerTUIHelperBindings(runtimeEnv)
+  registerParticleBindings(runtimeEnv, state)
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)
@@ -1163,7 +1252,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
     nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
     nimini_enableMouse, nimini_disableMouse,
     initCanvas,
-    nimini_defaultStyle, nimini_getStyle,
+    nimini_defaultStyle, nimini_setDefaultStyle, nimini_getStyle,
     nimini_getThemes, nimini_switchTheme, nimini_getCurrentTheme,
     # Section management
     nimini_getCurrentSection, nimini_getAllSections, nimini_getSectionById,
@@ -1174,6 +1263,8 @@ proc createNiminiContext(state: AppState): NiminiContext =
     # Code block access
     nimini_getSectionCodeBlocks, nimini_getCodeBlock, nimini_getCurrentSectionCodeBlocks,
     nimini_getCodeBlockText, nimini_getContent,
+    # Embedded content access
+    getEmbeddedContent,
     # Figlet font rendering - NOTE: Registered separately with metadata below
     # Browser API
     nimini_localStorage_setItem, nimini_localStorage_getItem, nimini_window_open,
@@ -1250,6 +1341,9 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerNative("getCurrentSectionCodeBlocks", nimini_getCurrentSectionCodeBlocks)
   registerNative("getCodeBlockText", nimini_getCodeBlockText)
   registerNative("getContent", nimini_getContent)
+  
+  # Register style functions
+  registerNative("setDefaultStyle", nimini_setDefaultStyle)
   
   let ctx = NiminiContext(env: runtimeEnv)
   
@@ -1436,7 +1530,7 @@ proc loadAndParseMarkdown(): MarkdownDocument =
     
     # In WASM, embed the markdown at compile time
     # Use staticRead with the markdown content
-    const mdContent = staticRead("index.md")
+    const mdContent = staticRead("../index.md")
     const mdLines = mdContent.splitLines()
     const mdLineCount = mdLines.len
     
@@ -1513,6 +1607,14 @@ proc initStorieContext(state: AppState) =
   storieCtx.codeBlocks = doc.codeBlocks
   storieCtx.frontMatter = doc.frontMatter
   storieCtx.styleSheet = doc.styleSheet
+  storieCtx.embeddedContent = doc.embeddedContent
+  
+  # Debug: print embedded content
+  when not defined(emscripten):
+    if doc.embeddedContent.len > 0:
+      echo "Found ", doc.embeddedContent.len, " embedded content blocks:"
+      for ec in doc.embeddedContent:
+        echo "  - ", ec.name, " (", ec.kind, ") - ", ec.content.len, " bytes"
   
   # Set up TUI helper stylesheet (layer and state refs were set earlier)
   tui_helpers.gStorieStyleSheet = addr storieCtx.styleSheet
@@ -1524,6 +1626,14 @@ proc initStorieContext(state: AppState) =
   
   # Also store styleSheet in state for API access
   state.styleSheet = doc.styleSheet
+  
+  # Update global default style from stylesheet
+  if doc.styleSheet.hasKey("default"):
+    # Use explicit "default" style if defined
+    setDefaultStyleConfig(doc.styleSheet["default"])
+  elif doc.styleSheet.hasKey("body"):
+    # Fallback: use "body" style background/foreground for default
+    setDefaultStyleConfig(doc.styleSheet["body"])
   
   # Extract theme background color from stylesheet (body style or default to black)
   if doc.styleSheet.hasKey("body"):

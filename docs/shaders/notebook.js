@@ -72,9 +72,6 @@ function getShaderConfig() {
                 // Sample with blur
                 vec4 color = sampleBlurred(uv);
                 
-                // Invert colors for notebook paper effect
-                color.rgb = vec3(1.0) - color.rgb;
-                
                 // Use cellSize height to determine line spacing
                 // LINE_HEIGHT is based on terminal character cell height
                 float lineHeight = cellSize.y;
