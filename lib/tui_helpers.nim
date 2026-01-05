@@ -655,6 +655,155 @@ proc drawTextBoxWithScroll*(layer: int, x, y, w, h: int, content: string,
   return newScrollOffset
 
 # ==============================================================================
+# VIEWPORT / SCROLLABLE CONTAINER
+# ==============================================================================
+
+proc drawViewport*(layer: int, x, y, viewW, viewH: int,
+                   content: seq[string], scrollY: int,
+                   borderStyle: string = "single"): tuple[needsScrollbar: bool, maxScrollY: int] =
+  ## Generic scrollable viewport for line-based content
+  ## 
+  ## Parameters:
+  ##   layer: Which layer to draw on
+  ##   x, y: Top-left position of the viewport
+  ##   viewW, viewH: Width and height of the viewport (including border)
+  ##   content: Array of strings, each representing a line
+  ##   scrollY: Current vertical scroll position (line index)
+  ##   borderStyle: "simple", "single", "double", or "rounded"
+  ## 
+  ## Returns:
+  ##   needsScrollbar: True if content is larger than viewport
+  ##   maxScrollY: Maximum valid scroll position
+  ## 
+  ## Example:
+  ##   let lines = @["Line 1", "Line 2", "Line 3", ...]
+  ##   let info = drawViewport(1, 10, 10, 40, 15, lines, myScrollPos)
+  ##   # Use info.maxScrollY to clamp scroll input
+  
+  let style = tuiGetStyle("border")
+  
+  # Draw border
+  case borderStyle
+  of "simple":
+    drawBoxSimple(layer, x, y, viewW, viewH, style)
+  of "double":
+    drawBoxDouble(layer, x, y, viewW, viewH, style)
+  of "rounded":
+    drawBoxRounded(layer, x, y, viewW, viewH, style)
+  else:
+    drawBoxSingle(layer, x, y, viewW, viewH, style)
+  
+  let contentHeight = viewH - 2  # Account for top and bottom borders
+  let contentWidth = viewW - 4   # Account for borders and padding
+  let startLine = scrollY
+  let endLine = min(scrollY + contentHeight, content.len)
+  
+  # Draw visible lines
+  for i in startLine..<endLine:
+    let lineY = y + 1 + (i - scrollY)
+    let lineText = truncateText(content[i], contentWidth)
+    tuiDraw(layer, x + 2, lineY, lineText, tuiGetStyle("default"))
+  
+  # Draw scrollbar if content is larger than viewport
+  let needsScroll = content.len > contentHeight
+  if needsScroll:
+    let scrollbarHeight = contentHeight
+    let scrollRange = content.len - contentHeight
+    let scrollbarPos = if scrollRange > 0:
+                         int((float(scrollY) / float(scrollRange)) * 
+                             float(scrollbarHeight - 1))
+                       else:
+                         0
+    tuiDraw(layer, x + viewW - 2, y + 1 + scrollbarPos, "█", tuiGetStyle("info"))
+  
+  result.needsScrollbar = needsScroll
+  result.maxScrollY = max(0, content.len - contentHeight)
+
+proc drawViewportNoReturn*(layer: int, x, y, viewW, viewH: int,
+                           content: seq[string], scrollY: int,
+                           borderStyle: string = "single") =
+  ## Simplified viewport without return value (easier for scripting)
+  discard drawViewport(layer, x, y, viewW, viewH, content, scrollY, borderStyle)
+
+# ==============================================================================
+# SCROLL MANAGEMENT HELPERS
+# ==============================================================================
+
+proc updateScroll*(currentScroll: int, maxScroll: int, delta: int): int =
+  ## Update scroll position with bounds checking
+  ## 
+  ## Parameters:
+  ##   currentScroll: Current scroll position
+  ##   maxScroll: Maximum allowed scroll position
+  ##   delta: Amount to scroll (negative = up, positive = down)
+  ## 
+  ## Returns:
+  ##   New scroll position, clamped to [0, maxScroll]
+  result = currentScroll + delta
+  if result < 0:
+    result = 0
+  elif result > maxScroll:
+    result = maxScroll
+
+proc handleScrollKeys*(keyCode: int, scrollY: var int, maxScrollY: int,
+                      pageSize: int = 10): bool =
+  ## Handle keyboard scrolling (Up/Down/PageUp/PageDown/Home/End)
+  ## 
+  ## Parameters:
+  ##   keyCode: Key code from keyboard event
+  ##     38 = Up arrow, 40 = Down arrow
+  ##     33 = Page Up, 34 = Page Down
+  ##     36 = Home, 35 = End
+  ##   scrollY: Current scroll position (will be modified)
+  ##   maxScrollY: Maximum scroll position
+  ##   pageSize: Lines to scroll for Page Up/Down
+  ## 
+  ## Returns:
+  ##   True if the key was handled, false otherwise
+  case keyCode
+  of 38:  # Up arrow
+    scrollY = updateScroll(scrollY, maxScrollY, -1)
+    return true
+  of 40:  # Down arrow
+    scrollY = updateScroll(scrollY, maxScrollY, 1)
+    return true
+  of 33:  # Page Up
+    scrollY = updateScroll(scrollY, maxScrollY, -pageSize)
+    return true
+  of 34:  # Page Down
+    scrollY = updateScroll(scrollY, maxScrollY, pageSize)
+    return true
+  of 36:  # Home
+    scrollY = 0
+    return true
+  of 35:  # End
+    scrollY = maxScrollY
+    return true
+  else:
+    return false
+
+proc clampScroll*(scrollY: int, maxScrollY: int): int =
+  ## Clamp scroll position to valid range [0, maxScrollY]
+  if scrollY < 0:
+    return 0
+  elif scrollY > maxScrollY:
+    return maxScrollY
+  else:
+    return scrollY
+
+proc calculateMaxScroll*(contentLines: int, viewportHeight: int): int =
+  ## Calculate maximum scroll position for given content and viewport
+  ## 
+  ## Parameters:
+  ##   contentLines: Total number of lines in content
+  ##   viewportHeight: Height of viewport (including borders)
+  ## 
+  ## Returns:
+  ##   Maximum scroll position (0 if content fits in viewport)
+  let contentHeight = viewportHeight - 2  # Account for borders
+  result = max(0, contentLines - contentHeight)
+
+# ==============================================================================
 # EXPORTS
 # ==============================================================================
 
@@ -665,6 +814,8 @@ export pointInRect, findClickedWidget
 export drawButton, drawLabel, drawTextBox, drawSlider, drawCheckBox
 export drawPanel, drawProgressBar, drawSeparator
 export layoutVertical, layoutHorizontal, layoutGrid, layoutCentered
+# Internal helpers (for text_editor and other internal modules)
+export tuiGetStyle, tuiDraw
 # New exports
 export handleTextInput, handleBackspace, handleArrowKeys
 export drawRadioButton, drawRadioGroup
@@ -675,3 +826,6 @@ export drawTooltip
 export drawTabBar, drawTabContent
 export layoutForm
 export drawTextBoxWithScroll
+# Viewport exports
+export drawViewport, drawViewportNoReturn
+export updateScroll, handleScrollKeys, clampScroll, calculateMaxScroll

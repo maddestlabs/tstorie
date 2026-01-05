@@ -1236,6 +1236,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerAnsiArtBindings(runtimeEnv, drawWrapper)
   registerDungeonBindings()
   registerTUIHelperBindings(runtimeEnv)
+  registerTextEditorBindings(runtimeEnv)
   registerParticleBindings(runtimeEnv, state)
   
   # Register type conversion functions with custom names

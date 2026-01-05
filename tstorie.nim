@@ -394,6 +394,10 @@ import lib/tui_helpers
 # Import TUI bindings after the helpers
 import lib/tui_helpers_bindings
 
+# Import text editor module and bindings
+import lib/text_editor
+import lib/text_editor_bindings
+
 # Random number generator - consistent across WASM and native
 var globalRng: Rand
 
