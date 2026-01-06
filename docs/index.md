@@ -31,16 +31,14 @@ var bgG = int(bgStyle.bg.g)
 var bgB = int(bgStyle.bg.b)
 
 particleInit("sparkles", 500)
-particleInit("rain", 400)
+particleInit("matrix", 10, false)
 particleInit("fire", 300)
-
-# Set background colors
-particleSetBackgroundColor("sparkles", bgR, bgG, bgB)
-particleSetBackgroundColor("rain", bgR, bgG, bgB)
-particleSetBackgroundColor("fire", bgR, bgG, bgB)
+var accentStyle = getStyle("heading")
+var defaultStyle = getStyle("default")
 
 # Configure sparkles (manual emission on click)
 particleConfigureSparkles("sparkles", 10.0)
+particleSetBackgroundColor("sparkles", bgR, bgG, bgB)
 particleSetEmitterPos("sparkles", float(termWidth / 2), float(termHeight / 2))
 # Speed up sparkles with higher velocity range
 particleSetVelocityRange("sparkles", -15.0, -15.0, 15.0, 15.0)
@@ -49,18 +47,21 @@ particleSetLifeRange("sparkles", 0.1, 0.4)
 # Disable automatic emission - only emit on manual clicks
 particleSetEmitRate("sparkles", 0.0)
 
-# Configure rain
-particleConfigureRain("rain", 20.0)
-particleSetEmitterPos("rain", 0.0, 0.0)
-particleSetEmitterSize("rain", float(termWidth), 1.0)
-particleSetCollision("rain", true, 3)  # Destroy on collision
+# Configure Matrix rain effect (always active)
+particleConfigureMatrix("matrix", 5.0)
+particleSetDrawMode("matrix", 1)
+# IMPORTANT: Override preset settings AFTER configure call
+particleSetBackgroundFromStyle("matrix", defaultStyle)
+particleSetForegroundFromStyle("matrix", accentStyle)
+particleSetTrailLength("matrix", 30)
+particleSetEmitterPos("matrix", 0.0, 0.0)
+particleSetEmitterSize("matrix", float(termWidth), 10.0)
 
 # Configure fire at bottom
 particleConfigureFire("fire", 70.0)
 particleSetEmitterPos("fire", float(termWidth / 2), float(termHeight - 1))
 particleSetEmitterSize("fire", 30.0, 1.0)
 
-var rainActive = false
 var inFinalStats = false
 var metrics = getSectionMetrics()
 ```
@@ -94,9 +95,8 @@ clear()
 
 canvasRender()
 
-# Render rain behind text but after canvas (so it's visible)
-if rainActive:
-  particleRender("rain", 0)
+# Render Matrix rain behind text (always active)
+particleRender("matrix", 0)
 
 # Render fire behind content (only in Final Stats section)
 if inFinalStats:
@@ -112,10 +112,9 @@ canvasUpdate()
 # Update all active particle systems
 particleUpdate("sparkles", deltaTime)
 
-if rainActive:
-  # Update rain emitter position to match terminal width
-  particleSetEmitterSize("rain", float(termWidth), 1.0)
-  particleUpdate("rain", deltaTime)
+# Update Matrix rain (always active)
+particleSetEmitterSize("matrix", float(termWidth), 1.0)
+particleUpdate("matrix", deltaTime)
 
 # Update fire emitter position to bottom of current section
 if inFinalStats:
@@ -142,10 +141,6 @@ but probably shouldn't!
 - [Start the tour](#tour_start)  
 - [Learn about Markdown first](#what_is_markdown)  
 - [Skip to advanced features](#advanced_hub)
-
-```nim on:enter
-rainActive = false
-```
 
 # What is Markdown?
 ⠀
@@ -317,11 +312,6 @@ Combined with the rendering system, you can create:
 Check out `lib/animation.nim` and `lib/transition_helpers.nim` for the full API.
 ⠀
 - [Back to advanced hub](#advanced_hub)
-
-```nim on:enter
-# Start raining when entering Animation Features section
-rainActive = true
-```
 
 # audio_features
 ⠀

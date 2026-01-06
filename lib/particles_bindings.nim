@@ -232,6 +232,89 @@ proc particleSetBackgroundColor*(env: ref Env; args: seq[Value]): Value {.nimini
     gParticleSystems[args[0].s].backgroundColor = rgb(r, g, b)
   return valNil()
 
+proc particleSetColorRange*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set foreground color range for spawned particles
+  ## Args: name (string), minR, minG, minB, maxR, maxG, maxB (ints 0-255)
+  if args.len >= 7 and gParticleSystems.hasKey(args[0].s):
+    let ps = gParticleSystems[args[0].s]
+    ps.colorMin = Color(
+      r: uint8(args[1].i),
+      g: uint8(args[2].i),
+      b: uint8(args[3].i)
+    )
+    ps.colorMax = Color(
+      r: uint8(args[4].i),
+      g: uint8(args[5].i),
+      b: uint8(args[6].i)
+    )
+  return valNil()
+
+proc particleSetTrailEnabled*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Enable/disable particle trails
+  ## Args: name (string), enabled (bool)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].trailEnabled = args[1].b
+  return valNil()
+
+proc particleSetTrailLength*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set maximum trail length (number of segments)
+  ## Args: name (string), length (int)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].trailMaxLength = args[1].i
+  return valNil()
+
+proc particleSetTrailSpacing*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set spacing between trail segments
+  ## Args: name (string), spacing (float)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].trailSpacing = args[1].f
+  return valNil()
+
+proc particleSetDrawMode*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set how particles affect cells they render to
+  ## Args: name (string), mode (int)
+  ##   0 = Replace entire cell (default)
+  ##   1 = Background only (preserves text/char)
+  ##   2 = Foreground only (preserves char)
+  ##   3 = Character only (preserves colors)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    let mode = args[1].i
+    if mode >= 0 and mode <= 3:
+      gParticleSystems[args[0].s].drawMode = ParticleDrawMode(mode)
+  return valNil()
+
+proc particleSetBackgroundFromStyle*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set particle background color from a style object's background
+  ## Args: name (string), style (map with bg field)
+  ## Example: var style = getStyle("default"); particleSetBackgroundFromStyle("sparkles", style)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    let styleObj = args[1]
+    if styleObj.kind == vkMap and styleObj.map.hasKey("bg"):
+      let bgColor = styleObj.map["bg"]
+      if bgColor.kind == vkMap:
+        let r = if bgColor.map.hasKey("r"): uint8(bgColor.map["r"].i) else: 0u8
+        let g = if bgColor.map.hasKey("g"): uint8(bgColor.map["g"].i) else: 0u8
+        let b = if bgColor.map.hasKey("b"): uint8(bgColor.map["b"].i) else: 0u8
+        gParticleSystems[args[0].s].backgroundColor = rgb(r, g, b)
+  return valNil()
+
+proc particleSetForegroundFromStyle*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set particle foreground colors from a style object's foreground
+  ## Args: name (string), style (map with fg field)
+  ## Example: var style = getStyle("accent1"); particleSetForegroundFromStyle("sparkles", style)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    let styleObj = args[1]
+    if styleObj.kind == vkMap and styleObj.map.hasKey("fg"):
+      let fgColor = styleObj.map["fg"]
+      if fgColor.kind == vkMap:
+        let r = if fgColor.map.hasKey("r"): uint8(fgColor.map["r"].i) else: 255u8
+        let g = if fgColor.map.hasKey("g"): uint8(fgColor.map["g"].i) else: 255u8
+        let b = if fgColor.map.hasKey("b"): uint8(fgColor.map["b"].i) else: 255u8
+        # Set both min and max to same color for solid color particles
+        gParticleSystems[args[0].s].colorMin = Color(r: r, g: g, b: b)
+        gParticleSystems[args[0].s].colorMax = Color(r: r, g: g, b: b)
+  return valNil()
+
 # ================================================================
 # PRESET CONFIGURATIONS
 # ================================================================
@@ -304,6 +387,30 @@ proc particleConfigureColorblast*(env: ref Env; args: seq[Value]): Value {.nimin
   gParticleSystems[name].configureColorblast()
   return valNil()
 
+proc particleConfigureMatrix*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure particle system for Matrix rain effect
+  ## Args: name (string), intensity (float, optional, default=20)
+  if args.len < 1 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let intensity = if args.len >= 2: args[1].f else: 20.0
+  
+  gParticleSystems[name].configureMatrix(intensity)
+  return valNil()
+
+proc particleConfigureBugs*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure particle system for bug/centipede effect
+  ## Args: name (string), intensity (float, optional, default=5)
+  if args.len < 1 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let intensity = if args.len >= 2: args[1].f else: 5.0
+  
+  gParticleSystems[name].configureBugs(intensity)
+  return valNil()
+
 # ================================================================
 # REGISTRATION
 # ================================================================
@@ -332,6 +439,13 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleSetStickChar"] = valNativeFunc(particleSetStickChar)
   env.vars["particleSetChars"] = valNativeFunc(particleSetChars)
   env.vars["particleSetBackgroundColor"] = valNativeFunc(particleSetBackgroundColor)
+  env.vars["particleSetColorRange"] = valNativeFunc(particleSetColorRange)
+  env.vars["particleSetTrailEnabled"] = valNativeFunc(particleSetTrailEnabled)
+  env.vars["particleSetTrailLength"] = valNativeFunc(particleSetTrailLength)
+  env.vars["particleSetTrailSpacing"] = valNativeFunc(particleSetTrailSpacing)
+  env.vars["particleSetDrawMode"] = valNativeFunc(particleSetDrawMode)
+  env.vars["particleSetBackgroundFromStyle"] = valNativeFunc(particleSetBackgroundFromStyle)
+  env.vars["particleSetForegroundFromStyle"] = valNativeFunc(particleSetForegroundFromStyle)
   
   # Presets
   env.vars["particleConfigureRain"] = valNativeFunc(particleConfigureRain)
@@ -340,3 +454,5 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleConfigureSparkles"] = valNativeFunc(particleConfigureSparkles)
   env.vars["particleConfigureExplosion"] = valNativeFunc(particleConfigureExplosion)
   env.vars["particleConfigureColorblast"] = valNativeFunc(particleConfigureColorblast)
+  env.vars["particleConfigureMatrix"] = valNativeFunc(particleConfigureMatrix)
+  env.vars["particleConfigureBugs"] = valNativeFunc(particleConfigureBugs)
