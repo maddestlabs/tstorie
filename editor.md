@@ -24,6 +24,7 @@ add(sampleText, "- Full Unicode support (emoji: 🎉 ✨ 🚀)")
 add(sampleText, "- Line numbers and scrollbar")
 add(sampleText, "- Minimap with braille characters")
 add(sampleText, "- Mouse and keyboard navigation")
+add(sampleText, "- Horizontal scrolling for long lines that extend beyond the visible width of the editor viewport")
 add(sampleText, "")
 add(sampleText, "## Features")
 add(sampleText, "")
@@ -42,20 +43,9 @@ add(sampleText, "")
 
 var editor = newEditor(sampleText)
 
-# Editor UI state
-var editorX = 5
-var editorY = 4
-var editorW = 70
-var editorH = 22
-var minimapX = 77
-var minimapY = 4
-var minimapW = 18
-var minimapH = 22
-
 # Status bar message
-var statusMessage = "Ready - Arrow keys to navigate | Type to edit | Tab for indent"
+var statusMessage = "Ready - Arrow keys to navigate | Type to edit | Click minimap to scroll"
 var showHelp = 0
-var showMinimap = 1
 
 # Statistics
 var keyPressCount = 0
@@ -71,19 +61,21 @@ clear()
 let w = getWidth()
 let h = getHeight()
 
+# Calculate responsive editor dimensions
+let editorX = 5
+let editorY = 4
+let editorW = w - 10  # Full width with margins
+let editorH = h - 9   # Full height minus title, status bar, and margins
+
 # Title
 drawLabel(0, 5, 2, "TStorie Text Editor - Full Unicode Support", getStyle("info"))
 
-# Draw the main editor
+# Draw the main editor (now includes integrated minimap)
 drawEditor(0, editorX, editorY, editorW, editorH, editor, 1)
 
-# Draw minimap if enabled
-if showMinimap:
-  drawPanel(0, minimapX, minimapY, minimapW, minimapH, "Map", "single")
-  drawMinimap(0, minimapX + 1, minimapY + 1, minimapW - 2, minimapH - 2, editor, editorH)
-
-# Status bar
-drawPanel(0, 5, h - 6, w - 10, 5, "Status", "single")
+# Status bar (automatically positioned at bottom)
+let statusY = h - 6
+drawPanel(0, 5, statusY, w - 10, 5, "Status", "single")
 
 # Get cursor info
 let cursor = editorGetCursor(editor)
@@ -91,18 +83,22 @@ let cursorLine = cursor["line"]
 let cursorCol = cursor["col"]
 let lineCount = editorLineCount(editor)
 let isModified = editorIsModified(editor)
+let scroll = editorGetScroll(editor)
+let scrollX = scroll["scrollX"]
+let scrollY = scroll["scrollY"]
 
-# Status line 1: Cursor position
+# Status line 1: Cursor position and scroll
 let modStr = if isModified: " [MODIFIED]" else: ""
-let posInfo = "Line " & str(cursorLine + 1) & ", Col " & str(cursorCol + 1) & " | Total: " & str(lineCount) & " lines" & modStr
-drawLabel(0, 7, h - 5, posInfo, getStyle("info"))
+let scrollInfo = if scrollX > 0 or scrollY > 0: " | Scroll X:" & str(scrollX) & " Y:" & str(scrollY) else: ""
+let posInfo = "Line " & str(cursorLine + 1) & ", Col " & str(cursorCol + 1) & " | Total: " & str(lineCount) & " lines" & modStr & scrollInfo
+drawLabel(0, 7, statusY + 1, posInfo, getStyle("info"))
 
 # Status line 2: Current message
-drawLabel(0, 7, h - 4, statusMessage, getStyle("default"))
+drawLabel(0, 7, statusY + 2, statusMessage, getStyle("default"))
 
 # Status line 3: Key stats
 let statsInfo = "Keys pressed: " & str(keyPressCount) & " | Last key: " & str(lastKeyCode)
-drawLabel(0, 7, h - 3, statsInfo, getStyle("warning"))
+drawLabel(0, 7, statusY + 3, statsInfo, getStyle("warning"))
 
 # Help panel (toggle with F1)
 if showHelp:
@@ -140,12 +136,6 @@ if event.type == "key":
   if keyCode == 112:
     showHelp = 1 - showHelp
     statusMessage = if showHelp != 0: "Help panel opened" else: "Help panel closed"
-    return 1
-  
-  # F2 - Toggle minimap
-  if keyCode == 113:
-    showMinimap = 1 - showMinimap
-    statusMessage = if showMinimap != 0: "Minimap enabled" else: "Minimap disabled"
     return 1
   
   # Handle editor key input
@@ -197,19 +187,29 @@ elif event.type == "mouse":
   let my = event.y
   let action = event.action
   
+  # Recalculate editor dimensions (same as render)
+  let w = getWidth()
+  let h = getHeight()
+  let editorX = 5
+  let editorY = 4
+  let editorW = w - 10
+  let editorH = h - 9
+  
   if action == "press":
     # Click in editor area
     if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
+      # Try minimap click first
+      let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
+      if minimapHandled:
+        statusMessage = "Minimap click: jumped to position"
+        return 1
+      
+      # Then try regular editor click
       let handled = editorHandleClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
       if handled:
         let cursor = editorGetCursor(editor)
         statusMessage = "Clicked: moved to line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
         return 1
-    
-    # Click in minimap area (future: jump to position)
-    if showMinimap != 0 and mx >= minimapX and mx < minimapX + minimapW and my >= minimapY and my < minimapY + minimapH:
-      statusMessage = "Clicked minimap (navigation coming soon!)"
-      return 1
   
   # Mouse wheel scrolling
   if action == "wheel":

@@ -179,9 +179,6 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     dim: false
   )
   
-  # Default style (same as body) - used when no explicit style is provided
-  result["default"] = result["body"]
-  
   # Primary heading (h1)
   result["heading"] = StyleConfig(
     fg: theme.accent1,

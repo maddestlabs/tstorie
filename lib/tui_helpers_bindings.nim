@@ -106,6 +106,30 @@ proc valueToStyle(v: Value): Style =
 # BOX DRAWING BINDINGS
 # ==============================================================================
 
+proc nimini_drawBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawBox(layer, x, y, w, h, style, boxType)
+  ## Generic box drawing with style parameter: "single", "double", or "rounded"
+  if args.len < 7:
+    return valNil()
+  
+  let layer = valueToInt(args[0])
+  let x = valueToInt(args[1])
+  let y = valueToInt(args[2])
+  let w = valueToInt(args[3])
+  let h = valueToInt(args[4])
+  let style = valueToStyle(args[5])
+  let boxType = valueToString(args[6])
+  
+  case boxType
+  of "double":
+    drawBoxDouble(layer, x, y, w, h, style)
+  of "rounded":
+    drawBoxRounded(layer, x, y, w, h, style)
+  else:  # "single" or default
+    drawBoxSimple(layer, x, y, w, h, style)
+  
+  return valNil()
+
 proc nimini_drawBoxSimple*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## drawBoxSimple(layer, x, y, w, h, style)
   if args.len < 6:
@@ -743,6 +767,10 @@ proc registerTUIHelperBindings*(env: ref Env) =
   ## Register all TUI helper functions with nimini
   
   # Box drawing
+  registerNative("drawBox", nimini_drawBox,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a box with specified style (single, double, rounded)")
+  
   registerNative("drawBoxSimple", nimini_drawBoxSimple,
     storieLibs = @["tui_helpers"],
     description = "Draw a box with classic corners")

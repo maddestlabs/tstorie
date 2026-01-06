@@ -34,6 +34,12 @@ when not declared(Color):
 type
   Vec2* = tuple[x, y: float]
   
+  TrailSegment* = object
+    x*, y*: float          # Position
+    char*: string          # Display character
+    color*: Color          # Display color
+    age*: float            # Age of this segment (for fading)
+  
   ParticleDrawMode* = enum
     pdmReplace,      ## Replace entire cell (char + all colors) - default
     pdmBackground,   ## Change background only, preserve char + foreground
@@ -56,6 +62,8 @@ type
     rotation*: float       # Optional rotation (for future use)
     rotationSpeed*: float  # Optional angular velocity
     active*: bool          # Whether particle is alive
+    trail*: seq[TrailSegment]  # Trail segments following this particle
+    trailLength*: int      # Current trail length
   
   EmitterShape* = enum
     esPoint,       ## Emit from single point
@@ -97,6 +105,13 @@ type
     collisionBuffer*: ptr TermBuffer  # Buffer to query for collisions
     stickChar*: string        # Character to use when stuck
     bounceElasticity*: float  # Energy retained on bounce (0-1)
+    
+    # Trail settings
+    trailEnabled*: bool       # Whether to spawn trails
+    trailMaxLength*: int      # Maximum segments per trail
+    trailSpacing*: float      # Distance between segments
+    trailFade*: bool          # Whether trail fades with age
+    trailChars*: seq[string]  # Character pool for trail segments
     
     # Rendering
     fadeOut*: bool            # Fade alpha based on life
@@ -148,6 +163,13 @@ proc initParticleSystem*(maxParticles: int = 1000): ParticleSystem =
     stickChar: ".",
     bounceElasticity: 0.5,
     
+    # Default trail settings
+    trailEnabled: false,
+    trailMaxLength: 5,
+    trailSpacing: 1.0,
+    trailFade: true,
+    trailChars: @[],
+    
     # Default rendering
     fadeOut: true,
     drawMode: pdmReplace,  # Default to full cell replacement
@@ -158,6 +180,8 @@ proc initParticleSystem*(maxParticles: int = 1000): ParticleSystem =
   # Initialize all particles as inactive
   for i in 0 ..< maxParticles:
     result.particles[i].active = false
+    result.particles[i].trail = @[]
+    result.particles[i].trailLength = 0
 
 # ================================================================
 # PARTICLE EMISSION
@@ -256,8 +280,23 @@ proc emit*(ps: ParticleSystem, count: int = 1) =
       color: color,
       rotation: 0.0,
       rotationSpeed: 0.0,
-      active: true
+      active: true,
+      trail: @[],
+      trailLength: 0
     )
+    
+    # Initialize trail if enabled
+    if ps.trailEnabled and ps.trailMaxLength > 0:
+      ps.particles[idx].trail = newSeq[TrailSegment](ps.trailMaxLength)
+      for j in 0 ..< ps.trailMaxLength:
+        ps.particles[idx].trail[j] = TrailSegment(
+          x: pos.x,
+          y: pos.y,
+          char: if ps.trailChars.len > 0: ps.trailChars[rand(ps.trailChars.len - 1)] else: char,
+          color: color,
+          age: 0.0
+        )
+    
     inc ps.activeCount
 
 # ================================================================
@@ -352,6 +391,43 @@ proc update*(ps: ParticleSystem, dt: float) =
       ps.particles[i].x = newX
       ps.particles[i].y = newY
     
+    # Update trail if enabled
+    if ps.trailEnabled and ps.particles[i].trail.len > 0:
+      # Shift trail segments backward (each follows the one ahead)
+      for j in countdown(ps.particles[i].trail.len - 1, 1):
+        let prevIdx = j - 1
+        let dist = sqrt(
+          (ps.particles[i].trail[prevIdx].x - ps.particles[i].trail[j].x) * 
+          (ps.particles[i].trail[prevIdx].x - ps.particles[i].trail[j].x) +
+          (ps.particles[i].trail[prevIdx].y - ps.particles[i].trail[j].y) * 
+          (ps.particles[i].trail[prevIdx].y - ps.particles[i].trail[j].y)
+        )
+        
+        # Only update if segments are far enough apart
+        if dist > ps.trailSpacing:
+          ps.particles[i].trail[j].x = ps.particles[i].trail[prevIdx].x
+          ps.particles[i].trail[j].y = ps.particles[i].trail[prevIdx].y
+          ps.particles[i].trail[j].age += dt
+          
+          # Update trail character if pool exists
+          if ps.trailChars.len > 0:
+            ps.particles[i].trail[j].char = ps.trailChars[rand(ps.trailChars.len - 1)]
+      
+      # Update head segment to follow particle
+      let headDist = sqrt(
+        (ps.particles[i].x - ps.particles[i].trail[0].x) * 
+        (ps.particles[i].x - ps.particles[i].trail[0].x) +
+        (ps.particles[i].y - ps.particles[i].trail[0].y) * 
+        (ps.particles[i].y - ps.particles[i].trail[0].y)
+      )
+      
+      if headDist > ps.trailSpacing:
+        ps.particles[i].trail[0].x = ps.particles[i].x
+        ps.particles[i].trail[0].y = ps.particles[i].y
+        ps.particles[i].trail[0].char = ps.particles[i].char
+        ps.particles[i].trail[0].color = ps.particles[i].color
+        ps.particles[i].trail[0].age = 0.0
+    
     # Update lifetime
     ps.particles[i].life -= dt
     
@@ -378,6 +454,61 @@ proc render*(ps: ParticleSystem, layer: ptr Layer) =
     if not ps.particles[i].active:
       continue
     
+    # Render trail first (so particle appears on top)
+    if ps.trailEnabled and ps.particles[i].trail.len > 0:
+      for j in countdown(ps.particles[i].trail.len - 1, 0):
+        let segment = ps.particles[i].trail[j]
+        let ix = int(segment.x)
+        let iy = int(segment.y)
+        
+        # Bounds check
+        if ix < 0 or ix >= buf.width or iy < 0 or iy >= buf.height:
+          continue
+        
+        # Calculate fade based on segment position and age
+        var color = segment.color
+        if ps.trailFade:
+          # Fade based on position in trail (further = dimmer)
+          let positionFade = 1.0 - (float(j) / float(ps.particles[i].trail.len))
+          color.r = uint8(float(color.r) * positionFade)
+          color.g = uint8(float(color.g) * positionFade)
+          color.b = uint8(float(color.b) * positionFade)
+        
+        # Render trail segment based on draw mode
+        case ps.drawMode
+        of pdmReplace:
+          let style = Style(fg: color, bg: ps.backgroundColor, bold: false, underline: false, italic: false, dim: false)
+          buf[].write(ix, iy, segment.char, style)
+        
+        of pdmBackground:
+          let existingCell = buf[].getCell(ix, iy)
+          let style = Style(
+            fg: existingCell.style.fg,
+            bg: color,
+            bold: existingCell.style.bold,
+            underline: existingCell.style.underline,
+            italic: existingCell.style.italic,
+            dim: existingCell.style.dim
+          )
+          buf[].write(ix, iy, existingCell.ch, style)
+        
+        of pdmForeground:
+          let existingCell = buf[].getCell(ix, iy)
+          let style = Style(
+            fg: color,
+            bg: existingCell.style.bg,
+            bold: existingCell.style.bold,
+            underline: existingCell.style.underline,
+            italic: existingCell.style.italic,
+            dim: existingCell.style.dim
+          )
+          buf[].write(ix, iy, existingCell.ch, style)
+        
+        of pdmCharacter:
+          let existingCell = buf[].getCell(ix, iy)
+          buf[].write(ix, iy, segment.char, existingCell.style)
+    
+    # Render main particle
     let ix = int(ps.particles[i].x)
     let iy = int(ps.particles[i].y)
     
@@ -437,6 +568,60 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
     if not ps.particles[i].active:
       continue
     
+    # Render trail first (so particle appears on top)
+    if ps.trailEnabled and ps.particles[i].trail.len > 0:
+      for j in countdown(ps.particles[i].trail.len - 1, 0):
+        let segment = ps.particles[i].trail[j]
+        let ix = int(segment.x)
+        let iy = int(segment.y)
+        
+        # Bounds check
+        if ix < 0 or ix >= buffer.width or iy < 0 or iy >= buffer.height:
+          continue
+        
+        # Calculate fade based on segment position
+        var color = segment.color
+        if ps.trailFade:
+          let positionFade = 1.0 - (float(j) / float(ps.particles[i].trail.len))
+          color.r = uint8(float(color.r) * positionFade)
+          color.g = uint8(float(color.g) * positionFade)
+          color.b = uint8(float(color.b) * positionFade)
+        
+        # Render trail segment based on draw mode
+        case ps.drawMode
+        of pdmReplace:
+          let style = Style(fg: color, bg: ps.backgroundColor, bold: false, underline: false, italic: false, dim: false)
+          buffer.write(ix, iy, segment.char, style)
+        
+        of pdmBackground:
+          let existingCell = buffer.getCell(ix, iy)
+          let style = Style(
+            fg: existingCell.style.fg,
+            bg: color,
+            bold: existingCell.style.bold,
+            underline: existingCell.style.underline,
+            italic: existingCell.style.italic,
+            dim: existingCell.style.dim
+          )
+          buffer.write(ix, iy, existingCell.ch, style)
+        
+        of pdmForeground:
+          let existingCell = buffer.getCell(ix, iy)
+          let style = Style(
+            fg: color,
+            bg: existingCell.style.bg,
+            bold: existingCell.style.bold,
+            underline: existingCell.style.underline,
+            italic: existingCell.style.italic,
+            dim: existingCell.style.dim
+          )
+          buffer.write(ix, iy, existingCell.ch, style)
+        
+        of pdmCharacter:
+          let existingCell = buffer.getCell(ix, iy)
+          buffer.write(ix, iy, segment.char, existingCell.style)
+    
+    # Render main particle
     let ix = int(ps.particles[i].x)
     let iy = int(ps.particles[i].y)
     
@@ -616,3 +801,73 @@ proc configureColorblast*(ps: ParticleSystem) =
   ps.damping = 0.90
   ps.fadeOut = true
   ps.drawMode = pdmReplace  # Render visible colored particles
+  ps.trailEnabled = false
+
+proc configureMatrix*(ps: ParticleSystem, intensity: float = 20.0) =
+  ## Configure system for Matrix-style falling code effect with trails
+  ps.emitRate = intensity
+  ps.emitterShape = esLine
+  ps.velocityMin = (0.0, 8.0)   # Downward movement
+  ps.velocityMax = (0.0, 15.0)
+  ps.lifeMin = 5.0
+  ps.lifeMax = 10.0
+  
+  # Matrix characters (numbers, letters, katakana-like)
+  ps.chars = @["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+               "A", "B", "C", "D", "E", "F", "Z", ":", ".", "=",
+               "¦", "|", "^", "<", ">", "*", "+", "-"]
+  
+  # Bright green at head
+  ps.colorMin = Color(r: 100, g: 255, b: 100)
+  ps.colorMax = Color(r: 150, g: 255, b: 150)
+  
+  ps.gravity = 0.0  # Consistent fall speed
+  ps.windForce = (0.0, 0.0)
+  ps.damping = 1.0  # No resistance
+  ps.fadeOut = false  # Trail handles fading
+  ps.drawMode = pdmReplace
+  
+  # Enable trails for cascading effect
+  ps.trailEnabled = true
+  ps.trailMaxLength = 12  # Long trails like Matrix
+  ps.trailSpacing = 0.8   # Tight spacing
+  ps.trailFade = true     # Fade to dark green
+  ps.trailChars = ps.chars  # Same character set
+  
+  ps.collisionEnabled = false
+
+proc configureBugs*(ps: ParticleSystem, intensity: float = 5.0) =
+  ## Configure system for crawling bug/centipede effect with segmented bodies
+  ps.emitRate = intensity
+  ps.emitterShape = esArea  # Spawn from various locations
+  
+  # Random darting movements
+  ps.velocityMin = (-8.0, -8.0)
+  ps.velocityMax = (8.0, 8.0)
+  ps.lifeMin = 3.0
+  ps.lifeMax = 8.0
+  
+  # Bug head characters
+  ps.chars = @["@", "0", "O", "●", "◉"]
+  
+  # Bug colors (dark browns, grays)
+  ps.colorMin = Color(r: 80, g: 60, b: 40)
+  ps.colorMax = Color(r: 120, g: 100, b: 80)
+  
+  ps.gravity = 0.0
+  ps.windForce = (0.0, 0.0)
+  ps.turbulence = 5.0  # Erratic movement
+  ps.damping = 0.85    # Some drag
+  ps.fadeOut = false
+  ps.drawMode = pdmReplace
+  
+  # Enable trails for segmented body
+  ps.trailEnabled = true
+  ps.trailMaxLength = 5   # 5-segment centipedes
+  ps.trailSpacing = 0.5   # Tight segments
+  ps.trailFade = false    # All segments same brightness
+  
+  # Body segment characters
+  ps.trailChars = @[".", "\\", "/", "-", "|", "*", "·", "o"]
+  
+  ps.collisionEnabled = false

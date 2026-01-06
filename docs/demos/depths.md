@@ -19,9 +19,39 @@ var hasWeapon = false
 var visitedLibrary = false
 var torchQuality = "dim"
 
+# Bug effect tracking
+var bugTimer = 0.0
+var bugSpawnInterval = 3.0  # Spawn bugs every 3 seconds
+
 # Initialize canvas system with all sections
 # Start at section 1 (entrance - section 0 is the code blocks)
 initCanvas(1)
+
+# Initialize bug particle system
+var bgStyle = getStyle("default")
+var bgR = int(bgStyle.bg.r)
+var bgG = int(bgStyle.bg.g)
+var bgB = int(bgStyle.bg.b)
+
+particleInit("bugs", 50)  # Support up to 50 bug segments at once
+particleSetBackgroundColor("bugs", bgR, bgG, bgB)
+
+# Configure bugs for fast scurrying
+particleConfigureBugs("bugs", 0.0)  # Manual emission only
+
+# Enable trails for segmented bug bodies
+particleSetTrailEnabled("bugs", true)
+particleSetTrailLength("bugs", 1)  # 5-segment centipedes
+particleSetTrailSpacing("bugs", 1.5)  # Tight segments
+
+# Fast horizontal velocities for scurrying across screen
+particleSetVelocityRange("bugs", -50.0, -15.0, 50.0, 10.0)  # Fast horizontal, slight vertical
+
+# Short lifetime so bugs disappear after crossing screen
+particleSetLifeRange("bugs", 2.0, 4.0)
+
+# Increased turbulence for more erratic movement
+particleSetTurbulence("bugs",476.0)
 ```
 
 ```nim on:input
@@ -49,6 +79,9 @@ return false
 ```nim on:render
 clear()
 canvasRender()
+
+# Render bugs behind text (layer 0 = behind canvas content)
+particleRender("bugs", 0)
 
 # Top border with cracks
 var x = 0
@@ -144,6 +177,33 @@ if termWidth > 10 and termHeight > 5:
 
 ```nim on:update
 canvasUpdate()
+
+# Update bug particles
+particleUpdate("bugs", deltaTime)
+
+# Bug spawning timer
+bugTimer += deltaTime
+if bugTimer >= bugSpawnInterval:
+  bugTimer = 0.0
+  
+  # Randomly spawn from left or right edge
+  var spawnFromLeft = (rand(100) mod 2) == 0
+  var spawnY = float(rand(termHeight - 4) + 2)  # Avoid borders
+  
+  if spawnFromLeft:
+    # Spawn from left, moving right
+    particleSetEmitterPos("bugs", 1.0, spawnY)
+    particleSetVelocityRange("bugs", 20.0, -3.0, 35.0, 3.0)
+  else:
+    # Spawn from right, moving left
+    particleSetEmitterPos("bugs", float(termWidth - 2), spawnY)
+    particleSetVelocityRange("bugs", -35.0, -3.0, -20.0, 3.0)
+  
+  # Emit 1-2 bugs
+  particleEmit("bugs", rand(2) + 1)
+  
+  # Vary the interval slightly for more natural spawning
+  bugSpawnInterval = 2.5 + (float(rand(100)) / 100.0) * 2.0  # 2.5-4.5 seconds
 ```
 
 # entrance

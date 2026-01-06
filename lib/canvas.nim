@@ -889,12 +889,12 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
   let linkStyle = if styleSheet.hasKey("link"):
                     toStyle(styleSheet["link"])
                   else:
-                    Style(fg: ansiToColor(34), bg: black(), bold: false, underline: true, italic: false, dim: false)
+                    Style(fg: ansiToColor(34), bg: bodyStyle.bg, bold: false, underline: true, italic: false, dim: false)
   
   let linkFocusedStyle = if styleSheet.hasKey("link_focused"):
                            toStyle(styleSheet["link_focused"])
                          else:
-                           Style(fg: ansiToColor(33), bg: black(), bold: true, underline: true, italic: false, dim: false)
+                           Style(fg: ansiToColor(33), bg: bodyStyle.bg, bold: true, underline: true, italic: false, dim: false)
   
   var currentX = x
   var pos = 0
@@ -1090,20 +1090,26 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     return
   
   # Get styles from stylesheet or use defaults
+  # Get default background from body style in stylesheet if available
+  let defaultBg = if styleSheet.hasKey("body"): 
+                    styleSheet["body"].bg
+                  else:
+                    (0'u8, 0'u8, 0'u8)
+  
   let headingStyle = if styleSheet.hasKey("heading"):
                        toStyle(styleSheet["heading"])
                      else:
-                       Style(fg: ansiToColor(33), bg: black(), bold: true, underline: false, italic: false, dim: false)
+                       Style(fg: ansiToColor(33), bg: rgb(defaultBg.r, defaultBg.g, defaultBg.b), bold: true, underline: false, italic: false, dim: false)
   
   let bodyStyle = if styleSheet.hasKey("body"):
                     toStyle(styleSheet["body"])
                   else:
-                    Style(fg: ansiToColor(37), bg: black(), bold: false, underline: false, italic: false, dim: false)
+                    Style(fg: ansiToColor(37), bg: rgb(defaultBg.r, defaultBg.g, defaultBg.b), bold: false, underline: false, italic: false, dim: false)
   
   let placeholderStyle = if styleSheet.hasKey("placeholder"):
                            toStyle(styleSheet["placeholder"])
                          else:
-                           Style(fg: ansiToColor(30), bg: black(), bold: true, underline: false, italic: false, dim: false)
+                           Style(fg: ansiToColor(30), bg: rgb(defaultBg.r, defaultBg.g, defaultBg.b), bold: true, underline: false, italic: false, dim: false)
   
   # Track actual rendered dimensions for proper centering
   var maxVisualWidth = 0

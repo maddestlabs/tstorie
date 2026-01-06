@@ -572,32 +572,91 @@ proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # ================================================================
 # BROWSER API (WASM)
 # ================================================================
+
+# JavaScript interop for browser functions
+when defined(emscripten):
+  proc js_callFunction(funcName: cstring): cstring {.importc: "tStorie_callFunction".}
+  proc js_callFunctionWithArg(funcName: cstring, arg: cstring): cstring {.importc: "tStorie_callFunctionWithArg".}
+  proc js_callFunctionWith2Args(funcName: cstring, arg1: cstring, arg2: cstring): cstring {.importc: "tStorie_callFunctionWith2Args".}
+
 proc nimini_localStorage_setItem(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Save content to browser localStorage. Args: key, value (temporarily disabled)
+  ## Save content to browser localStorage. Args: key, value
   if args.len >= 2:
     let key = args[0].s
     let value = args[1].s
-    when false: # disabled
-      when defined(emscripten):
-        js_localStorage_setItem(key.cstring, value.cstring)
-    # Stub - localStorage temporarily disabled
-    when not defined(emscripten):
-      echo "localStorage_setItem (disabled): ", key
-  return valNil()
+    when defined(emscripten):
+      let result = js_callFunctionWith2Args("tStorie_saveLocal".cstring, key.cstring, value.cstring)
+      return valBool($result == "true")
+    else:
+      echo "localStorage_setItem: ", key, " (", value.len, " bytes)"
+      return valBool(true)
+  return valBool(false)
 
 proc nimini_localStorage_getItem(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Load content from browser localStorage. Args: key (temporarily disabled)
+  ## Load content from browser localStorage. Args: key
   if args.len >= 1:
     let key = args[0].s
-    when false: # disabled
-      when defined(emscripten):
-        let value = js_localStorage_getItem(key.cstring)
-        if not value.isNil:
-          return valString($value)
-    # Stub - localStorage temporarily disabled
-    when not defined(emscripten):
-      echo "localStorage_getItem (disabled): ", key
+    when defined(emscripten):
+      let value = js_callFunctionWithArg("tStorie_loadLocal".cstring, key.cstring)
+      return valString($value)
+    else:
+      echo "localStorage_getItem: ", key
+      return valString("")
   return valString("")
+
+proc nimini_localStorage_list(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## List all saved documents in localStorage. Returns JSON string
+  when defined(emscripten):
+    let json = js_callFunction("tStorie_listLocal".cstring)
+    return valString($json)
+  else:
+    return valString("[]")
+
+proc nimini_localStorage_delete(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Delete item from localStorage. Args: key
+  if args.len >= 1:
+    let key = args[0].s
+    when defined(emscripten):
+      let result = js_callFunctionWithArg("tStorie_deleteLocal".cstring, key.cstring)
+      return valBool($result == "true")
+    else:
+      echo "localStorage_delete: ", key
+      return valBool(true)
+  return valBool(false)
+
+proc nimini_copyToClipboard(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Copy text to clipboard. Args: text
+  if args.len >= 1:
+    let text = args[0].s
+    when defined(emscripten):
+      let result = js_callFunctionWithArg("tStorie_copyToClipboard".cstring, text.cstring)
+      return valBool($result == "true")
+    else:
+      echo "copyToClipboard: ", text[0..min(50, text.len-1)], "..."
+      return valBool(true)
+  return valBool(false)
+
+proc nimini_compressToUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Compress content and return shareable URL. Args: content
+  ## Note: This is async in JS, so the URL may not be immediately available
+  if args.len >= 1:
+    let content = args[0].s
+    when defined(emscripten):
+      let url = js_callFunctionWithArg("tStorie_compressToUrl".cstring, content.cstring)
+      return valString($url)
+    else:
+      return valString("http://localhost:8000/?content=demo:edit")
+  return valString("")
+
+proc nimini_navigateTo(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Navigate to a URL (useful for loading saved documents)
+  if args.len >= 1:
+    let url = args[0].s
+    when defined(emscripten):
+      discard js_callFunctionWithArg("tStorie_navigate".cstring, url.cstring)
+    else:
+      echo "navigateTo: ", url
+  return valNil()
 
 proc nimini_window_open(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Open URL in new browser window/tab. Args: url, target (temporarily disabled)
@@ -606,7 +665,7 @@ proc nimini_window_open(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let target = if args.len >= 2: args[1].s else: "_blank"
     when false: # disabled
       when defined(emscripten):
-        js_window_open(url.cstring, target.cstring)
+        discard js_callFunctionWith2Args("tStorie_windowOpen".cstring, url.cstring, target.cstring)
     # Stub - window.open temporarily disabled
 
 when defined(emscripten):
@@ -616,6 +675,16 @@ proc setDocumentTitle(title: string) =
   ## Set the browser tab title (emscripten only)
   when defined(emscripten):
     setDocumentTitleJS(title.cstring)
+
+proc registerBrowserApiFuncs*(env: ref Env) =
+  ## Register browser API functions in nimini environment
+  registerNative("localStorage_setItem", nimini_localStorage_setItem)
+  registerNative("localStorage_getItem", nimini_localStorage_getItem)
+  registerNative("localStorage_list", nimini_localStorage_list)
+  registerNative("localStorage_delete", nimini_localStorage_delete)
+  registerNative("copyToClipboard", nimini_copyToClipboard)
+  registerNative("compressToUrl", nimini_compressToUrl)
+  registerNative("navigateTo", nimini_navigateTo)
 
 # ================================================================
 # CANVAS SYSTEM WRAPPERS
@@ -1220,6 +1289,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   initRuntime()
   initStdlib()  # Register standard library functions (add, len, etc.)
   registerParamFuncs(runtimeEnv)  # Register parameter functions (getParam, hasParam, etc.)
+  registerBrowserApiFuncs(runtimeEnv)  # Register browser API functions (localStorage, clipboard, etc.)
   
   # Register core framework APIs (state accessors, colors, etc.) from lib/nimini_bridge.nim
   registerTstorieApis(runtimeEnv, state)

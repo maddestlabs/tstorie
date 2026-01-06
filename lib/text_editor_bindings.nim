@@ -431,7 +431,7 @@ proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   )
   
   # Update scroll to keep cursor visible
-  state.updateEditorScroll(h)
+  state.updateEditorScroll(h, w)
   
   # Draw the editor
   drawEditor(layer, x, y, w, h, state, config)
@@ -487,7 +487,7 @@ proc nimini_editorHandleKey*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   # Update scroll after key press
   if handled:
-    state.updateEditorScroll(25)  # Default viewport height
+    state.updateEditorScroll(25, 80)  # Default viewport dimensions
   
   return valBool(handled)
 
@@ -521,6 +521,39 @@ proc nimini_editorHandleClick*(env: ref Env; args: seq[Value]): Value {.nimini.}
   
   let handled = state.handleEditorMouseClick(mouseX, mouseY, editorX, editorY, 
                                             editorW, editorH, config)
+  
+  return valBool(handled)
+
+proc nimini_editorHandleMinimapClick*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle minimap click for scrolling. Args: editorId, mouseX, mouseY, editorX, editorY, editorW, editorH, showLineNumbers
+  ## Returns: true if handled
+  if args.len < 8:
+    return valBool(false)
+  
+  let editorId = valueToString(args[0])
+  let mouseX = valueToInt(args[1])
+  let mouseY = valueToInt(args[2])
+  let editorX = valueToInt(args[3])
+  let editorY = valueToInt(args[4])
+  let editorW = valueToInt(args[5])
+  let editorH = valueToInt(args[6])
+  let showLineNumbers = valueToBool(args[7])
+  
+  let state = getEditorState(editorId)
+  if state.isNil:
+    return valBool(false)
+  
+  let config = EditorConfig(
+    showLineNumbers: showLineNumbers,
+    lineNumberWidth: 5,
+    showScrollbar: true,
+    highlightCurrentLine: false,
+    wrapLines: false,
+    useSoftTabs: true
+  )
+  
+  let handled = state.handleMinimapClick(mouseX, mouseY, editorX, editorY, 
+                                        editorW, editorH, config)
   
   return valBool(handled)
 
@@ -572,3 +605,4 @@ proc registerTextEditorBindings*(env: ref Env) =
   # Input handling
   registerNative("editorHandleKey", nimini_editorHandleKey)
   registerNative("editorHandleClick", nimini_editorHandleClick)
+  registerNative("editorHandleMinimapClick", nimini_editorHandleMinimapClick)

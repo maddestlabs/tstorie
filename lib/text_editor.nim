@@ -481,6 +481,46 @@ proc insertTabAtCursor*(state: EditorState, useSoftTabs: bool = true) =
   state.desiredCol = state.cursor.col
 
 # ==============================================================================
+# MINIMAP GENERATION (Using Braille characters)
+# ==============================================================================
+
+proc generateMinimap*(buffer: EditorBuffer, width, height: int): seq[string] =
+  ## Generate a minimap using braille characters
+  ## Each braille character represents 2x4 pixels
+  ## This provides a foundation for minimap rendering
+  result = @[]
+  
+  # Braille patterns: U+2800 to U+28FF
+  # Base: ⠀ (0x2800)
+  # Add dots: ⠁ (dot 1), ⠂ (dot 2), etc.
+  
+  let linesPerBrailleRow = 4
+  let charsPerBrailleCol = 2
+  
+  for row in 0 ..< height:
+    var minimapLine = ""
+    for col in 0 ..< width:
+      let startLine = row * linesPerBrailleRow
+      let endLine = min(startLine + linesPerBrailleRow, buffer.lineCount)
+      
+      # Simple density calculation
+      var density = 0
+      for lineIdx in startLine ..< endLine:
+        let lineLen = buffer.lineLength(lineIdx)
+        if lineLen > col * charsPerBrailleCol:
+          density += 1
+      
+      # Map density to braille pattern
+      let brailleChar = if density == 0: " "
+                       elif density == 1: "⠂"
+                       elif density == 2: "⠆"
+                       elif density == 3: "⠇"
+                       else: "⠿"
+      
+      minimapLine.add(brailleChar)
+    result.add(minimapLine)
+
+# ==============================================================================
 # RENDERING
 # ==============================================================================
 
@@ -498,8 +538,9 @@ proc drawEditor*(layer: int, x, y, w, h: int, state: EditorState,
   
   # Calculate dimensions
   let lineNumWidth = if config.showLineNumbers: config.lineNumberWidth else: 0
+  let minimapWidth = 14  # Width for integrated minimap
   let contentX = x + lineNumWidth
-  let contentW = w - lineNumWidth
+  let contentW = w - lineNumWidth - minimapWidth
   
   # Draw border
   drawBoxSingle(layer, x, y, w, h, borderStyle)
@@ -518,32 +559,70 @@ proc drawEditor*(layer: int, x, y, w, h: int, state: EditorState,
       let style = if isCurrentLine: lineNumActiveStyle else: lineNumStyle
       tuiDraw(layer, x + 1, screenY, lineNum, style)
   
-  # Draw content lines
+  # Draw content lines with horizontal scroll
+  let contentWidthChars = contentW - 4
   for i in visibleStartLine ..< visibleEndLine:
     let screenY = y + 1 + (i - visibleStartLine)
     let lineText = state.buffer.getLine(i)
-    let visibleText = if lineText.len > contentW - 4:
-                        lineText[0 ..< (contentW - 4)]
-                      else:
-                        lineText
+    let runes = toRunes(lineText)
+    let runeCount = runes.len
+    
+    # Apply horizontal scroll
+    var visibleText = ""
+    if state.scrollX < runeCount:
+      let endCol = min(state.scrollX + contentWidthChars, runeCount)
+      if endCol > state.scrollX:
+        # Extract visible portion using unicode runes
+        var visibleRunes: seq[Rune] = @[]
+        for j in state.scrollX ..< endCol:
+          visibleRunes.add(runes[j])
+        visibleText = $visibleRunes
+    
     tuiDraw(layer, contentX + 2, screenY, visibleText, bgStyle)
   
-  # Draw cursor
+  # Draw cursor (inverted character at cursor position)
   if state.cursor.line >= visibleStartLine and state.cursor.line < visibleEndLine:
     let cursorScreenY = y + 1 + (state.cursor.line - visibleStartLine)
-    let cursorScreenX = contentX + 2 + state.cursor.col
-    tuiDraw(layer, cursorScreenX, cursorScreenY, "▏", cursorStyle)
-  
-  # Draw scrollbar if needed
-  if state.buffer.lineCount > contentHeight:
-    let scrollbarHeight = contentHeight
-    let scrollRange = state.buffer.lineCount - contentHeight
-    let scrollbarPos = if scrollRange > 0:
-                         int((float(state.scrollY) / float(scrollRange)) * 
-                             float(scrollbarHeight - 1))
+    let cursorScreenX = contentX + 2 + (state.cursor.col - state.scrollX)
+    # Only draw cursor if it's visible horizontally
+    if state.cursor.col >= state.scrollX and state.cursor.col < state.scrollX + contentWidthChars:
+      # Get the character at cursor position (or space if at end of line)
+      let lineText = state.buffer.getLine(state.cursor.line)
+      let runes = toRunes(lineText)
+      let cursorChar = if state.cursor.col < runes.len:
+                         $runes[state.cursor.col]
                        else:
-                         0
-    tuiDraw(layer, x + w - 2, y + 1 + scrollbarPos, "█", tuiGetStyle("info"))
+                         " "
+      
+      # Create inverted style by swapping fg and bg colors
+      var invertedStyle = bgStyle
+      let tempColor = invertedStyle.fg
+      invertedStyle.fg = invertedStyle.bg
+      invertedStyle.bg = tempColor
+      
+      tuiDraw(layer, cursorScreenX, cursorScreenY, cursorChar, invertedStyle)
+  
+  # Draw integrated minimap (replaces scrollbar)
+  if config.showScrollbar and state.buffer.lineCount > contentHeight:
+    let minimapX = x + w - minimapWidth
+    let minimapH = contentHeight
+    let minimap = generateMinimap(state.buffer, minimapWidth - 1, minimapH)
+    
+    # Draw minimap content (no border)
+    for i, line in minimap:
+      if i < minimapH:
+        tuiDraw(layer, minimapX, y + 1 + i, line, tuiGetStyle("default"))
+    
+    # Draw viewport indicator on minimap
+    let minimapStartY = if state.buffer.lineCount > contentHeight:
+                          int((float(state.scrollY) / float(state.buffer.lineCount - contentHeight)) * float(minimapH - 1))
+                        else:
+                          0
+    let minimapVisibleHeight = max(1, int((float(contentHeight) / float(state.buffer.lineCount)) * float(minimapH)))
+    
+    for dy in 0 ..< minimapVisibleHeight:
+      if minimapStartY + dy < minimapH:
+        tuiDraw(layer, minimapX + minimapWidth - 1, y + 1 + minimapStartY + dy, "█", tuiGetStyle("info"))
 
 proc drawEditorSimple*(layer: int, x, y, w, h: int, state: EditorState) =
   ## Simplified editor rendering with default config
@@ -637,11 +716,38 @@ proc handleEditorMouseClick*(state: EditorState, mouseX, mouseY: int,
   if clickedLine < 0 or clickedLine >= state.buffer.lineCount:
     return true
   
-  # Calculate column (approximate - doesn't handle variable-width chars yet)
-  let clickedCol = max(0, mouseX - contentX)
+  # Calculate column (adjust for horizontal scroll)
+  let clickedCol = max(0, state.scrollX + (mouseX - contentX))
   
   # Move cursor
   moveCursor(state, clickedLine, clickedCol)
+  
+  return true
+
+proc handleMinimapClick*(state: EditorState, mouseX, mouseY: int,
+                        editorX, editorY, editorW, editorH: int,
+                        config: EditorConfig): bool =
+  ## Handle mouse click on minimap for scrolling
+  ## Returns true if click was on minimap
+  
+  let minimapWidth = 14
+  let minimapX = editorX + editorW - minimapWidth
+  let contentY = editorY + 1
+  let contentHeight = editorH - 2
+  
+  # Check if click is in minimap area
+  if mouseX < minimapX or mouseX >= editorX + editorW - 1:
+    return false
+  if mouseY < contentY or mouseY >= contentY + contentHeight:
+    return false
+  
+  # Calculate which line to scroll to based on minimap click
+  let relativeY = mouseY - contentY
+  let targetLine = int((float(relativeY) / float(contentHeight)) * float(state.buffer.lineCount))
+  
+  # Scroll to center the clicked line
+  let halfHeight = contentHeight div 2
+  state.scrollY = max(0, min(targetLine - halfHeight, state.buffer.lineCount - contentHeight))
   
   return true
 
@@ -649,9 +755,10 @@ proc handleEditorMouseClick*(state: EditorState, mouseX, mouseY: int,
 # SCROLL MANAGEMENT
 # ==============================================================================
 
-proc updateEditorScroll*(state: EditorState, viewportHeight: int) =
+proc updateEditorScroll*(state: EditorState, viewportHeight: int, viewportWidth: int) =
   ## Update scroll position to keep cursor visible
   let contentHeight = viewportHeight - 2
+  let contentWidth = viewportWidth - 4  # Account for borders and padding
   
   # Vertical scrolling
   if state.cursor.line < state.scrollY:
@@ -659,52 +766,26 @@ proc updateEditorScroll*(state: EditorState, viewportHeight: int) =
   elif state.cursor.line >= state.scrollY + contentHeight:
     state.scrollY = state.cursor.line - contentHeight + 1
   
-  # Clamp scroll
+  # Horizontal scrolling
+  if state.cursor.col < state.scrollX:
+    state.scrollX = state.cursor.col
+  elif state.cursor.col >= state.scrollX + contentWidth:
+    state.scrollX = state.cursor.col - contentWidth + 1
+  
+  # Clamp vertical scroll
   let maxScrollY = max(0, state.buffer.lineCount - contentHeight)
   if state.scrollY < 0:
     state.scrollY = 0
   elif state.scrollY > maxScrollY:
     state.scrollY = maxScrollY
+  
+  # Clamp horizontal scroll
+  if state.scrollX < 0:
+    state.scrollX = 0
 
 # ==============================================================================
-# MINIMAP FOUNDATION (Using Braille characters)
+# STANDALONE MINIMAP (for separate rendering)
 # ==============================================================================
-
-proc generateMinimap*(buffer: EditorBuffer, width, height: int): seq[string] =
-  ## Generate a minimap using braille characters
-  ## Each braille character represents 2x4 pixels
-  ## This provides a foundation for minimap rendering
-  result = @[]
-  
-  # Braille patterns: U+2800 to U+28FF
-  # Base: ⠀ (0x2800)
-  # Add dots: ⠁ (dot 1), ⠂ (dot 2), etc.
-  
-  let linesPerBrailleRow = 4
-  let charsPerBrailleCol = 2
-  
-  for row in 0 ..< height:
-    var minimapLine = ""
-    for col in 0 ..< width:
-      let startLine = row * linesPerBrailleRow
-      let endLine = min(startLine + linesPerBrailleRow, buffer.lineCount)
-      
-      # Simple density calculation
-      var density = 0
-      for lineIdx in startLine ..< endLine:
-        let lineLen = buffer.lineLength(lineIdx)
-        if lineLen > col * charsPerBrailleCol:
-          density += 1
-      
-      # Map density to braille pattern
-      let brailleChar = if density == 0: " "
-                       elif density == 1: "⠂"
-                       elif density == 2: "⠆"
-                       elif density == 3: "⠇"
-                       else: "⠿"
-      
-      minimapLine.add(brailleChar)
-    result.add(minimapLine)
 
 proc drawMinimap*(layer: int, x, y, w, h: int, buffer: EditorBuffer, 
                  scrollY: int, viewportHeight: int) =
@@ -742,6 +823,6 @@ export moveCursorToBufferStart, moveCursorToBufferEnd
 export insertCharAtCursor, insertTextAtCursor, deleteAtCursor, backspaceAtCursor
 export insertNewlineAtCursor, insertTabAtCursor
 export drawEditor, drawEditorSimple
-export handleEditorKeyPress, handleEditorMouseClick
+export handleEditorKeyPress, handleEditorMouseClick, handleMinimapClick
 export updateEditorScroll
 export generateMinimap, drawMinimap

@@ -115,9 +115,241 @@
             max-width: 600px;
             margin: 20px;
         }
+        
+        /* Settings Panel Styles */
+        #settings-toggle {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 20, 20, 0.9);
+            border: 2px solid #00d98e;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        #settings-toggle:hover {
+            background: rgba(0, 40, 40, 0.95);
+            transform: rotate(90deg);
+        }
+        
+        #settings-toggle svg {
+            width: 24px;
+            height: 24px;
+            fill: #00d98e;
+        }
+        
+        #settings-panel {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            width: 360px;
+            max-height: 90vh;
+            background: rgba(0, 20, 20, 0.98);
+            border: 2px solid #00d98e;
+            border-radius: 8px;
+            padding: 20px;
+            z-index: 999;
+            display: none;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 217, 142, 0.2);
+            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            color: #00d98e;
+        }
+        
+        #settings-panel.visible {
+            display: block;
+        }
+        
+        #settings-panel h2 {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            color: #00d98e;
+            border-bottom: 1px solid #00d98e;
+            padding-bottom: 10px;
+        }
+        
+        .setting-group {
+            margin-bottom: 20px;
+        }
+        
+        .setting-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #00d98e;
+            font-weight: bold;
+        }
+        
+        .setting-group input[type="text"],
+        .setting-group input[type="range"],
+        .setting-group select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(0, 40, 40, 0.8);
+            border: 1px solid #00d98e;
+            border-radius: 4px;
+            color: #00d98e;
+            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+        
+        .setting-group input[type="text"]:focus,
+        .setting-group select:focus {
+            outline: none;
+            border-color: #00ffaa;
+            box-shadow: 0 0 8px rgba(0, 217, 142, 0.3);
+        }
+        
+        .setting-group input[type="range"] {
+            cursor: pointer;
+        }
+        
+        .range-value {
+            display: inline-block;
+            margin-left: 10px;
+            font-size: 14px;
+            color: #00ffaa;
+        }
+        
+        .shader-checkbox-group {
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(0, 40, 40, 0.5);
+            border: 1px solid #00d98e;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .shader-checkbox-group label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: normal;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .shader-checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        
+        .setting-hint {
+            font-size: 11px;
+            color: #00d98e80;
+            margin-top: 4px;
+            font-style: italic;
+        }
+        
+        .settings-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .settings-buttons button {
+            flex: 1;
+            padding: 10px;
+            background: rgba(0, 217, 142, 0.2);
+            border: 1px solid #00d98e;
+            border-radius: 4px;
+            color: #00d98e;
+            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .settings-buttons button:hover {
+            background: rgba(0, 217, 142, 0.4);
+            border-color: #00ffaa;
+        }
+        
+        .settings-buttons button.primary {
+            background: rgba(0, 217, 142, 0.3);
+        }
+        
+        .settings-buttons button.primary:hover {
+            background: rgba(0, 217, 142, 0.5);
+        }
     </style>
 </head>
 <body>
+    <!-- Settings Toggle Button -->
+    <button id="settings-toggle" title="Settings">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+            <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65z"/>
+        </svg>
+    </button>
+    
+    <!-- Settings Panel -->
+    <div id="settings-panel">
+        <h2>⚙ t|Storie Settings</h2>
+        
+        <div class="setting-group">
+            <label for="fontsize-slider">Font Size: <span class="range-value" id="fontsize-value">16</span>px</label>
+            <input type="range" id="fontsize-slider" min="8" max="32" value="16" step="1">
+            <div class="setting-hint">Adjust terminal font size (8-32px)</div>
+        </div>
+        
+        <div class="setting-group">
+            <label>Shaders (select multiple):</label>
+            <div class="shader-checkbox-group" id="shader-checkboxes">
+                <label><input type="checkbox" value="bloom"> bloom</label>
+                <label><input type="checkbox" value="blur"> blur</label>
+                <label><input type="checkbox" value="crt"> crt</label>
+                <label><input type="checkbox" value="crtbloom"> crtbloom</label>
+                <label><input type="checkbox" value="graphpaper"> graphpaper</label>
+                <label><input type="checkbox" value="invert"> invert</label>
+                <label><input type="checkbox" value="notebook"> notebook</label>
+            </div>
+            <div class="setting-hint">Combine multiple shaders for unique effects</div>
+        </div>
+        
+        <div class="setting-group">
+            <label for="theme-select">Theme:</label>
+            <select id="theme-select">
+                <option value="">Default</option>
+                <option value="catppuccin">Catppuccin</option>
+                <option value="nord">Nord</option>
+                <option value="dracula">Dracula</option>
+                <option value="miami-vice">Miami Vice</option>
+                <option value="outrun">Outrun</option>
+                <option value="cyberpunk">Cyberpunk</option>
+                <option value="terminal">Terminal</option>
+                <option value="solarized-dark">Solarized Dark</option>
+                <option value="futurism">Futurism</option>
+                <option value="coffee">Coffee</option>
+            </select>
+            <div class="setting-hint">Color scheme for the terminal</div>
+        </div>
+        
+        <div class="setting-group">
+            <label for="content-input">Content:</label>
+            <input type="text" id="content-input" placeholder="gist:ID, demo:name, browser:key, decode:xxx">
+            <div class="setting-hint">Load content from various sources</div>
+        </div>
+        
+        <div class="setting-group">
+            <label for="font-input">Custom Font:</label>
+            <input type="text" id="font-input" placeholder="Font name or Google Fonts URL">
+            <div class="setting-hint">e.g., "Roboto+Mono" or full URL</div>
+        </div>
+        
+        <div class="settings-buttons">
+            <button id="reset-button">Reset</button>
+            <button id="apply-button" class="primary">Apply & Reload</button>
+        </div>
+    </div>
+    
     <div id="container">
         <div id="loading">
             <div>Loading <span id="t">t</span><span id="cursor">|</span>Storie...</div>
@@ -127,6 +359,134 @@
     </div>
     
     <script>
+        // ===== SETTINGS PANEL LOGIC =====
+        const settingsToggle = document.getElementById('settings-toggle');
+        const settingsPanel = document.getElementById('settings-panel');
+        const fontsizeSlider = document.getElementById('fontsize-slider');
+        const fontsizeValue = document.getElementById('fontsize-value');
+        const shaderCheckboxes = document.querySelectorAll('#shader-checkboxes input[type="checkbox"]');
+        const themeSelect = document.getElementById('theme-select');
+        const contentInput = document.getElementById('content-input');
+        const fontInput = document.getElementById('font-input');
+        const applyButton = document.getElementById('apply-button');
+        const resetButton = document.getElementById('reset-button');
+        
+        // Toggle settings panel
+        settingsToggle.addEventListener('click', function() {
+            settingsPanel.classList.toggle('visible');
+        });
+        
+        // Close panel when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!settingsPanel.contains(e.target) && !settingsToggle.contains(e.target)) {
+                settingsPanel.classList.remove('visible');
+            }
+        });
+        
+        // Update fontsize display
+        fontsizeSlider.addEventListener('input', function() {
+            fontsizeValue.textContent = this.value;
+        });
+        
+        // Parse current URL parameters and populate form
+        function loadCurrentSettings() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Font size
+            const fontsize = urlParams.get('fontsize');
+            if (fontsize) {
+                fontsizeSlider.value = fontsize;
+                fontsizeValue.textContent = fontsize;
+            }
+            
+            // Shaders
+            const shaderParam = urlParams.get('shader');
+            if (shaderParam) {
+                const activeShaders = shaderParam.split(/\s+/).map(s => s.trim()).filter(s => s);
+                shaderCheckboxes.forEach(checkbox => {
+                    checkbox.checked = activeShaders.includes(checkbox.value);
+                });
+            }
+            
+            // Theme
+            const theme = urlParams.get('theme');
+            if (theme) {
+                themeSelect.value = theme;
+            }
+            
+            // Content
+            const content = urlParams.get('content');
+            if (content) {
+                contentInput.value = content;
+            }
+            
+            // Font
+            const font = urlParams.get('font');
+            if (font) {
+                fontInput.value = font;
+            }
+        }
+        
+        // Apply settings and reload
+        applyButton.addEventListener('click', function() {
+            const newParams = new URLSearchParams();
+            
+            // Font size
+            const fontsize = fontsizeSlider.value;
+            if (fontsize && fontsize !== '16') {  // Only add if not default
+                newParams.set('fontsize', fontsize);
+            }
+            
+            // Shaders
+            const selectedShaders = Array.from(shaderCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            if (selectedShaders.length > 0) {
+                newParams.set('shader', selectedShaders.join(' '));
+            }
+            
+            // Theme
+            const theme = themeSelect.value;
+            if (theme) {
+                newParams.set('theme', theme);
+            }
+            
+            // Content
+            const content = contentInput.value.trim();
+            if (content) {
+                newParams.set('content', content);
+            }
+            
+            // Font
+            const font = fontInput.value.trim();
+            if (font) {
+                newParams.set('font', font);
+            }
+            
+            // Build new URL and reload
+            const newUrl = window.location.pathname + (newParams.toString() ? '?' + newParams.toString() : '');
+            window.location.href = newUrl;
+        });
+        
+        // Reset to defaults
+        resetButton.addEventListener('click', function() {
+            if (confirm('Reset all settings to defaults?')) {
+                window.location.href = window.location.pathname;
+            }
+        });
+        
+        // Reposition panel on window resize
+        function repositionPanel() {
+            // Panel is already positioned with CSS, but we could add logic here if needed
+            // For now, CSS fixed positioning handles this automatically
+        }
+        
+        window.addEventListener('resize', repositionPanel);
+        
+        // Load current settings on page load
+        loadCurrentSettings();
+        
+        // ===== MAIN APPLICATION LOGIC =====
         // Setup Module before loading WASM (Emscripten will merge with this)
         let canvas = document.getElementById('terminal');  // Use 'let' so we can replace it with WebGL canvas
         const loading = document.getElementById('loading');
@@ -190,6 +550,159 @@
             const buffer = await new Response(stream.readable).arrayBuffer();
             return new TextDecoder().decode(buffer);
         }
+        
+        // ===== TSTORIE EDITOR HELPER FUNCTIONS =====
+        // These functions provide localStorage and URL sharing for the editor
+        
+        // Generic function callers for Nim interop
+        window.tStorie_callFunction = function(funcName) {
+            try {
+                const func = window[funcName];
+                if (typeof func === 'function') {
+                    const result = func();
+                    return String(result || '');
+                }
+                return '';
+            } catch (e) {
+                console.error('Error calling', funcName, ':', e);
+                return '';
+            }
+        };
+        
+        window.tStorie_callFunctionWithArg = function(funcName, arg) {
+            try {
+                const func = window[funcName];
+                if (typeof func === 'function') {
+                    const result = func(arg);
+                    return String(result || '');
+                }
+                return '';
+            } catch (e) {
+                console.error('Error calling', funcName, 'with arg:', e);
+                return '';
+            }
+        };
+        
+        window.tStorie_callFunctionWith2Args = function(funcName, arg1, arg2) {
+            try {
+                const func = window[funcName];
+                if (typeof func === 'function') {
+                    const result = func(arg1, arg2);
+                    return String(result || '');
+                }
+                return '';
+            } catch (e) {
+                console.error('Error calling', funcName, 'with 2 args:', e);
+                return '';
+            }
+        };
+        
+        // Save to localStorage with tstorie_ prefix
+        window.tStorie_saveLocal = function(key, content) {
+            try {
+                const storageKey = 'tstorie_' + key;
+                localStorage.setItem(storageKey, content);
+                console.log('Saved:', storageKey, '(' + content.length + ' bytes)');
+                return true;
+            } catch (e) {
+                console.error('Save error:', e);
+                return false;
+            }
+        };
+        
+        // Load from localStorage
+        window.tStorie_loadLocal = function(key) {
+            try {
+                const storageKey = 'tstorie_' + key;
+                const content = localStorage.getItem(storageKey);
+                if (content) {
+                    return content;
+                }
+                return localStorage.getItem(key) || '';  // Fallback to raw key
+            } catch (e) {
+                console.error('Load error:', e);
+                return '';
+            }
+        };
+        
+        // List all saved documents as JSON string
+        window.tStorie_listLocal = function() {
+            const items = [];
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('tstorie_')) {
+                        const name = key.substring(8);
+                        const content = localStorage.getItem(key);
+                        if (content) {
+                            items.push({
+                                key: name,
+                                size: content.length,
+                                preview: content.substring(0, 50)
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('List error:', e);
+            }
+            return JSON.stringify(items);
+        };
+        
+        // Delete from localStorage
+        window.tStorie_deleteLocal = function(key) {
+            try {
+                localStorage.removeItem('tstorie_' + key);
+                return true;
+            } catch (e) {
+                console.error('Delete error:', e);
+                return false;
+            }
+        };
+        
+        // Copy text to clipboard
+        window.tStorie_copyToClipboard = function(text) {
+            try {
+                navigator.clipboard.writeText(text).then(function() {
+                    console.log('Copied to clipboard:', text.substring(0, 50) + '...');
+                }).catch(function(e) {
+                    console.error('Clipboard error:', e);
+                });
+                return true;
+            } catch (e) {
+                console.error('Clipboard error:', e);
+                return false;
+            }
+        };
+        
+        // Compress content and return shareable URL (synchronous wrapper for async compress)
+        window.tStorie_compressToUrl = function(content) {
+            // Start async compression but return placeholder
+            // The actual URL will be generated asynchronously
+            compress(content).then(function(compressed) {
+                const baseUrl = window.location.origin + window.location.pathname;
+                const shareUrl = baseUrl + '?content=decode:' + compressed;
+                console.log('Generated share URL (' + shareUrl.length + ' chars)');
+                // Store it globally so it can be retrieved
+                window.tStorie_lastShareUrl = shareUrl;
+            }).catch(function(e) {
+                console.error('Compression error:', e);
+                window.tStorie_lastShareUrl = '';
+            });
+            // Return last generated URL or placeholder
+            return window.tStorie_lastShareUrl || 'Generating...';
+        };
+        
+        // Navigate to URL
+        window.tStorie_navigate = function(url) {
+            try {
+                window.location.href = url;
+                return true;
+            } catch (e) {
+                console.error('Navigation error:', e);
+                return false;
+            }
+        };
         
         // Helper function to generate shareable URL from content
         // Usage in console: generateShareableUrl("# My Story\n...")
@@ -289,6 +802,7 @@
         const fontUrl = urlParams.get('font');
         const fontSizeParam = urlParams.get('fontsize');
         const shaderParam = urlParams.get('shader');
+        const themeParam = urlParams.get('theme');
         
         // Parse multiple shaders separated by '+' (which becomes space in URL params)
         // e.g., ?shader=invert+crt will load both invert and crt shaders
