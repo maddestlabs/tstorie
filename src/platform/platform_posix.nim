@@ -11,6 +11,23 @@ type
     isRawMode: bool
 
 var globalTerminalState: TerminalState
+var cleanupRegistered = false
+var globalUserHandler: proc(sig: cint) {.noconv.}
+
+proc emergencyCleanup() {.noconv.} =
+  ## Emergency cleanup handler - restores terminal even on crashes
+  ## This is called via addQuitProc and signal handlers
+  if globalTerminalState.isRawMode:
+    discard tcSetAttr(STDIN_FILENO, TCSAFLUSH, unsafeAddr globalTerminalState.oldTermios)
+    # Also show cursor and disable mouse reporting
+    stdout.write("\e[?25h\e[?1006l\e[?1003l\e[<u\n")
+    stdout.flushFile()
+
+proc signalHandler(sig: cint) {.noconv.} =
+  ## Combined signal handler - cleans up terminal then calls user handler
+  emergencyCleanup()
+  if globalUserHandler != nil:
+    globalUserHandler(sig)
 
 proc setupRawMode*(): TerminalState =
   ## Configure terminal for raw mode (no echo, no line buffering)
@@ -37,6 +54,11 @@ proc setupRawMode*(): TerminalState =
   result.isRawMode = true
   
   globalTerminalState = result
+  
+  # Register emergency cleanup handler (only once)
+  if not cleanupRegistered:
+    system.addQuitProc(emergencyCleanup)
+    cleanupRegistered = true
 
 proc restoreTerminal*(state: TerminalState) =
   ## Restore terminal to its original state
@@ -110,5 +132,7 @@ proc readInputRaw*(buffer: var openArray[char]): int =
 
 proc setupSignalHandlers*(handler: proc(sig: cint) {.noconv.}) =
   ## Set up signal handlers for graceful shutdown
-  signal(SIGINT, handler)
-  signal(SIGTERM, handler)
+  ## The handler should set running flag to false for clean exit
+  globalUserHandler = handler
+  signal(SIGINT, signalHandler)
+  signal(SIGTERM, signalHandler)

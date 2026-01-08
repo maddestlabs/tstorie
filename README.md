@@ -96,6 +96,10 @@ cd tstorie
 - `demo:<name>` - Load from local demos folder
 - `file:<path>` - Load from file path
 
+**Terminal Cleanup:**
+
+If a tstorie app crashes or you press CTRL-C, the terminal state is automatically restored. The engine uses multiple cleanup mechanisms (exit handlers and signal handlers) to ensure your terminal remains usable. See [TERMINAL_CLEANUP.md](TERMINAL_CLEANUP.md) for technical details.
+
 ## Classroom Setup
 
 For educators who want to provie GitHub token access for classroom Gist creation with improved rate limits, see the [Educational Use Guide](https://maddestlabs.github.io/tstorie/md/CLASSROOM_SETUP.md).

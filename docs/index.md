@@ -45,7 +45,7 @@ particleSetBackgroundFromStyle("sparkles", defaultStyle)
 particleSetForegroundFromStyle("sparkles", accentStyle)
 
 # Configure fire effect rising from bottom (always active)
-particleConfigureFire("techbubbles", 10.0)
+particleConfigureFire("techbubbles", 10.0, false)
 particleSetDrawMode("techbubbles", 0)  # Mode 2 = draw characters
 particleSetBackgroundFromStyle("techbubbles", defaultStyle)
 particleSetForegroundFromStyle("techbubbles", accentStyle)
@@ -68,6 +68,9 @@ var metrics = getSectionMetrics()
 var mouseDown = false
 var mouseX = 0
 var mouseY = 0
+
+# Track angle for sparkles oval motion
+var sparklesAngle = 0.0
 ```
 
 ```nim on:input
@@ -93,7 +96,7 @@ canvasRender()
 particleRender("techbubbles", 0)
 if inFinalStats:
   particleRender("fire", 0)
-# Render sparkles on top of everything
+# Render sparkles on layer 1 to appear on top of everything
 particleRender("sparkles", 0)
 ```
 
@@ -101,10 +104,17 @@ particleRender("sparkles", 0)
 canvasUpdate()
 mouseX = getMouseX()
 mouseY = getMouseY()
-# Continuously emit sparkles while mouse button is held down
-if mouseDown:
-  particleSetEmitterPos("sparkles", float(mouseX), float(mouseY))
-  particleEmit("sparkles", 5)
+
+# Move sparkles in oval path around center of screen
+sparklesAngle += deltaTime * 2.0  # Adjust speed (2.0 radians per second)
+var centerX = float(termWidth) / 2.0
+var centerY = float(termHeight) / 2.0
+var radiusX = float(termWidth) / 3.0  # Horizontal radius of oval
+var radiusY = float(termHeight) / 3.0  # Vertical radius of oval
+var sparklesX = centerX + radiusX * cos(sparklesAngle)
+var sparklesY = centerY + radiusY * sin(sparklesAngle)
+particleSetEmitterPos("sparkles", sparklesX, sparklesY)
+particleEmit("sparkles", 5)
 
 # Update all active particle systems
 particleUpdate("sparkles", deltaTime)

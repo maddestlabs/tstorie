@@ -88,6 +88,24 @@ type
     isRawMode: bool
 
 var globalTerminalState: TerminalState
+var cleanupRegistered = false
+var globalUserHandler: proc(sig: cint) {.noconv.}
+
+proc emergencyCleanup() {.noconv.} =
+  ## Emergency cleanup handler - restores terminal even on crashes
+  ## This is called via addQuitProc and signal handlers
+  if globalTerminalState.isRawMode:
+    discard SetConsoleMode(globalTerminalState.hStdin, globalTerminalState.oldInputMode)
+    discard SetConsoleMode(globalTerminalState.hStdout, globalTerminalState.oldOutputMode)
+    # Also show cursor and disable mouse reporting
+    stdout.write("\e[?25h\e[?1006l\e[?1003l\e[<u\n")
+    stdout.flushFile()
+
+proc signalHandler(sig: cint) {.noconv.} =
+  ## Combined signal handler - cleans up terminal then calls user handler
+  emergencyCleanup()
+  if globalUserHandler != nil:
+    globalUserHandler(sig)
 
 proc setupRawMode*(): TerminalState =
   ## Configure terminal for raw mode with ANSI support
@@ -119,6 +137,11 @@ proc setupRawMode*(): TerminalState =
   
   result.isRawMode = true
   globalTerminalState = result
+  
+  # Register emergency cleanup handler (only once)
+  if not cleanupRegistered:
+    system.addQuitProc(emergencyCleanup)
+    cleanupRegistered = true
 
 proc restoreTerminal*(state: TerminalState) =
   ## Restore terminal to its original state
@@ -274,9 +297,10 @@ proc setupSignalHandlers*(handler: proc(sig: cint) {.noconv.}) =
   ## Set up signal handlers for graceful shutdown
   ## 
   ## MINIMAL IMPLEMENTATION: Windows signal handling is different
-  ## For now, this is a stub. A full implementation would use
-  ## SetConsoleCtrlHandler to handle CTRL_C_EVENT, etc.
+  ## For now, we at least ensure emergency cleanup is registered
+  globalUserHandler = handler
   
-  # TODO: Implement Windows-specific signal handling
-  # For now, Ctrl+C will still work via default handler
-  discard
+  # Basic signal handling - this works for CTRL+C
+  # A more robust implementation would use SetConsoleCtrlHandler
+  when declared(signal):
+    signal(2, signalHandler)  # SIGINT
