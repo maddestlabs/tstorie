@@ -24,11 +24,11 @@ const
   Futurism* = ThemeColors(
     bgPrimary:    (0x00'u8, 0x11'u8, 0x11'u8),   # Deep teal (#001111)
     bgSecondary:  (0x09'u8, 0x34'u8, 0x3a'u8),   # Slightly lighter teal (#09343a)
-    fgPrimary:    (0xcd'u8, 0xcd'u8, 0xcd'u8),
-    fgSecondary:  (0x80'u8, 0xff'u8, 0xff'u8),   # Soft cyan
-    accent1:      (0x00'u8, 0xd9'u8, 0x8e'u8),   # Aquamarine
-    accent2:      (0xff'u8, 0xff'u8, 0x00'u8),   # Electric yellow
-    accent3:      (0xff'u8, 0x00'u8, 0x6e'u8),   # Neon pink
+    fgPrimary:    (0xe0'u8, 0xe0'u8, 0xe0'u8),   # Bright gray (body text)
+    fgSecondary:  (0x90'u8, 0x90'u8, 0x90'u8),   # Medium gray (muted text)
+    accent1:      (0x00'u8, 0xd9'u8, 0x8e'u8),   # Aquamarine (signature color)
+    accent2:      (0xff'u8, 0xff'u8, 0x00'u8),   # Electric yellow (highlights)
+    accent3:      (0xff'u8, 0x00'u8, 0x6e'u8),   # Neon pink (emphasis)
   )
 
   CatppuccinMocha* = ThemeColors(
@@ -305,6 +305,16 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     dim: false
   )
   
+  # Dim/muted text
+  result["dim"] = StyleConfig(
+    fg: theme.fgSecondary,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: true
+  )
+  
   # Border/frame elements
   result["border"] = StyleConfig(
     fg: theme.accent2,
@@ -330,6 +340,34 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     fg: theme.accent1,
     bg: theme.bgSecondary,
     bold: true,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  # Accent color styles (for direct color access)
+  result["accent1"] = StyleConfig(
+    fg: theme.accent1,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  result["accent2"] = StyleConfig(
+    fg: theme.accent2,
+    bg: theme.bgPrimary,
+    bold: false,
+    italic: false,
+    underline: false,
+    dim: false
+  )
+  
+  result["accent3"] = StyleConfig(
+    fg: theme.accent3,
+    bg: theme.bgPrimary,
+    bold: false,
     italic: false,
     underline: false,
     dim: false

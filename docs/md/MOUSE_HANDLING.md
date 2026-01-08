@@ -79,6 +79,27 @@ Mouse coordinates are 0-based:
 - X: 0 to termWidth - 1
 - Y: 0 to termHeight - 1
 
+You can access mouse coordinates in two ways:
+
+1. **From event objects** in `on:input` blocks:
+```nim
+if event.type == "mouse_move":
+  var x = event.x
+  var y = event.y
+```
+
+2. **Using getter functions** anywhere in your code:
+```nim on:render
+# Get current mouse position from anywhere
+var x = getMouseX()
+var y = getMouseY()
+
+# Draw cursor follower
+draw(0, x, y, "X")
+```
+
+The getter functions return the last known mouse position, which is updated whenever mouse events occur.
+
 ## Event Consumption
 
 Input handlers can return `true` to consume an event (preventing other handlers from processing it) or `false` to allow event propagation:
@@ -154,3 +175,5 @@ See [examples/mouse_test.md](../examples/mouse_test.md) for a complete interacti
 - `clearGlobalHandlers()` - Remove all handlers
 - `getTermWidth()` - Get terminal width
 - `getTermHeight()` - Get terminal height
+- `getMouseX()` - Get last known mouse X coordinate
+- `getMouseY()` - Get last known mouse Y coordinate

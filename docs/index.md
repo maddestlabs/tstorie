@@ -24,46 +24,50 @@ print "t|Storie walkthrough initialized"
 # Initialize canvas system - start at section 1
 initCanvas(1)
 
-# Initialize particle systems
-var bgStyle = getStyle("default")
-var bgR = int(bgStyle.bg.r)
-var bgG = int(bgStyle.bg.g)
-var bgB = int(bgStyle.bg.b)
-
-particleInit("sparkles", 500)
-particleInit("matrix", 10, false)
-particleInit("fire", 300)
+particleInit("sparkles", 100)
+particleInit("techbubbles", 100)
+particleInit("fire", 100)
 var accentStyle = getStyle("heading")
 var defaultStyle = getStyle("default")
 
 # Configure sparkles (manual emission on click)
 particleConfigureSparkles("sparkles", 10.0)
-particleSetBackgroundColor("sparkles", bgR, bgG, bgB)
+particleSetDrawMode("sparkles", 1)
+particleSetBackgroundFromStyle("sparkles", defaultStyle)
 particleSetEmitterPos("sparkles", float(termWidth / 2), float(termHeight / 2))
 # Speed up sparkles with higher velocity range
 particleSetVelocityRange("sparkles", -15.0, -15.0, 15.0, 15.0)
 # Set short lifetime so particles disappear quickly
-particleSetLifeRange("sparkles", 0.1, 0.4)
+particleSetLifeRange("sparkles", 0.2, 0.5)
 # Disable automatic emission - only emit on manual clicks
 particleSetEmitRate("sparkles", 0.0)
+particleSetBackgroundFromStyle("sparkles", defaultStyle)
+particleSetForegroundFromStyle("sparkles", accentStyle)
 
-# Configure Matrix rain effect (always active)
-particleConfigureMatrix("matrix", 5.0)
-particleSetDrawMode("matrix", 1)
-# IMPORTANT: Override preset settings AFTER configure call
-particleSetBackgroundFromStyle("matrix", defaultStyle)
-particleSetForegroundFromStyle("matrix", accentStyle)
-particleSetTrailLength("matrix", 30)
-particleSetEmitterPos("matrix", 0.0, 0.0)
-particleSetEmitterSize("matrix", float(termWidth), 10.0)
+# Configure fire effect rising from bottom (always active)
+particleConfigureFire("techbubbles", 10.0)
+particleSetDrawMode("techbubbles", 0)  # Mode 2 = draw characters
+particleSetBackgroundFromStyle("techbubbles", defaultStyle)
+particleSetForegroundFromStyle("techbubbles", accentStyle)
+particleSetEmitterPos("techbubbles", 0, termHeight)
+particleSetEmitterSize("techbubbles", termWidth, float(termHeight) / 2)
+particleSetLifeRange("techbubbles", 3.0, 5.0)
+particleSetVelocityRange("techbubbles", 0.0, -20.0, 0.0, -40.0)
+particleSetChars("techbubbles", "....o")
 
 # Configure fire at bottom
 particleConfigureFire("fire", 70.0)
 particleSetEmitterPos("fire", float(termWidth / 2), float(termHeight - 1))
 particleSetEmitterSize("fire", 30.0, 1.0)
+particleSetBackgroundFromStyle("fire", defaultStyle)
 
 var inFinalStats = false
 var metrics = getSectionMetrics()
+
+# Track mouse state for continuous particle emission
+var mouseDown = false
+var mouseX = 0
+var mouseY = 0
 ```
 
 ```nim on:input
@@ -72,49 +76,43 @@ var metrics = getSectionMetrics()
 if event.type == "key":
   if event.action == "press":
     var handled = canvasHandleKey(event.keyCode, 0)
-    if handled:
-      return true
-  return false
 
 elif event.type == "mouse":
+  # Always track mouse position (during press, release, and move)
   if event.action == "press":
-    # Emit sparkles on mouse click
-    particleSetEmitterPos("sparkles", float(event.x), float(event.y))
-    particleEmit("sparkles", 30)
-    
+    mouseDown = true
     var handled = canvasHandleMouse(event.x, event.y, event.button, true)
-    if handled:
-      return true
-  return false
-
-return false
+  elif event.action == "release":
+    mouseDown = false
 ```
 
 ```nim on:render
-clear()
-
+# Clear layer 0 (content layer) with solid background
+clear(0)
 canvasRender()
-
-# Render Matrix rain behind text (always active)
-particleRender("matrix", 0)
-
-# Render fire behind content (only in Final Stats section)
+particleRender("techbubbles", 0)
 if inFinalStats:
   particleRender("fire", 0)
-
 # Render sparkles on top of everything
 particleRender("sparkles", 0)
 ```
 
 ```nim on:update
 canvasUpdate()
+mouseX = getMouseX()
+mouseY = getMouseY()
+# Continuously emit sparkles while mouse button is held down
+if mouseDown:
+  particleSetEmitterPos("sparkles", float(mouseX), float(mouseY))
+  particleEmit("sparkles", 5)
 
 # Update all active particle systems
 particleUpdate("sparkles", deltaTime)
 
-# Update Matrix rain (always active)
-particleSetEmitterSize("matrix", float(termWidth), 1.0)
-particleUpdate("matrix", deltaTime)
+# Update fire rising from bottom (always active)
+particleSetEmitterPos("techbubbles", 0.0, float(termHeight - 1))
+particleSetEmitterSize("techbubbles", float(termWidth), 1.0)
+particleUpdate("techbubbles", deltaTime)
 
 # Update fire emitter position to bottom of current section
 if inFinalStats:

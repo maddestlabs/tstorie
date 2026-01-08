@@ -59,6 +59,7 @@ type
     maxLife*: float        # Initial lifetime (for fade calculations)
     char*: string          # Display character
     color*: Color          # Display color
+    spawnColor*: Color     # Initial color for interpolation
     rotation*: float       # Optional rotation (for future use)
     rotationSpeed*: float  # Optional angular velocity
     active*: bool          # Whether particle is alive
@@ -115,6 +116,7 @@ type
     
     # Rendering
     fadeOut*: bool            # Fade alpha based on life
+    colorInterpolation*: bool # Interpolate from colorMin to colorMax over lifetime
     drawMode*: ParticleDrawMode  # How particles affect cells
     layerTarget*: ptr Layer   # Target layer for rendering
     backgroundColor*: Color   # Background color for particles (theme-aware)
@@ -172,6 +174,7 @@ proc initParticleSystem*(maxParticles: int = 1000): ParticleSystem =
     
     # Default rendering
     fadeOut: true,
+    colorInterpolation: false,
     drawMode: pdmReplace,  # Default to full cell replacement
     layerTarget: nil,
     backgroundColor: rgb(0, 0, 0)  # Default to black
@@ -278,6 +281,7 @@ proc emit*(ps: ParticleSystem, count: int = 1) =
       maxLife: life,
       char: char,
       color: color,
+      spawnColor: color,  # Store initial color for interpolation
       rotation: 0.0,
       rotationSpeed: 0.0,
       active: true,
@@ -516,8 +520,18 @@ proc render*(ps: ParticleSystem, layer: ptr Layer) =
     if ix < 0 or ix >= buf.width or iy < 0 or iy >= buf.height:
       continue
     
-    # Calculate alpha fade
+    # Calculate color with optional interpolation and fade
     var color = ps.particles[i].color
+    
+    # Apply color interpolation if enabled
+    if ps.colorInterpolation:
+      let t = 1.0 - (ps.particles[i].life / ps.particles[i].maxLife)  # 0 at birth, 1 at death
+      # Lerp from spawnColor (colorMin) to colorMax
+      color.r = uint8(float(ps.particles[i].spawnColor.r) * (1.0 - t) + float(ps.colorMax.r) * t)
+      color.g = uint8(float(ps.particles[i].spawnColor.g) * (1.0 - t) + float(ps.colorMax.g) * t)
+      color.b = uint8(float(ps.particles[i].spawnColor.b) * (1.0 - t) + float(ps.colorMax.b) * t)
+    
+    # Apply fade out if enabled
     if ps.fadeOut:
       let alpha = ps.particles[i].life / ps.particles[i].maxLife
       color.r = uint8(float(color.r) * alpha)
@@ -629,8 +643,18 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
     if ix < 0 or ix >= buffer.width or iy < 0 or iy >= buffer.height:
       continue
     
-    # Calculate alpha fade
+    # Calculate color with optional interpolation and fade
     var color = ps.particles[i].color
+    
+    # Apply color interpolation if enabled
+    if ps.colorInterpolation:
+      let t = 1.0 - (ps.particles[i].life / ps.particles[i].maxLife)  # 0 at birth, 1 at death
+      # Lerp from spawnColor (colorMin) to colorMax
+      color.r = uint8(float(ps.particles[i].spawnColor.r) * (1.0 - t) + float(ps.colorMax.r) * t)
+      color.g = uint8(float(ps.particles[i].spawnColor.g) * (1.0 - t) + float(ps.colorMax.g) * t)
+      color.b = uint8(float(ps.particles[i].spawnColor.b) * (1.0 - t) + float(ps.colorMax.b) * t)
+    
+    # Apply fade out if enabled
     if ps.fadeOut:
       let alpha = ps.particles[i].life / ps.particles[i].maxLife
       color.r = uint8(float(color.r) * alpha)

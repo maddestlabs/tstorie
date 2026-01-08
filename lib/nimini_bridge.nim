@@ -338,6 +338,14 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     ## getHeight() -> int (alias for getTermHeight)
     return valInt(appState.termHeight)
   
+  env.vars["getMouseX"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the last known mouse X coordinate
+    return valInt(appState.lastMouseX)
+  
+  env.vars["getMouseY"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the last known mouse Y coordinate
+    return valInt(appState.lastMouseY)
+  
   env.vars["getTargetFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
     ## Get the target FPS
     return valFloat(appState.targetFps)
@@ -603,4 +611,233 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     ## resetShader() - Reset shader to frame 0
     resetShader()
     return valNil()
+  
+  # ================================================================
+  # DISPLACEMENT SHADERS API
+  # ================================================================
+  
+  env.vars["initDisplacement"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## initDisplacement(effectId: int, layerId: int, x: int, y: int, width: int, height: int, intensity: float = 1.0)
+    if args.len < 6:
+      raise newException(ValueError, "initDisplacement() requires at least 6 arguments: effectId, layerId, x, y, width, height, [intensity]")
+    
+    let effectId = args[0].i
+    let layerId = args[1].i
+    let x = args[2].i
+    let y = args[3].i
+    let width = args[4].i
+    let height = args[5].i
+    let intensity = if args.len > 6: args[6].f else: 1.0
+    
+    initDisplacement(effectId, layerId, x, y, width, height, intensity)
+    return valNil()
+  
+  env.vars["updateDisplacement"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## updateDisplacement() - Update displacement animation (call in on:update)
+    updateDisplacement()
+    return valNil()
+  
+  env.vars["drawDisplacement"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## drawDisplacement(destLayerId: int|string, sourceLayerId: int|string) - Apply displacement from source to dest
+    if args.len < 2:
+      raise newException(ValueError, "drawDisplacement() requires 2 arguments: destLayerId, sourceLayerId")
+    
+    var destLayer: Layer = nil
+    var sourceLayer: Layer = nil
+    
+    # Get destination layer
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < appState.layers.len:
+        destLayer = appState.layers[idx]
+    elif args[0].kind == vkString:
+      destLayer = getLayer(appState, args[0].s)
+    
+    # Get source layer
+    if args[1].kind == vkInt:
+      let idx = args[1].i
+      if idx >= 0 and idx < appState.layers.len:
+        sourceLayer = appState.layers[idx]
+    elif args[1].kind == vkString:
+      sourceLayer = getLayer(appState, args[1].s)
+    
+    if not destLayer.isNil and not sourceLayer.isNil:
+      drawDisplacement(destLayer.buffer, sourceLayer.buffer)
+    
+    return valNil()
+  
+  env.vars["drawDisplacementInPlace"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## drawDisplacementInPlace(layerId: int|string) - Apply displacement in-place (creates temp copy)
+    if args.len < 1:
+      raise newException(ValueError, "drawDisplacementInPlace() requires 1 argument: layerId")
+    
+    var layer: Layer = nil
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < appState.layers.len:
+        layer = appState.layers[idx]
+    elif args[0].kind == vkString:
+      layer = getLayer(appState, args[0].s)
+    
+    if not layer.isNil:
+      drawDisplacementInPlace(layer.buffer)
+    
+    return valNil()
+  
+  env.vars["drawDisplacementFromLayer"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## drawDisplacementFromLayer(destLayerId, sourceLayerId, displacementLayerId, strength, mode)
+    ## Use content from displacementLayer to displace sourceLayer content onto destLayer
+    ## mode: 0=vertical (rain), 1=radial, 2=horizontal, 3=both axes
+    if args.len < 3:
+      raise newException(ValueError, "drawDisplacementFromLayer() requires at least 3 arguments: destLayerId, sourceLayerId, displacementLayerId, [strength], [mode]")
+    
+    var destLayer: Layer = nil
+    var sourceLayer: Layer = nil
+    var dispLayer: Layer = nil
+    
+    # Get destination layer
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < appState.layers.len:
+        destLayer = appState.layers[idx]
+    elif args[0].kind == vkString:
+      destLayer = getLayer(appState, args[0].s)
+    
+    # Get source layer
+    if args[1].kind == vkInt:
+      let idx = args[1].i
+      if idx >= 0 and idx < appState.layers.len:
+        sourceLayer = appState.layers[idx]
+    elif args[1].kind == vkString:
+      sourceLayer = getLayer(appState, args[1].s)
+    
+    # Get displacement layer
+    if args[2].kind == vkInt:
+      let idx = args[2].i
+      if idx >= 0 and idx < appState.layers.len:
+        dispLayer = appState.layers[idx]
+    elif args[2].kind == vkString:
+      dispLayer = getLayer(appState, args[2].s)
+    
+    let strength = if args.len > 3: args[3].f else: 1.0
+    let mode = if args.len > 4: args[4].i else: 0
+    
+    if not destLayer.isNil and not sourceLayer.isNil and not dispLayer.isNil:
+      applyDisplacementFromLayer(
+        destLayer.buffer, 
+        sourceLayer.buffer, 
+        dispLayer.buffer,
+        0, 0, 
+        destLayer.buffer.width, 
+        destLayer.buffer.height,
+        strength,
+        mode
+      )
+    
+    return valNil()
+  
+  env.vars["setDisplacementEffect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## strength: displacement amount (default 1.0)
+    ## mode: 0=radial, 1=horizontal, 2=vertical, 3=both (default 0)
+    if args.len < 3:
+      raise newException(ValueError, "drawDisplacementFromLayer() requires at least 3 arguments: destLayer, sourceLayer, displacementLayer")
+    
+    var destLayer: Layer = nil
+    var sourceLayer: Layer = nil
+    var dispLayer: Layer = nil
+    
+    # Get destination layer
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < appState.layers.len:
+        destLayer = appState.layers[idx]
+    elif args[0].kind == vkString:
+      destLayer = getLayer(appState, args[0].s)
+    
+    # Get source layer
+    if args[1].kind == vkInt:
+      let idx = args[1].i
+      if idx >= 0 and idx < appState.layers.len:
+        sourceLayer = appState.layers[idx]
+    elif args[1].kind == vkString:
+      sourceLayer = getLayer(appState, args[1].s)
+    
+    # Get displacement layer
+    if args[2].kind == vkInt:
+      let idx = args[2].i
+      if idx >= 0 and idx < appState.layers.len:
+        dispLayer = appState.layers[idx]
+    elif args[2].kind == vkString:
+      dispLayer = getLayer(appState, args[2].s)
+    
+    # Get strength (optional, default 1.0)
+    let strength = if args.len > 3: args[3].f else: 1.0
+    
+    # Get mode (optional, default 0)
+    let mode = if args.len > 4: args[4].i else: 0
+    
+    if not destLayer.isNil and not sourceLayer.isNil and not dispLayer.isNil:
+      applyDisplacementFromLayer(
+        destLayer.buffer, 
+        sourceLayer.buffer, 
+        dispLayer.buffer,
+        0, 0, 
+        destLayer.buffer.width, 
+        destLayer.buffer.height,
+        strength,
+        mode
+      )
+    
+    return valNil()
+  
+  env.vars["setDisplacementEffect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setDisplacementEffect(effectId: int) - Change displacement effect
+    ## Effects: 0=horiz wave, 1=vert wave, 2=ripple, 3=noise, 4=heat haze, 5=swirl, 6=fisheye, 7=bulge
+    if args.len < 1:
+      raise newException(ValueError, "setDisplacementEffect() requires 1 argument: effectId")
+    
+    let effectId = args[0].i
+    setDisplacementEffect(effectId)
+    return valNil()
+  
+  env.vars["setDisplacementIntensity"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setDisplacementIntensity(intensity: float) - Change displacement strength (0.0 to 1.0+)
+    if args.len < 1:
+      raise newException(ValueError, "setDisplacementIntensity() requires 1 argument: intensity")
+    
+    let intensity = args[0].f
+    setDisplacementIntensity(intensity)
+    return valNil()
+  
+  env.vars["setDisplacementSpeed"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setDisplacementSpeed(speed: float) - Change animation speed (1.0 = normal, 0.5 = half, 2.0 = double)
+    if args.len < 1:
+      raise newException(ValueError, "setDisplacementSpeed() requires 1 argument: speed")
+    
+    let speed = args[0].f
+    setDisplacementSpeed(speed)
+    return valNil()
+  
+  env.vars["setDisplacementAmplitude"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setDisplacementAmplitude(amplitude: float) - Change base displacement (1.0 = normal, 0.3 = subtle, 0.1 = very subtle)
+    if args.len < 1:
+      raise newException(ValueError, "setDisplacementAmplitude() requires 1 argument: amplitude")
+    
+    let amplitude = args[0].f
+    setDisplacementAmplitude(amplitude)
+    return valNil()
+  
+  env.vars["pauseDisplacement"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## pauseDisplacement() - Pause displacement animation
+    pauseDisplacement()
+    return valNil()
+  
+  env.vars["resumeDisplacement"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## resumeDisplacement() - Resume displacement animation
+    resumeDisplacement()
+    return valNil()
+  
+  env.vars["resetDisplacement"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## resetDisplacement() - Reset displacement to frame 0
+    resetDisplacement()
     return valNil()

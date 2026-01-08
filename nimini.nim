@@ -66,341 +66,97 @@ export mathops, typeconv, collections, random, stringops
 proc initStdlib*() =
   ## Register standard library functions with the runtime
   ## NOTE: Random functions require setNiminiRng() to be called separately
+  ##
+  ## Uses exportNiminiProcsClean which automatically strips the nimini_ prefix
+  ## from all function names when exposing them to scripts.
   
-  # Sequence operations (built-in, no imports needed)
-  registerNative("add", niminiAdd,
-    description = "Add element to sequence")
-  registerNative("len", niminiLen,
-    description = "Get length of sequence or string")
-  registerNative("newSeq", niminiNewSeq,
-    description = "Create new sequence with specified length")
-  registerNative("setLen", niminiSetLen,
-    description = "Set length of sequence")
-  registerNative("delete", niminiDelete,
-    description = "Delete element at index from sequence")
-  registerNative("insert", niminiInsert,
-    description = "Insert element at index in sequence")
-  registerNative("pop", niminiPop,
-    description = "Remove and return last element from sequence")
-  registerNative("reverse", niminiReverse,
-    imports = @["algorithm"],
-    description = "Reverse sequence in place")
-  registerNative("contains", niminiContains,
-    description = "Check if sequence contains element")
-  registerNative("find", niminiFindIndex,
-    description = "Find index of element in sequence")
+  # All stdlib functions - automatically registered with clean names
+  # (e.g., nimini_sin -> "sin", nimini_abs -> "abs")
+  exportNiminiProcsClean(
+    # Sequence operations
+    nimini_add, nimini_len, nimini_newSeq, nimini_setLen,
+    nimini_delete, nimini_insert, nimini_pop, nimini_reverse,
+    nimini_contains, nimini_findIndex,
+    
+    # Collection data structures
+    nimini_newHashSet, nimini_hashSetIncl, nimini_hashSetExcl,
+    nimini_hashSetCard, nimini_hashSetToSeq,
+    nimini_newDeque, nimini_dequeAddFirst, nimini_dequeAddLast,
+    nimini_dequePopFirst, nimini_dequePopLast,
+    nimini_dequePeekFirst, nimini_dequePeekLast,
+    
+    # Random number generation
+    nimini_randomize, nimini_rand, nimini_randFloat,
+    nimini_sample, nimini_choice, nimini_shuffle,
+    nimini_initRand, nimini_randIsolated, nimini_randFloatIsolated,
+    nimini_sampleIsolated, nimini_shuffleIsolated,
+    
+    # Type conversions
+    nimini_toInt, nimini_toFloat, nimini_toBool, nimini_toString,
+    
+    # String operations
+    nimini_chr, nimini_ord, nimini_toUpper, nimini_toLower,
+    nimini_startsWith, nimini_endsWith, nimini_split, nimini_splitLines,
+    nimini_join, nimini_strip, nimini_replace, nimini_findStr, nimini_repeat,
+    
+    # Math - trigonometric
+    nimini_sin, nimini_cos, nimini_tan,
+    nimini_arcsin, nimini_arccos, nimini_arctan, nimini_arctan2,
+    
+    # Math - exponential and logarithmic
+    nimini_sqrt, nimini_pow, nimini_exp, nimini_ln, nimini_log10, nimini_log2,
+    
+    # Math - rounding and absolute
+    nimini_abs, nimini_floor, nimini_ceil, nimini_round, nimini_trunc,
+    nimini_min, nimini_max,
+    
+    # Math - hyperbolic
+    nimini_sinh, nimini_cosh, nimini_tanh,
+    
+    # Math - conversions
+    nimini_degToRad, nimini_radToDeg,
+    
+    # Procedural generation - math
+    nimini_idiv, nimini_imod, nimini_iabs, nimini_sign,
+    nimini_clamp, nimini_wrap, nimini_lerp, nimini_smoothstep, nimini_map,
+    
+    # Procedural generation - noise and hash
+    nimini_intHash, nimini_intHash2D, nimini_intHash3D,
+    nimini_valueNoise2D, nimini_smoothNoise2D, nimini_fractalNoise2D,
+    
+    # Procedural generation - distance metrics
+    nimini_manhattanDist, nimini_chebyshevDist,
+    nimini_euclideanDist, nimini_euclideanDistSq,
+    
+    # Procedural generation - patterns
+    nimini_checkerboard, nimini_stripes,
+    nimini_concentricCircles, nimini_spiralPattern,
+    
+    # Procedural generation - easing
+    nimini_easeLinear, nimini_easeInQuad, nimini_easeOutQuad,
+    nimini_easeInOutQuad, nimini_easeInCubic, nimini_easeOutCubic,
+    
+    # Procedural generation - grid utilities
+    nimini_inBounds,
+    
+    # Shader primitives - trigonometry
+    nimini_isin, nimini_icos,
+    
+    # Shader primitives - polar coordinates
+    nimini_polarDistance, nimini_polarAngle,
+    
+    # Shader primitives - wave operations
+    nimini_waveAdd, nimini_waveMultiply, nimini_waveMix,
+    
+    # Shader primitives - color palettes
+    nimini_colorHeatmap, nimini_colorPlasma, nimini_colorCoolWarm,
+    nimini_colorFire, nimini_colorOcean, nimini_colorNeon,
+    nimini_colorMatrix, nimini_colorGrayscale
+  )
   
-  # Collection data structures
-  registerNative("newHashSet", niminiNewHashSet,
-    imports = @["sets"],
-    description = "Create new hash set")
-  registerNative("incl", niminiHashSetIncl,
-    description = "Include element in hash set")
-  registerNative("excl", niminiHashSetExcl,
-    description = "Exclude element from hash set")
-  registerNative("card", niminiHashSetCard,
-    description = "Get cardinality (size) of hash set")
-  registerNative("toSeq", niminiHashSetToSeq,
-    description = "Convert hash set to sequence")
-  registerNative("newDeque", niminiNewDeque,
-    imports = @["deques"],
-    description = "Create new double-ended queue")
-  registerNative("addFirst", niminiDequeAddFirst,
-    description = "Add element to front of deque")
-  registerNative("addLast", niminiDequeAddLast,
-    description = "Add element to back of deque")
-  registerNative("popFirst", niminiDequePopFirst,
-    description = "Remove and return first element from deque")
-  registerNative("popLast", niminiDequePopLast,
-    description = "Remove and return last element from deque")
-  registerNative("peekFirst", niminiDequePeekFirst,
-    description = "Get first element without removing")
-  registerNative("peekLast", niminiDequePeekLast,
-    description = "Get last element without removing")
-  
-  # Random number generation and sampling
-  registerNative("randomize", niminiRandomize,
-    imports = @["random"],
-    description = "Initialize random number generator with current time")
-  registerNative("rand", niminiRand,
-    imports = @["random"],
-    description = "Generate random integer in range [0, max]")
-  registerNative("randFloat", niminiRandFloat,
-    imports = @["random"],
-    description = "Generate random float in range [0.0, 1.0)")
-  registerNative("sample", niminiSample,
-    imports = @["random"],
-    dependencies = @["rand"],
-    description = "Randomly sample element from sequence")
-  registerNative("choice", niminiChoice,
-    imports = @["random"],
-    dependencies = @["rand"],
-    description = "Randomly choose element from sequence (alias for sample)")
-  registerNative("shuffle", niminiShuffle,
-    imports = @["random"],
-    description = "Randomly shuffle sequence in place")
-  
-  # Isolated RNG functions (new - for deterministic generation)
-  registerNative("initRand", niminiInitRand,
-    imports = @["random"],
-    description = "Create isolated RNG instance with seed for deterministic generation")
-  # Internal isolated versions (called automatically when first arg is Rand)
-  registerNative("randIsolated", niminiRandIsolated,
-    imports = @["random"],
-    description = "Internal: Isolated rand(rng, max) function")
-  registerNative("randFloatIsolated", niminiRandFloatIsolated,
-    imports = @["random"],
-    description = "Internal: Isolated randFloat(rng, max) function")
-  registerNative("sampleIsolated", niminiSampleIsolated,
-    imports = @["random"],
-    description = "Internal: Isolated sample(rng, seq) function")
-  registerNative("shuffleIsolated", niminiShuffleIsolated,
-    imports = @["random"],
-    description = "Internal: Isolated shuffle(rng, seq) function")
-  
-  # Type conversion functions (built-in)
-  registerNative("int", niminiToInt,
-    description = "Convert value to integer")
-  registerNative("float", niminiToFloat,
-    description = "Convert value to float")
-  registerNative("bool", niminiToBool,
-    description = "Convert value to boolean")
-  registerNative("str", niminiToString,
-    description = "Convert value to string")
-  
-  # String operations
-  registerNative("chr", niminiChr,
-    description = "Convert ASCII code to character")
-  registerNative("ord", niminiOrd,
-    description = "Convert character to ASCII code")
-  registerNative("toUpper", niminiToUpper,
-    imports = @["strutils"],
-    description = "Convert string to uppercase")
-  registerNative("toLower", niminiToLower,
-    imports = @["strutils"],
-    description = "Convert string to lowercase")
-  registerNative("startsWith", niminiStartsWith,
-    imports = @["strutils"],
-    description = "Check if string starts with prefix")
-  registerNative("endsWith", niminiEndsWith,
-    imports = @["strutils"],
-    description = "Check if string ends with suffix")
-  registerNative("split", niminiSplit,
-    imports = @["strutils"],
-    description = "Split string by separator into array")
-  registerNative("splitLines", niminiSplitLines,
-    imports = @["strutils"],
-    description = "Split string by actual newline characters into array")
-  registerNative("join", niminiJoin,
-    imports = @["strutils"],
-    description = "Join array elements with separator")
-  registerNative("strip", niminiStrip,
-    imports = @["strutils"],
-    description = "Remove leading and trailing whitespace")
-  registerNative("replace", niminiReplace,
-    imports = @["strutils"],
-    description = "Replace all occurrences of substring")
-  registerNative("findStr", niminiFindStr,
-    imports = @["strutils"],
-    description = "Find index of substring, returns -1 if not found")
-  registerNative("repeat", niminiRepeat,
-    imports = @["strutils"],
-    description = "Repeat string n times")
-  
-  # Math functions - trigonometric
-  registerNative("sin", niminiSin,
-    imports = @["math"],
-    description = "Sine function - returns sine of x (x in radians)")
-  registerNative("cos", niminiCos,
-    imports = @["math"],
-    description = "Cosine function - returns cosine of x (x in radians)")
-  registerNative("tan", niminiTan,
-    imports = @["math"],
-    description = "Tangent function - returns tangent of x (x in radians)")
-  registerNative("arcsin", niminiArcsin,
-    imports = @["math"],
-    description = "Arcsine function - returns angle in radians")
-  registerNative("arccos", niminiArccos,
-    imports = @["math"],
-    description = "Arccosine function - returns angle in radians")
-  registerNative("arctan", niminiArctan,
-    imports = @["math"],
-    description = "Arctangent function - returns angle in radians")
-  registerNative("arctan2", niminiArctan2,
-    imports = @["math"],
-    description = "Two-argument arctangent - returns angle in radians")
-  
-  # Math functions - exponential and logarithmic
-  registerNative("sqrt", niminiSqrt,
-    imports = @["math"],
-    description = "Square root function")
-  registerNative("pow", niminiPow,
-    imports = @["math"],
-    description = "Power function - returns x raised to power y")
-  registerNative("exp", niminiExp,
-    imports = @["math"],
-    description = "Exponential function - returns e^x")
-  registerNative("ln", niminiLn,
-    imports = @["math"],
-    description = "Natural logarithm - base e")
-  registerNative("log10", niminiLog10,
-    imports = @["math"],
-    description = "Common logarithm - base 10")
-  registerNative("log2", niminiLog2,
-    imports = @["math"],
-    description = "Binary logarithm - base 2")
-  
-  # Math functions - rounding and absolute value
-  registerNative("abs", niminiAbs,
-    imports = @["math"],
-    description = "Absolute value function")
-  registerNative("floor", niminiFloor,
-    imports = @["math"],
-    description = "Floor function - largest integer <= x")
-  registerNative("ceil", niminiCeil,
-    imports = @["math"],
-    description = "Ceiling function - smallest integer >= x")
-  registerNative("round", niminiRound,
-    imports = @["math"],
-    description = "Round to nearest integer")
-  registerNative("trunc", niminiTrunc,
-    imports = @["math"],
-    description = "Truncate to integer (remove decimal part)")
-  
-  # Math functions - min/max (built-in)
-  registerNative("min", niminiMin,
-    description = "Return minimum of two values")
-  registerNative("max", niminiMax,
-    description = "Return maximum of two values")
-  
-  # Math functions - hyperbolic
-  registerNative("sinh", niminiSinh,
-    imports = @["math"],
-    description = "Hyperbolic sine function")
-  registerNative("cosh", niminiCosh,
-    imports = @["math"],
-    description = "Hyperbolic cosine function")
-  registerNative("tanh", niminiTanh,
-    imports = @["math"],
-    description = "Hyperbolic tangent function")
-  
-  # Math functions - conversions
-  registerNative("degToRad", niminiDegToRad,
-    imports = @["math"],
-    description = "Convert degrees to radians")
-  registerNative("radToDeg", niminiRadToDeg,
-    imports = @["math"],
-    description = "Convert radians to degrees")
-  
-  # Procedural Generation Primitives - Math
-  registerNative("idiv", niminiIdiv,
-    description = "Integer division")
-  registerNative("imod", niminiImod,
-    description = "Integer modulo")
-  registerNative("iabs", niminiIabs,
-    description = "Integer absolute value")
-  registerNative("sign", niminiSign,
-    description = "Sign of number (-1, 0, or 1)")
-  registerNative("clamp", niminiClamp,
-    description = "Clamp value to range")
-  registerNative("wrap", niminiWrap,
-    description = "Wrap value within range")
-  registerNative("lerp", niminiLerp,
-    description = "Linear interpolation (t=0..1000)")
-  registerNative("smoothstep", niminiSmoothstep,
-    description = "Smooth interpolation curve (t=0..1000)")
-  registerNative("map", niminiMap,
-    description = "Map value from one range to another")
-  
-  # Procedural Generation - Noise & Hash
-  registerNative("intHash", niminiIntHash,
-    description = "1D integer hash function")
-  registerNative("intHash2D", niminiIntHash2D,
-    description = "2D integer hash function")
-  registerNative("intHash3D", niminiIntHash3D,
-    description = "3D integer hash function")
-  registerNative("valueNoise2D", niminiValueNoise2D,
-    description = "2D value noise")
-  registerNative("smoothNoise2D", niminiSmoothNoise2D,
-    description = "2D smooth noise with bilinear interpolation")
-  registerNative("fractalNoise2D", niminiFractalNoise2D,
-    description = "2D fractal/multi-octave noise")
-  
-  # Procedural Generation - Distance metrics
-  registerNative("manhattanDist", niminiManhattanDist,
-    description = "Manhattan distance (grid-based)")
-  registerNative("chebyshevDist", niminiChebyshevDist,
-    description = "Chebyshev distance (8-way grid)")
-  registerNative("euclideanDist", niminiEuclideanDist,
-    description = "Euclidean distance (true distance)")
-  registerNative("euclideanDistSq", niminiEuclideanDistSq,
-    description = "Squared Euclidean distance (faster)")
-  
-  # Procedural Generation - Patterns
-  registerNative("checkerboard", niminiCheckerboard,
-    description = "Checkerboard pattern")
-  registerNative("stripes", niminiStripes,
-    description = "Vertical stripes pattern")
-  registerNative("concentricCircles", niminiConcentricCircles,
-    description = "Concentric circles pattern")
-  registerNative("spiralPattern", niminiSpiralPattern,
-    description = "Spiral pattern")
-  
-  # Procedural Generation - Easing
-  registerNative("easeLinear", niminiEaseLinear,
-    description = "Linear easing (no easing)")
-  registerNative("easeInQuad", niminiEaseInQuad,
-    description = "Quadratic ease in (slow start)")
-  registerNative("easeOutQuad", niminiEaseOutQuad,
-    description = "Quadratic ease out (slow end)")
-  registerNative("easeInOutQuad", niminiEaseInOutQuad,
-    description = "Quadratic ease in/out (slow both ends)")
-  registerNative("easeInCubic", niminiEaseInCubic,
-    description = "Cubic ease in (slower start)")
-  registerNative("easeOutCubic", niminiEaseOutCubic,
-    description = "Cubic ease out (slower end)")
-  
-  # Procedural Generation - Grid utilities
-  registerNative("inBounds", niminiInBounds,
-    description = "Check if coordinates are within grid bounds")
-  
-  # Shader Primitives - Trigonometry
-  registerNative("isin", niminiIsin,
-    description = "Integer sine: -1000..1000 for angle 0..3600 decidegrees")
-  registerNative("icos", niminiIcos,
-    description = "Integer cosine: -1000..1000 for angle 0..3600 decidegrees")
-  
-  # Shader Primitives - Polar coordinates
-  registerNative("polarDistance", niminiPolarDistance,
-    description = "Distance from center point")
-  registerNative("polarAngle", niminiPolarAngle,
-    description = "Angle from center (0..3600 decidegrees)")
-  
-  # Shader Primitives - Wave operations
-  registerNative("waveAdd", niminiWaveAdd,
-    description = "Add two waves with clamping")
-  registerNative("waveMultiply", niminiWaveMultiply,
-    description = "Multiply two waves together")
-  registerNative("waveMix", niminiWaveMix,
-    description = "Mix two waves (t=0..1000)")
-  
-  # Shader Primitives - Color palettes
-  registerNative("colorHeatmap", niminiColorHeatmap,
-    description = "Heatmap gradient (black→red→yellow→white)")
-  registerNative("colorPlasma", niminiColorPlasma,
-    description = "Plasma gradient (blue→purple→red→orange)")
-  registerNative("colorCoolWarm", niminiColorCoolWarm,
-    description = "Cool-warm gradient (blue→white→red)")
-  registerNative("colorFire", niminiColorFire,
-    description = "Fire gradient (black→red→orange→yellow)")
-  registerNative("colorOcean", niminiColorOcean,
-    description = "Ocean gradient (deep blue→cyan→white)")
-  registerNative("colorNeon", niminiColorNeon,
-    description = "Neon gradient (purple→pink→cyan→green)")
-  registerNative("colorMatrix", niminiColorMatrix,
-    description = "Matrix-style green gradient")
-  registerNative("colorGrayscale", niminiColorGrayscale,
-    description = "Grayscale gradient (black→white)")
+  # Note: Metadata (imports, descriptions) has been removed for brevity
+  # It can be re-added later as pragma parameters when we enhance the macro
+  # For now, the metadata remains in source code but isn't used during registration
 
 export backend
 export nim_backend

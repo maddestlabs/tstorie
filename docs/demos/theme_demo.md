@@ -11,11 +11,11 @@ theme: "catpuccin"
 # Navigate with arrow keys: Left/Right for main topics, Up/Down for subtopics
 
 # Get available themes
-var themes = nimini_getThemes()
+var themes = getThemes()
 var currentThemeIndex = 0
 
 # Find index of current theme
-var currentTheme = nimini_getCurrentTheme()
+var currentTheme = getCurrentTheme()
 if currentTheme == "":
   currentTheme = "catppuccin"
 
@@ -41,7 +41,7 @@ if event.type == "key":
   if lastKeyCode == 9:
     currentThemeIndex = (currentThemeIndex + 1) % len(themes)
     var newTheme = themes[currentThemeIndex]
-    nimini_switchTheme(newTheme)
+    switchTheme(newTheme)
     return true
     
     # Pass key events to canvas system
@@ -115,13 +115,13 @@ You can switch themes at runtime using Nimini functions:
 
 ```nim
 # Get list of available themes
-var themes = nimini_getThemes()
+var themes = getThemes()
 
 # Switch to a specific theme
-nimini_switchTheme("nord")
+switchTheme("nord")
 
 # Get current theme name
-var current = nimini_getCurrentTheme()
+var current = getCurrentTheme()
 ```
 
 This enables:

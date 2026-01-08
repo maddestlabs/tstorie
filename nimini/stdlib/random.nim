@@ -17,7 +17,7 @@ proc setNiminiRng*(rng: ptr Rand) =
 # Isolated RNG Functions (New - for deterministic generation)
 # ------------------------------------------------------------------------------
 
-proc niminiInitRand*(env: ref Env; args: seq[Value]): Value =
+proc nimini_initRand*(env: ref Env; args: seq[Value]): Value =
   ## initRand(seed) - Create an isolated RNG instance with a seed
   ## Returns a Rand object that can be used with rand(), sample(), etc.
   if args.len != 1:
@@ -27,7 +27,7 @@ proc niminiInitRand*(env: ref Env; args: seq[Value]): Value =
   let rng = initRand(seed)
   return valRand(rng)
 
-proc niminiRandIsolated*(env: ref Env; args: seq[Value]): Value =
+proc nimini_randIsolated*(env: ref Env; args: seq[Value]): Value =
   ## rand(rng, max) - Generate random integer 0..max using isolated RNG
   ## rand(rng, min, max) - Generate random integer min..max using isolated RNG
   ## The first argument must be a var Rand parameter (will be mutated)
@@ -58,7 +58,7 @@ proc niminiRandIsolated*(env: ref Env; args: seq[Value]): Value =
     args[0].randState = rng
     return valInt(result)
 
-proc niminiRandFloatIsolated*(env: ref Env; args: seq[Value]): Value =
+proc nimini_randFloatIsolated*(env: ref Env; args: seq[Value]): Value =
   ## randFloat(rng) - Generate random float 0.0..1.0 using isolated RNG
   ## randFloat(rng, max) - Generate random float 0.0..max using isolated RNG
   if args.len < 1:
@@ -79,7 +79,7 @@ proc niminiRandFloatIsolated*(env: ref Env; args: seq[Value]): Value =
   args[0].randState = rng
   return valFloat(result)
 
-proc niminiSampleIsolated*(env: ref Env; args: seq[Value]): Value =
+proc nimini_sampleIsolated*(env: ref Env; args: seq[Value]): Value =
   ## sample(rng, seq) - Returns a random element from the array using isolated RNG
   if args.len < 2:
     quit "sample with isolated RNG requires 2 arguments (rng, seq)"
@@ -98,7 +98,7 @@ proc niminiSampleIsolated*(env: ref Env; args: seq[Value]): Value =
   args[0].randState = rng
   return args[1].arr[idx]
 
-proc niminiShuffleIsolated*(env: ref Env; args: seq[Value]): Value =
+proc nimini_shuffleIsolated*(env: ref Env; args: seq[Value]): Value =
   ## shuffle(rng, seq) - Randomly shuffles an array in-place using isolated RNG
   if args.len < 2:
     quit "shuffle with isolated RNG requires 2 arguments (rng, seq)"
@@ -128,7 +128,7 @@ proc niminiShuffleIsolated*(env: ref Env; args: seq[Value]): Value =
 # Global RNG Functions (Legacy - for backward compatibility)
 # ------------------------------------------------------------------------------
 
-proc niminiRandomize*(env: ref Env; args: seq[Value]): Value =
+proc nimini_randomize*(env: ref Env; args: seq[Value]): Value =
   ## randomize() or randomize(seed) - Initialize random number generator
   if niminiRngPtr.isNil:
     quit "Random number generator not initialized"
@@ -140,7 +140,7 @@ proc niminiRandomize*(env: ref Env; args: seq[Value]): Value =
     niminiRngPtr[] = initRand()
   return valNil()
 
-proc niminiRand*(env: ref Env; args: seq[Value]): Value =
+proc nimini_rand*(env: ref Env; args: seq[Value]): Value =
   ## rand(max) - Generate random integer 0..max (INCLUSIVE, matching Nim's std/random)
   ## rand(min, max) - Generate random integer min..max (INCLUSIVE, matching Nim's std/random)
   if niminiRngPtr.isNil:
@@ -160,7 +160,7 @@ proc niminiRand*(env: ref Env; args: seq[Value]): Value =
       return valInt(min)
     return valInt(rand(niminiRngPtr[], max - min) + min)  # Changed: removed -1 for inclusive
 
-proc niminiRandFloat*(env: ref Env; args: seq[Value]): Value =
+proc nimini_randFloat*(env: ref Env; args: seq[Value]): Value =
   ## randFloat() - Generate random float 0.0..1.0
   ## randFloat(max) - Generate random float 0.0..max
   if niminiRngPtr.isNil:
@@ -172,7 +172,7 @@ proc niminiRandFloat*(env: ref Env; args: seq[Value]): Value =
     let max = toFloat(args[0])
     return valFloat(rand(niminiRngPtr[], max))
 
-proc niminiSample*(env: ref Env; args: seq[Value]): Value =
+proc nimini_sample*(env: ref Env; args: seq[Value]): Value =
   ## sample(seq) - Returns a random element from the array
   if niminiRngPtr.isNil:
     quit "Random number generator not initialized"
@@ -189,11 +189,11 @@ proc niminiSample*(env: ref Env; args: seq[Value]): Value =
   let idx = rand(niminiRngPtr[], args[0].arr.len - 1)
   return args[0].arr[idx]
 
-proc niminiChoice*(env: ref Env; args: seq[Value]): Value =
+proc nimini_choice*(env: ref Env; args: seq[Value]): Value =
   ## choice(seq) - Alias for sample, returns a random element
   return niminiSample(env, args)
 
-proc niminiShuffle*(env: ref Env; args: seq[Value]): Value =
+proc nimini_shuffle*(env: ref Env; args: seq[Value]): Value =
   ## shuffle(seq) - Randomly shuffles an array in-place using Fisher-Yates
   if niminiRngPtr.isNil:
     quit "Random number generator not initialized"

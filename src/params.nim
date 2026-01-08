@@ -83,7 +83,7 @@ proc clearParams*() =
 # Nimini Script Functions (called from user scripts)
 # ================================================================
 
-proc niminiGetParam*(env: ref Env; args: seq[Value]): Value =
+proc nimini_getParam*(env: ref Env; args: seq[Value]): Value =
   ## getParam(name: string): string
   ## Returns URL parameter or command-line argument value
   ## Returns empty string if not found
@@ -101,7 +101,7 @@ proc niminiGetParam*(env: ref Env; args: seq[Value]): Value =
   
   return valString("")
 
-proc niminiHasParam*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hasParam*(env: ref Env; args: seq[Value]): Value =
   ## hasParam(name: string): bool
   ## Check if parameter exists
   if args.len < 1:
@@ -113,7 +113,7 @@ proc niminiHasParam*(env: ref Env; args: seq[Value]): Value =
   # Check runtime environment (unified for all platforms)
   return valBool(hasVarSafe(env, paramVar))
 
-proc niminiGetParamInt*(env: ref Env; args: seq[Value]): Value =
+proc nimini_getParamInt*(env: ref Env; args: seq[Value]): Value =
   ## getParamInt(name: string, default: int): int
   ## Returns parameter as integer, or default if not found or invalid
   if args.len < 2:

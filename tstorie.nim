@@ -12,6 +12,7 @@ import lib/storie_md          # Markdown parser (includes gEmbeddedFigletFonts)
 import lib/section_manager    # Section navigation and management (includes nimini bindings)
 import lib/layout             # Text layout utilities
 import lib/figlet             # FIGlet font rendering (for parsing and rendering)
+import lib/figlet_bindings    # FIGlet nimini bindings
 import lib/nimini_bridge      # Nimini API registration and bindings
 import lib/ascii_art_bindings # ASCII art nimini bindings
 import lib/ansi_art_bindings  # ANSI art nimini bindings

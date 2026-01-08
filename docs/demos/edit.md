@@ -88,7 +88,7 @@ proc refreshFileList() =
           i = i + 1
     i = i + 1
 
-refreshFileList()
+# refreshFileList()  # Commented out - may be causing initialization issues
 
 # Statistics
 var keyPressCount = 0
@@ -282,14 +282,8 @@ if event.type == "key":
       if len(saveFileName) > 0:
         saveFileName = substr(saveFileName, 0, len(saveFileName) - 2)
       return 1
-    else:
-      # Add character to filename
-      if len(key) == 1:
-        let c = key[0]
-        # Only allow alphanumeric, dash, underscore
-        if (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '-' or c == '_':
-          saveFileName = saveFileName & key
-      return 1
+    # Dialog is open but key not handled - block input to editor
+    return 0
   
   # Load dialog
   if showLoadDialog:
@@ -316,7 +310,8 @@ if event.type == "key":
         let loadUrl = "?content=browser:" & filename
         navigateTo(loadUrl)
         return 1
-    return 1
+    # Dialog is open but key not handled - block input to editor
+    return 0
   
   # Share dialog
   if showShareDialog:
@@ -325,7 +320,8 @@ if event.type == "key":
       shareUrl = ""
       statusMessage = "Share dialog closed"
       return 1
-    return 1
+    # Dialog is open but key not handled - block input to editor
+    return 0
   
   # Help dialog
   if showHelp:
@@ -333,7 +329,8 @@ if event.type == "key":
       showHelp = 0
       statusMessage = "Help closed"
       return 1
-    return 1
+    # Dialog is open but key not handled - block input to editor
+    return 0
   
   # ===== Global Shortcuts =====
   
@@ -403,6 +400,17 @@ if event.type == "key":
       statusMessage = "Tab inserted"
     elif keyCode == 46:
       statusMessage = "Character deleted forward"
+    elif keyCode == 37 or keyCode == 38 or keyCode == 39 or keyCode == 40:
+      let cursor = editorGetCursor(editor)
+      statusMessage = "Moved to line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
+    elif keyCode == 36:
+      statusMessage = "Moved to line start"
+    elif keyCode == 35:
+      statusMessage = "Moved to line end"
+    elif keyCode == 33:
+      statusMessage = "Scrolled up"
+    elif keyCode == 34:
+      statusMessage = "Scrolled down"
     
     return 1
   
@@ -412,9 +420,20 @@ if event.type == "key":
 # Text Input Handling
 # ===================================================================
 elif event.type == "text":
-  if showSaveDialog or showLoadDialog or showShareDialog or showHelp:
+  # Special handling for save dialog - allow alphanumeric input
+  if showSaveDialog:
+    if len(event.text) == 1:
+      let c = event.text[0]
+      # Only allow alphanumeric, dash, underscore
+      if (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '-' or c == '_':
+        saveFileName = saveFileName & event.text
+    return 1
+  
+  # Block text input for other dialogs
+  if showLoadDialog or showShareDialog or showHelp:
     return 0
   
+  # Normal editor text input
   let wasModified = editorIsModified(editor)
   editorInsertText(editor, event.text)
   

@@ -6,49 +6,51 @@ minHeight: 14
 theme: "futurism"
 hideHeadings: "true"
 hideSections: "true"
-
 # Border/Frame styles
-styles.lines.fg: "#ff00ff"
+styles.lines.fg: "#ffff00"
 styles.lines.bold: "true"
-
-# Status display (Morale, etc)
-styles.status.fg: "#00ffff"
-styles.status.bold: "true"
-
-# Accent/highlight
-styles.accent.fg: "#0ff4c6"
-styles.accent.bold: "true"
 ---
 
 ```nim on:init
+var frameStyle = getStyle("lines")
+var statusStyle = getStyle("fgPrimary")
+
 var crewMorale = 50
 var discovered_laundromat = false
 var met_elder = false
 var station_breached = false
 var aria_awakened = false
-var frameCounter = 0
 
 initCanvas(1)
 
-# Initialize rain particles using parallel arrays
-var rainX = []
-var rainY = []
-var rainPrevY = []
-var rainSpeed = []
-var rainIntensity = []
-var numRainParticles = 10
-var visibleRain = 1
+var rainLevel = 0.0
 
-# Create rain particles
-var i = 0
-while i < numRainParticles:
-  rainX = rainX + [randInt(80)]
-  var startY = randInt(24)
-  rainY = rainY + [startY]
-  rainPrevY = rainPrevY + [startY]
-  rainSpeed = rainSpeed + [1 + randInt(3)]
-  rainIntensity = rainIntensity + [20 + randInt(20)]
-  i = i + 1
+# Initialize rain particle system
+particleInit("bgRain", 200)
+particleInit("fgRain", 200)
+particleConfigureRain("bgRain", rainLevel)
+particleSetBackgroundFromStyle("bgRain", defaultStyle)
+particleSetDrawMode("bgRain", 1)  # pdmBackground - only change background, preserve text
+particleSetEmitterPos("bgRain", 0.0, 0.0)
+particleSetEmitterSize("bgRain", float(termWidth), 1.0)
+particleSetColorRange("bgRain", 10, 10, 10, 30, 30, 30)
+particleSetChars("bgRain", " ")
+particleSetVelocityRange("bgRain", 0.0, 90.0, 0.0, 200.0)
+particleSetLifeRange("bgRain", 2.0, 4.0)
+particleSetGravity("bgRain", 40.0)
+
+# Foreground rain
+
+particleConfigureRain("fgRain", rainLevel)
+particleSetBackgroundFromStyle("fgRain", defaultStyle)
+particleSetDrawMode("fgRain", 0)
+particleSetEmitterPos("fgRain", 0.0, 0.0)
+particleSetEmitterSize("fgRain", float(termWidth), 1.0)
+particleSetColorRange("fgRain", 20, 20, 20, 60, 60, 60)
+particleSetChars("fgRain", "....:|")
+particleSetVelocityRange("fgRain", 0.0, 90.0, 0.0, 200.0)
+particleSetLifeRange("fgRain", 2.0, 4.0)
+particleSetGravity("fgRain", 40.0)
 ```
 
 ```nim on:input
@@ -76,34 +78,17 @@ return false
 ```nim on:render
 clear()
 canvasRender()
-# Draw rain effect as background color changes
-var i = 0
-while i < visibleRain:
-  var px = rainX[i]
-  var py = rainY[i]
-  
-  # Draw rain particle with background color (will be overwritten by content where needed)
-  if px >= 0 and px < termWidth and py >= 0 and py < termHeight:
-    var intensity = rainIntensity[i]
-    var rainStyle = defaultStyle()
-    # Create a subtle blue-ish background tint for rain
-    rainStyle.bg = rgb(intensity, intensity, intensity)
-    draw(0, px, py, " ", rainStyle)
-  
-  i = i + 1
 
 # ═══ ASCII ART FRAME OVERLAY ═══
-var frameStyle = getStyle("lines")
-var statusStyle = getStyle("status")
-var locStyle = getStyle("location")
-
 # Title - Get current section name dynamically
 var section = getCurrentSection()
 var sectionTitle = section["title"]
 
 var titleDecorated = "-=| " & sectionTitle & " |=-"
 var titleLen = len(titleDecorated)
-draw(0, (termWidth / 2) - titleLen/2, 1, titleDecorated, statusStyle)
+draw(0, (termWidth / 2) - titleLen/2, 1, titleDecorated, frameStyle)
+
+draw(0, (termWidth / 2) - len(sectionTitle)/2, 1, sectionTitle, statusStyle)
 
 # Draw left and right borders
 var y = 0
@@ -112,38 +97,27 @@ var metrics = getSectionMetrics()
 
 var linx = metrics.x - 3
 
-draw(0, linx, metrics.y - 1, "○-|///////|", statusStyle)
-draw(0, linx, metrics.y, "|", statusStyle)
-draw(0, linx, metrics.y + 1, "|", statusStyle)
-draw(0, linx, metrics.y + 2, "|", statusStyle)
-draw(0, linx, metrics.y + 3, "|", statusStyle)
-draw(0, linx, metrics.y + 4, "●", statusStyle)
+draw(0, linx, metrics.y - 1, "○-|       |", frameStyle)
+draw(0, linx + 3, metrics.y - 1, "///////", statusStyle)
+draw(0, linx, metrics.y, "|", frameStyle)
+draw(0, linx, metrics.y + 1, "|", frameStyle)
+draw(0, linx, metrics.y + 2, "|", frameStyle)
+draw(0, linx, metrics.y + 3, "|", frameStyle)
+draw(0, linx, metrics.y + 4, "●", frameStyle)
 
 # Draw status info inside frame
 draw(0, 3, termHeight - 2, "> Morale: " & str(crewMorale) & "%", statusStyle)
+
+# Render rain particle system as background color changes
+particleRender("bgRain", 0)
+particleRender("fgRain", 0)
 ```
 
 ```nim on:update
-# Update rain particles
-frameCounter = frameCounter + 1
-
-var i = 0
-while i < numRainParticles:
-  # Save current position as previous
-  rainPrevY[i] = rainY[i]
-  
-  # Update position
-  rainY[i] = rainY[i] + rainSpeed[i]
-  
-  # Wrap around when particle goes off bottom
-  if rainY[i] >= termHeight:
-    rainY[i] = 0
-    rainPrevY[i] = 0
-    rainX[i] = randInt(termWidth)
-    rainIntensity[i] = 20 + randInt(60)
-  
-  i = i + 1
-
+# Calculate time delta (assuming ~60 FPS)
+var deltaTime = 0.016
+particleUpdate("bgRain", deltaTime)
+particleUpdate("fgRain", deltaTime)
 canvasUpdate()
 ```
 
@@ -217,7 +191,8 @@ Dax struggles to keep pace. His fever is rising.
 
 ```nim on:enter
 crewMorale = 35
-visibleRain = 4
+rainLevel = 5.0
+particleSetEmitRate("bgRain", rainLevel)
 ```
 
 # Day Two
@@ -230,12 +205,14 @@ Marta remarks quietly: "It always rains here."
 ⠀
 She's right. The rain feels permanent. Almost intentional.
 ⠀
-"Didn't you know? It always rains in Dystopia," she says.
+"Didn't you know? It always rains in Dystopia," Kess comments.
 ⠀
 - [Press on](#day_three)
 
 ```nim on:enter
-visibleRain = numRainParticles
+rainLevel = 30.0
+particleSetEmitRate("bgRain", rainLevel)
+particleSetEmitRate("fgRain", rainLevel - 20.0)
 ```
 
 # Day Three

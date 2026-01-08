@@ -110,6 +110,7 @@ type
     x*, y*: int
     width*, height*: int
     index*: int
+    navigable*: bool  # Whether this section can be navigated to
     actualVisualWidth*: int  # Actual visual width of rendered content (accounting for double-width chars)
     actualVisualHeight*: int  # Actual height of rendered content in lines
   
@@ -455,11 +456,34 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
   var sectionsInRow = 0
   
   for i, section in sections:
+    # Read width from metadata, default to gSectionWidth
+    var sectionWidth = gSectionWidth
+    if section.metadata.hasKey("width"):
+      try:
+        sectionWidth = parseInt(section.metadata["width"])
+      except:
+        discard
+    
+    # Read height from metadata, default to SECTION_HEIGHT
+    var sectionHeight = SECTION_HEIGHT
+    if section.metadata.hasKey("height"):
+      try:
+        sectionHeight = parseInt(section.metadata["height"])
+      except:
+        discard
+    
+    # Read navigable from metadata, default to true
+    var isNavigable = true
+    if section.metadata.hasKey("navigable"):
+      let navValue = section.metadata["navigable"].toLowerAscii()
+      isNavigable = navValue notin ["false", "no", "0"]
+    
     var layout = SectionLayout(
       section: section,
-      width: gSectionWidth,
-      height: SECTION_HEIGHT,
-      index: i
+      width: sectionWidth,
+      height: sectionHeight,
+      index: i,
+      navigable: isNavigable
     )
     
     # Check for custom x,y in metadata
@@ -478,7 +502,7 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
       layout.y = currentY
       sectionsInRow += 1
     
-    maxHeightInRow = max(maxHeightInRow, SECTION_HEIGHT)
+    maxHeightInRow = max(maxHeightInRow, sectionHeight)
     
     if sectionsInRow >= MAX_SECTIONS_PER_ROW:
       currentX = 0
@@ -486,7 +510,7 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
       maxHeightInRow = 0
       sectionsInRow = 0
     else:
-      currentX += gSectionWidth + SECTION_PADDING
+      currentX += sectionWidth + SECTION_PADDING
     
     result.add(layout)
 
@@ -509,6 +533,7 @@ proc getNextSectionAtLevel*(currentIdx: int, level: int, forward: bool = true): 
   ## Find next/previous section at specified heading level
   ## Returns -1 if no section found at that level
   ## Automatically skips Section 0 if it has no title (lifecycle hooks only)
+  ## Also skips non-navigable sections
   if canvasState.isNil or currentIdx < 0:
     return -1
   
@@ -518,6 +543,11 @@ proc getNextSectionAtLevel*(currentIdx: int, level: int, forward: bool = true): 
   while idx >= 0 and idx < canvasState.sections.len:
     # Skip Section 0 if it has no title (it's just lifecycle hooks/init code)
     if idx == 0 and canvasState.sections[0].section.title.len == 0:
+      idx += step
+      continue
+    
+    # Skip non-navigable sections
+    if not canvasState.sections[idx].navigable:
       idx += step
       continue
     
@@ -1516,7 +1546,7 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
       if canvasState.links.len > 0 and canvasState.focusedLinkIdx < canvasState.links.len:
         let link = canvasState.links[canvasState.focusedLinkIdx]
         let targetSection = findSectionByReference(link.target)
-        if targetSection.section.id != "":
+        if targetSection.section.id != "" and targetSection.navigable:
           navigateToSection(targetSection.index)
           return true
     
@@ -1526,7 +1556,7 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
       if linkNum < canvasState.links.len:
         let link = canvasState.links[linkNum]
         let targetSection = findSectionByReference(link.target)
-        if targetSection.section.id != "":
+        if targetSection.section.id != "" and targetSection.navigable:
           navigateToSection(targetSection.index)
           return true
     
@@ -1574,7 +1604,7 @@ proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
          mouseY == link.screenY:
         # Mouse clicked on this link - follow it
         let targetSection = findSectionByReference(link.target)
-        if targetSection.section.id != "":
+        if targetSection.section.id != "" and targetSection.navigable:
           navigateToSection(targetSection.index)
           return true
   

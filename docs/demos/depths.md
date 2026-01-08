@@ -32,26 +32,43 @@ var bgStyle = getStyle("default")
 var bgR = int(bgStyle.bg.r)
 var bgG = int(bgStyle.bg.g)
 var bgB = int(bgStyle.bg.b)
+var fgR = int(bgStyle.fg.r)
+var fgG = int(bgStyle.fg.g)
+var fgB = int(bgStyle.fg.b)
 
-particleInit("bugs", 50)  # Support up to 50 bug segments at once
+particleInit("bugs", 50)
 particleSetBackgroundColor("bugs", bgR, bgG, bgB)
 
-# Configure bugs for fast scurrying
-particleConfigureBugs("bugs", 0.0)  # Manual emission only
+# Configure base bug settings
+particleSetEmitRate("bugs", 0.0)  # Manual emission only
+particleSetChars("bugs", "o0@●")  # Bug head characters
+particleSetColorRange("bugs", fgR, fgG, fgB, fgR, fgG, fgB)  # Use theme foreground color
 
-# Enable trails for segmented bug bodies
+# Enable trails for segmented body
 particleSetTrailEnabled("bugs", true)
-particleSetTrailLength("bugs", 1)  # 5-segment centipedes
-particleSetTrailSpacing("bugs", 1.5)  # Tight segments
+particleSetTrailLength("bugs", 4)  # 4-segment body
+particleSetTrailSpacing("bugs", 0.8)  # Tight spacing
+particleSetTrailFade("bugs", false)  # Solid body segments
+particleSetTrailChars("bugs", "/\\.-|*")  # Random body segment chars
 
-# Fast horizontal velocities for scurrying across screen
-particleSetVelocityRange("bugs", -50.0, -15.0, 50.0, 10.0)  # Fast horizontal, slight vertical
+# Short lifetime - bugs disappear after crossing
+particleSetLifeRange("bugs", 3.0, 5.0)
 
-# Short lifetime so bugs disappear after crossing screen
-particleSetLifeRange("bugs", 2.0, 4.0)
+# Light turbulence for slight wobble
+particleSetTurbulence("bugs", 3.0)
+particleSetDamping("bugs", 0.98)
 
-# Increased turbulence for more erratic movement
-particleSetTurbulence("bugs",476.0)
+# Initialize bug splat particle system
+particleInit("splat", 50)  # More particles for bigger splats
+particleSetBackgroundColor("splat", bgR, bgG, bgB)
+particleSetEmitRate("splat", 0.0)  # Manual only
+particleSetChars("splat", "X*+#.:,`")  # Splat characters with debris
+particleSetColorRange("splat", fgR, fgG, fgB, fgR, fgG, fgB)  # Same color as bugs
+particleSetLifeRange("splat", 1.5, 2.5)  # Fade after 1.5-2.5 seconds
+particleSetFadeOut("splat", true)  # Fade to nothing
+particleSetVelocityRange("splat", -15.0, -15.0, 15.0, 15.0)  # Wider spread for debris
+particleSetGravity("splat", 0.0)
+particleSetDamping("splat", 0.75)  # Slow down quickly
 ```
 
 ```nim on:input
@@ -67,6 +84,13 @@ if event.type == "key":
 
 elif event.type == "mouse":
   if event.action == "press":
+    # Check if we clicked on a bug!
+    var hitBug = particleCheckHit("bugs", event.x, event.y, 2.0)
+    if hitBug:
+      # Spawn splat particles at click location
+      particleSetEmitterPos("splat", float(event.x), float(event.y))
+      particleEmit("splat", rand(10) + 12)  # 12-21 particles for bigger splat
+    
     # Pass mouse events to canvas system (only on press, not release)
     var handled = canvasHandleMouse(event.x, event.y, event.button, true)
     if handled:
@@ -82,6 +106,9 @@ canvasRender()
 
 # Render bugs behind text (layer 0 = behind canvas content)
 particleRender("bugs", 0)
+
+# Render splats on top of bugs but still behind text
+particleRender("splat", 0)
 
 # Top border with cracks
 var x = 0
@@ -181,29 +208,58 @@ canvasUpdate()
 # Update bug particles
 particleUpdate("bugs", deltaTime)
 
+# Update splat particles
+particleUpdate("splat", deltaTime)
+
 # Bug spawning timer
 bugTimer += deltaTime
 if bugTimer >= bugSpawnInterval:
   bugTimer = 0.0
   
-  # Randomly spawn from left or right edge
-  var spawnFromLeft = (rand(100) mod 2) == 0
-  var spawnY = float(rand(termHeight - 4) + 2)  # Avoid borders
+  # Randomly select which edge to spawn from (0=top, 1=right, 2=bottom, 3=left)
+  var edge = rand(4)
   
-  if spawnFromLeft:
-    # Spawn from left, moving right
-    particleSetEmitterPos("bugs", 1.0, spawnY)
-    particleSetVelocityRange("bugs", 20.0, -3.0, 35.0, 3.0)
-  else:
-    # Spawn from right, moving left
+  # Spawn position and velocity depend on edge
+  # Random arc direction for variety
+  var arcDir = float(rand(2) * 2 - 1)  # -1 or 1 (arc up or down)
+  var gravityStrength = 12.0 + float(rand(10))  # 12-21 for varied arc curves
+  
+  if edge == 0:
+    # Spawn from TOP edge, move downward with random arc
+    var spawnX = float(rand(termWidth - 4) + 2)
+    particleSetEmitterPos("bugs", spawnX, 1.0)
+    # Move down and either left or right
+    var horizontalDir = float(rand(3) - 1) * 40.0  # -40, 0, or 40
+    particleSetVelocityRange("bugs", horizontalDir - 15.0, 80.0, horizontalDir + 15.0, 80.0)
+    particleSetGravity("bugs", gravityStrength * arcDir)  # Random arc direction
+    
+  elif edge == 1:
+    # Spawn from RIGHT edge, move leftward with random arc
+    var spawnY = float(rand(termHeight - 4) + 2)
     particleSetEmitterPos("bugs", float(termWidth - 2), spawnY)
-    particleSetVelocityRange("bugs", -35.0, -3.0, -20.0, 3.0)
+    particleSetVelocityRange("bugs", -80.0, -15.0, -80.0, 15.0)
+    particleSetGravity("bugs", gravityStrength * arcDir)  # Random arc direction
+    
+  elif edge == 2:
+    # Spawn from BOTTOM edge, move upward with random arc
+    var spawnX = float(rand(termWidth - 4) + 2)
+    particleSetEmitterPos("bugs", spawnX, float(termHeight - 2))
+    var horizontalDir = float(rand(3) - 1) * 40.0
+    particleSetVelocityRange("bugs", horizontalDir - 15.0, -80.0, horizontalDir + 15.0, -80.0)
+    particleSetGravity("bugs", gravityStrength * arcDir)  # Random arc direction
+    
+  else:
+    # Spawn from LEFT edge, move rightward with random arc
+    var spawnY = float(rand(termHeight - 4) + 2)
+    particleSetEmitterPos("bugs", 1.0, spawnY)
+    particleSetVelocityRange("bugs", 80.0, -15.0, 80.0, 15.0)
+    particleSetGravity("bugs", gravityStrength * arcDir)  # Random arc direction
   
-  # Emit 1-2 bugs
-  particleEmit("bugs", rand(2) + 1)
+  # Emit 1 bug at a time for individual randomization
+  particleEmit("bugs", 1)
   
-  # Vary the interval slightly for more natural spawning
-  bugSpawnInterval = 2.5 + (float(rand(100)) / 100.0) * 2.0  # 2.5-4.5 seconds
+  # Vary spawn interval for natural randomness
+  bugSpawnInterval = 2.0 + (float(rand(100)) / 80.0) * 2.5  # 2.0-4.5 seconds
 ```
 
 # entrance

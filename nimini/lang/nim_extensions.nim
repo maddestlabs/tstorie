@@ -17,7 +17,7 @@
 ##   initRuntime()
 ##   registerNimini(myFunc)  # or use exportNiminiProcs macro
 
-import macros
+import macros, strutils
 import ../runtime
 
 template nimini*() {.pragma.}
@@ -50,5 +50,34 @@ macro exportNiminiProcs*(procs: varargs[untyped]): untyped =
   for prc in procs:
     let procName = $prc
     let nameStr = newLit(procName)
+    result.add quote do:
+      registerNative(`nameStr`, `prc`)
+
+macro exportNiminiProcsClean*(procs: varargs[untyped]): untyped =
+  ## Automatically register multiple procs with automatic prefix stripping.
+  ## 
+  ## If a proc name starts with "nimini_", the prefix is automatically removed
+  ## from the script-visible name.
+  ##
+  ## Usage:
+  ##   exportNiminiProcsClean(nimini_sin, nimini_cos, nimini_abs)
+  ##
+  ## This will register:
+  ##   - nimini_sin -> "sin"
+  ##   - nimini_cos -> "cos"
+  ##   - nimini_abs -> "abs"
+  ##
+  ## Functions without the prefix are registered as-is.
+  result = newStmtList()
+  
+  for prc in procs:
+    let procName = $prc
+    var scriptName = procName
+    
+    # Strip "nimini_" prefix if present
+    if scriptName.startsWith("nimini_"):
+      scriptName = scriptName[7..^1]  # Remove first 7 chars ("nimini_")
+    
+    let nameStr = newLit(scriptName)
     result.add quote do:
       registerNative(`nameStr`, `prc`)

@@ -3,7 +3,7 @@
 ## Exposes the native particle system to nimini scripting with a simple API.
 ## The system handles all iteration natively for maximum performance.
 
-import std/tables
+import std/[tables, math]
 import particles
 import ../nimini
 import ../src/types
@@ -270,6 +270,95 @@ proc particleSetTrailSpacing*(env: ref Env; args: seq[Value]): Value {.nimini.} 
     gParticleSystems[args[0].s].trailSpacing = args[1].f
   return valNil()
 
+proc particleSetTrailFade*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Enable/disable trail fading
+  ## Args: name (string), fade (bool)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].trailFade = args[1].b
+  return valNil()
+
+proc particleSetTrailChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set custom character set for trail segments
+  ## Args: name (string), chars (string) - each character becomes a possible trail segment
+  ## Example: particleSetTrailChars("sys", "·°˙")
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    let charsStr = args[1].s
+    var charSeq: seq[string] = @[]
+    for ch in charsStr:
+      charSeq.add($ch)
+    gParticleSystems[args[0].s].trailChars = charSeq
+  return valNil()
+
+proc particleCheckHit*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if there's an active particle near the given position and remove it
+  ## Args: name (string), x (int), y (int), radius (float, optional, default=1.0)
+  ## Returns: bool (true if hit and removed a particle)
+  if args.len < 3 or not gParticleSystems.hasKey(args[0].s):
+    return valBool(false)
+  
+  let name = args[0].s
+  let targetX = float(args[1].i)
+  let targetY = float(args[2].i)
+  let radius = if args.len >= 4: args[3].f else: 1.0
+  
+  let ps = gParticleSystems[name]
+  
+  # Check all active particles for proximity
+  for i in 0 ..< ps.maxParticles:
+    if not ps.particles[i].active:
+      continue
+    
+    # Calculate distance to target point
+    let dx = ps.particles[i].x - targetX
+    let dy = ps.particles[i].y - targetY
+    let dist = sqrt(dx * dx + dy * dy)
+    
+    # If within radius, deactivate particle and return true
+    if dist <= radius:
+      ps.particles[i].active = false
+      return valBool(true)
+  
+  return valBool(false)
+
+proc particleSetEmitterShape*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set emitter shape
+  ## Args: name (string), shape (int)
+  ##   0 = Point (single point)
+  ##   1 = Line (emit along a line)
+  ##   2 = Circle (emit from circle perimeter)
+  ##   3 = Rectangle (emit from rectangle edges)
+  ##   4 = Area (emit from filled area)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    let shape = args[1].i
+    if shape >= 0 and shape <= 4:
+      gParticleSystems[args[0].s].emitterShape = EmitterShape(shape)
+  return valNil()
+
+proc particleSetBounceElasticity*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set bounce elasticity (energy retained on bounce)
+  ## Args: name (string), elasticity (float, 0.0-1.0)
+  ##   0.0 = no bounce (all energy lost)
+  ##   1.0 = perfect bounce (no energy lost)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].bounceElasticity = args[1].f
+  return valNil()
+
+proc particleSetFadeOut*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Enable/disable particle fade out over lifetime
+  ## Args: name (string), fadeOut (bool)
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].fadeOut = args[1].b
+  return valNil()
+
+proc particleSetColorInterpolation*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Enable/disable color interpolation from colorMin to colorMax over lifetime
+  ## Args: name (string), interpolate (bool)
+  ## When enabled, particles transition from their spawn color to colorMax
+  ## Example: Fire particles going from red->orange->yellow
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    gParticleSystems[args[0].s].colorInterpolation = args[1].b
+  return valNil()
+
 proc particleSetDrawMode*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Set how particles affect cells they render to
   ## Args: name (string), mode (int)
@@ -424,9 +513,11 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleEmit"] = valNativeFunc(particleEmit)
   env.vars["particleClear"] = valNativeFunc(particleClear)
   env.vars["particleGetCount"] = valNativeFunc(particleGetCount)
+  env.vars["particleCheckHit"] = valNativeFunc(particleCheckHit)
   
   # Parameter setters
   env.vars["particleSetEmitterSize"] = valNativeFunc(particleSetEmitterSize)
+  env.vars["particleSetEmitterShape"] = valNativeFunc(particleSetEmitterShape)
   env.vars["particleSetGravity"] = valNativeFunc(particleSetGravity)
   env.vars["particleSetWind"] = valNativeFunc(particleSetWind)
   env.vars["particleSetTurbulence"] = valNativeFunc(particleSetTurbulence)
@@ -436,13 +527,18 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleSetVelocityRange"] = valNativeFunc(particleSetVelocityRange)
   env.vars["particleSetLifeRange"] = valNativeFunc(particleSetLifeRange)
   env.vars["particleSetCollision"] = valNativeFunc(particleSetCollision)
+  env.vars["particleSetBounceElasticity"] = valNativeFunc(particleSetBounceElasticity)
   env.vars["particleSetStickChar"] = valNativeFunc(particleSetStickChar)
   env.vars["particleSetChars"] = valNativeFunc(particleSetChars)
   env.vars["particleSetBackgroundColor"] = valNativeFunc(particleSetBackgroundColor)
   env.vars["particleSetColorRange"] = valNativeFunc(particleSetColorRange)
+  env.vars["particleSetColorInterpolation"] = valNativeFunc(particleSetColorInterpolation)
+  env.vars["particleSetFadeOut"] = valNativeFunc(particleSetFadeOut)
   env.vars["particleSetTrailEnabled"] = valNativeFunc(particleSetTrailEnabled)
   env.vars["particleSetTrailLength"] = valNativeFunc(particleSetTrailLength)
   env.vars["particleSetTrailSpacing"] = valNativeFunc(particleSetTrailSpacing)
+  env.vars["particleSetTrailFade"] = valNativeFunc(particleSetTrailFade)
+  env.vars["particleSetTrailChars"] = valNativeFunc(particleSetTrailChars)
   env.vars["particleSetDrawMode"] = valNativeFunc(particleSetDrawMode)
   env.vars["particleSetBackgroundFromStyle"] = valNativeFunc(particleSetBackgroundFromStyle)
   env.vars["particleSetForegroundFromStyle"] = valNativeFunc(particleSetForegroundFromStyle)

@@ -34,8 +34,20 @@ type
     frame*: int
     paused*: bool
     reduction*: int  # Resolution divisor (1=full, 2=half, 4=quarter)
+
+  DisplacementState* = ref object
+    effectId*: int
+    layerId*: int
+    x*, y*: int
+    width*, height*: int
+    frame*: int
+    paused*: bool
+    intensity*: float  # Displacement strength multiplier
+    speed*: float  # Animation speed multiplier (default 1.0)
+    amplitude*: float  # Base displacement amplitude (default 1.0, lower = subtler)
     
 var gShaderState*: ShaderState = nil
+var gDisplacementState*: DisplacementState = nil
 
 # ==============================================================================
 # CHARACTER DENSITY RAMPS
@@ -158,6 +170,9 @@ type
   ShaderFunc* = proc(x, y, time: int): ShaderPixel {.closure.}
     ## A shader function takes position (x, y) and time, returns a pixel
 
+  DisplacementFunc* = proc(x, y, time: int): (float, float) {.closure.}
+    ## A displacement function takes position and time, returns (dx, dy) offset
+
 # ==============================================================================
 # DISTANCE FIELD UTILITIES
 # ==============================================================================
@@ -179,6 +194,134 @@ proc distManhattan*(x1, y1, x2, y2: int): int =
 proc distChebyshev*(x1, y1, x2, y2: int): int =
   ## Chebyshev distance (chessboard)
   max(abs(x1 - x2), abs(y1 - y2))
+
+# ==============================================================================
+# DISPLACEMENT EFFECTS
+# ==============================================================================
+
+proc waveDisplacement*(amplitude: float = 2.0, frequency: float = 0.2, 
+                       speed: float = 0.1, vertical: bool = false): DisplacementFunc =
+  ## Sine wave displacement - creates a wave effect
+  ## amplitude: How far pixels move (in cells)
+  ## frequency: Wave frequency (higher = more waves)
+  ## speed: Animation speed
+  ## vertical: If true, wave moves vertically; otherwise horizontally
+  result = proc(x, y, time: int): (float, float) =
+    if vertical:
+      let wave = sin(float(x) * frequency + float(time) * speed)
+      (0.0, wave * amplitude)
+    else:
+      let wave = sin(float(y) * frequency + float(time) * speed)
+      (wave * amplitude, 0.0)
+
+proc rippleDisplacement*(centerX, centerY: int, amplitude: float = 2.0,
+                         frequency: float = 0.3, speed: float = 0.1): DisplacementFunc =
+  ## Radial ripple displacement - creates water ripple effect
+  result = proc(x, y, time: int): (float, float) =
+    let dx = float(x - centerX)
+    let dy = float(y - centerY)
+    let distance = sqrt(dx * dx + dy * dy)
+    
+    if distance < 0.1:
+      return (0.0, 0.0)
+    
+    let wave = sin(distance * frequency - float(time) * speed)
+    let strength = wave * amplitude / distance
+    
+    (dx * strength, dy * strength)
+
+proc noiseDisplacement*(scale: int = 20, amplitude: float = 1.5, 
+                        seed: int = 42, animateX: bool = true, 
+                        animateY: bool = true): DisplacementFunc =
+  ## Noise-based displacement - creates organic distortion
+  result = proc(x, y, time: int): (float, float) =
+    let t = time div 5
+    let noiseX = if animateX: fractalNoise2D(x + t, y, 3, scale, seed) else: 
+                              fractalNoise2D(x, y, 3, scale, seed)
+    let noiseY = if animateY: fractalNoise2D(x, y + t, 3, scale, seed + 1000) else:
+                              fractalNoise2D(x, y, 3, scale, seed + 1000)
+    
+    let dx = (float(noiseX) / 32768.0 - 1.0) * amplitude
+    let dy = (float(noiseY) / 32768.0 - 1.0) * amplitude
+    (dx, dy)
+
+proc heatHazeDisplacement*(amplitude: float = 1.0, frequency: float = 0.3,
+                           speed: float = 0.08, seed: int = 42): DisplacementFunc =
+  ## Heat haze effect - wavy vertical distortion like hot air
+  result = proc(x, y, time: int): (float, float) =
+    let noise = float(intHash2D(x div 3, time div 10, seed)) / 65536.0
+    let wave = sin(float(y) * frequency + float(time) * speed + noise * 10.0)
+    let dx = wave * amplitude
+    let dy = noise * amplitude * 0.3
+    (dx, dy)
+
+proc swirlDisplacement*(centerX, centerY: int, strength: float = 0.5,
+                        radius: float = 20.0): DisplacementFunc =
+  ## Swirl/vortex displacement - rotates pixels around center
+  result = proc(x, y, time: int): (float, float) =
+    let dx = float(x - centerX)
+    let dy = float(y - centerY)
+    let distance = sqrt(dx * dx + dy * dy)
+    
+    if distance > radius or distance < 0.1:
+      return (0.0, 0.0)
+    
+    let angle = float(time) * 0.05 * strength * (1.0 - distance / radius)
+    let cosA = cos(angle)
+    let sinA = sin(angle)
+    
+    let rotX = dx * cosA - dy * sinA
+    let rotY = dx * sinA + dy * cosA
+    
+    (rotX - dx, rotY - dy)
+
+proc fisheyeDisplacement*(centerX, centerY: int, strength: float = 0.3,
+                          radius: float = 30.0): DisplacementFunc =
+  ## Fisheye lens distortion
+  result = proc(x, y, time: int): (float, float) =
+    let dx = float(x - centerX)
+    let dy = float(y - centerY)
+    let distance = sqrt(dx * dx + dy * dy)
+    
+    if distance > radius or distance < 0.1:
+      return (0.0, 0.0)
+    
+    let amount = strength * (1.0 - distance / radius)
+    let scale = 1.0 + amount
+    
+    (dx * scale - dx, dy * scale - dy)
+
+proc bulgeDisplacement*(centerX, centerY: int, strength: float = 0.5,
+                        radius: float = 15.0, time: int = 0): DisplacementFunc =
+  ## Bulge/pinch effect - can be animated by passing time
+  result = proc(x, y, t: int): (float, float) =
+    let dx = float(x - centerX)
+    let dy = float(y - centerY)
+    let distance = sqrt(dx * dx + dy * dy)
+    
+    if distance > radius or distance < 0.1:
+      return (0.0, 0.0)
+    
+    let pulse = if time > 0: (1.0 + sin(float(t) * 0.1) * 0.3) else: 1.0
+    let amount = strength * pulse * (1.0 - distance / radius) * (1.0 - distance / radius)
+    
+    (dx * amount, dy * amount)
+
+proc scrollDisplacement*(dx: float = 0.0, dy: float = 0.0): DisplacementFunc =
+  ## Simple scroll/offset - useful for parallax effects
+  result = proc(x, y, time: int): (float, float) =
+    (dx * float(time) * 0.1, dy * float(time) * 0.1)
+
+proc multiDisplacement*(displacements: varargs[DisplacementFunc]): DisplacementFunc =
+  ## Combine multiple displacement effects additively
+  result = proc(x, y, time: int): (float, float) =
+    var totalDx = 0.0
+    var totalDy = 0.0
+    for disp in displacements:
+      let (dx, dy) = disp(x, y, time)
+      totalDx += dx
+      totalDy += dy
+    (totalDx, totalDy)
 
 # ==============================================================================
 # CORE SHADER EFFECTS
@@ -648,6 +791,243 @@ proc renderMatrixRain*(buffer: var TermBuffer, x, y, width, height, frame: int,
               buffer.write(x + col * r + dx, y + row * r + dy, " ", style)
 
 # ==============================================================================
+# DISPLACEMENT RENDERING
+# ==============================================================================
+
+proc applyDisplacement*(destBuffer: var TermBuffer, sourceBuffer: TermBuffer,
+                        x, y, width, height: int,
+                        displacement: DisplacementFunc,
+                        time: int,
+                        intensity: float = 1.0,
+                        clampEdges: bool = true) =
+  ## Apply displacement effect to buffer contents
+  ## Reads from sourceBuffer and writes displaced content to destBuffer
+  ## 
+  ## Parameters:
+  ##   destBuffer: Target buffer to write to
+  ##   sourceBuffer: Source buffer to read from
+  ##   x, y: Top-left corner of region
+  ##   width, height: Size of region
+  ##   displacement: Displacement function
+  ##   time: Animation frame
+  ##   intensity: Multiplier for displacement strength (0.0 to 1.0+)
+  ##   clampEdges: If true, clamp to edges; if false, wrap around
+  
+  for row in 0..<height:
+    for col in 0..<width:
+      let screenX = x + col
+      let screenY = y + row
+      
+      # Calculate displacement
+      let (rawDx, rawDy) = displacement(col, row, time)
+      let dx = rawDx * intensity
+      let dy = rawDy * intensity
+      
+      # Source position (with displacement)
+      let srcX = col + int(dx)
+      let srcY = row + int(dy)
+      
+      # Handle bounds
+      var finalSrcX = srcX
+      var finalSrcY = srcY
+      
+      if clampEdges:
+        finalSrcX = clamp(srcX, 0, width - 1)
+        finalSrcY = clamp(srcY, 0, height - 1)
+      else:
+        # Wrap around
+        finalSrcX = ((srcX mod width) + width) mod width
+        finalSrcY = ((srcY mod height) + height) mod height
+      
+      # Read from source buffer (relative to region)
+      let srcScreenX = x + finalSrcX
+      let srcScreenY = y + finalSrcY
+      
+      # Bounds check for source buffer
+      if srcScreenX >= 0 and srcScreenX < sourceBuffer.width and
+         srcScreenY >= 0 and srcScreenY < sourceBuffer.height:
+        let srcCell = sourceBuffer.getCell(srcScreenX, srcScreenY)
+        # Write to destination
+        destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+
+proc applyDisplacementInPlace*(buffer: var TermBuffer,
+                               x, y, width, height: int,
+                               displacement: DisplacementFunc,
+                               time: int,
+                               intensity: float = 1.0) =
+  ## Apply displacement effect in-place (creates temporary copy)
+  ## Less efficient but more convenient for simple cases
+  
+  # Create temporary buffer with just the region we need
+  var tempBuffer = newTermBuffer(width, height)
+  
+  # Copy region to temp buffer
+  for row in 0..<height:
+    for col in 0..<width:
+      let cell = buffer.getCell(x + col, y + row)
+      tempBuffer.write(col, row, cell.ch, cell.style)
+  
+  # Apply displacement from temp buffer back to original
+  for row in 0..<height:
+    for col in 0..<width:
+      let screenX = x + col
+      let screenY = y + row
+      
+      let (rawDx, rawDy) = displacement(col, row, time)
+      let dx = rawDx * intensity
+      let dy = rawDy * intensity
+      
+      let srcX = clamp(col + int(dx), 0, width - 1)
+      let srcY = clamp(row + int(dy), 0, height - 1)
+      
+      let srcCell = tempBuffer.getCell(srcX, srcY)
+      buffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+
+proc applyDisplacementFromLayer*(destBuffer: var TermBuffer, 
+                                  sourceBuffer: TermBuffer,
+                                  displacementBuffer: TermBuffer,
+                                  x, y, width, height: int,
+                                  strength: float = 1.0,
+                                  mode: int = 0) =
+  ## Apply displacement using another layer's content as displacement map
+  ## 
+  ## The brightness/intensity of cells in displacementBuffer determines how much
+  ## to displace the content from sourceBuffer when writing to destBuffer.
+  ## 
+  ## Parameters:
+  ##   destBuffer: Target buffer to write displaced content to
+  ##   sourceBuffer: Source buffer to read content from
+  ##   displacementBuffer: Buffer whose content drives the displacement
+  ##   x, y: Top-left corner of region
+  ##   width, height: Size of region
+  ##   strength: Multiplier for displacement amount (0.0 to 1.0+)
+  ##   mode: 0=vertical displacement, 1=radial, 2=horizontal, 3=both axes
+  
+  for row in 0..<height:
+    for col in 0..<width:
+      let screenX = x + col
+      let screenY = y + row
+      
+      # Sample displacement buffer to get intensity at this position
+      if screenX >= 0 and screenX < displacementBuffer.width and
+         screenY >= 0 and screenY < displacementBuffer.height:
+        let dispCell = displacementBuffer.getCell(screenX, screenY)
+        
+        # Calculate luminance from color (0-255)
+        # Only displace where there's visible content
+        let luminance = if dispCell.ch == " ": 
+          0
+        else:
+          (int(dispCell.style.fg.r) + int(dispCell.style.fg.g) + int(dispCell.style.fg.b)) div 3
+        
+        if luminance > 10:  # Threshold to avoid displacing on dark/empty areas
+          # Normalize luminance to 0.0-1.0
+          let intensity = float(luminance) / 255.0
+          
+          # Calculate displacement based on mode
+          var dx = 0.0
+          var dy = 0.0
+          
+          case mode
+          of 0:  # Vertical displacement (like rain falling)
+            dy = intensity * strength * 3.0
+          of 1:  # Radial displacement from center
+            let centerX = width div 2
+            let centerY = height div 2
+            let dirX = float(col - centerX)
+            let dirY = float(row - centerY)
+            let dist = sqrt(dirX * dirX + dirY * dirY)
+            if dist > 0.1:
+              dx = (dirX / dist) * intensity * strength * 2.0
+              dy = (dirY / dist) * intensity * strength * 2.0
+          of 2:  # Horizontal displacement
+            dx = intensity * strength * 3.0
+          of 3:  # Both axes (creates a ripple-like effect)
+            dx = intensity * strength * 2.0
+            dy = intensity * strength * 2.0
+          else:
+            dy = intensity * strength * 3.0
+          
+          # Sample from source with displacement
+          let srcX = clamp(col + int(dx), 0, width - 1)
+          let srcY = clamp(row + int(dy), 0, height - 1)
+          let srcScreenX = x + srcX
+          let srcScreenY = y + srcY
+          
+          if srcScreenX >= 0 and srcScreenX < sourceBuffer.width and
+             srcScreenY >= 0 and srcScreenY < sourceBuffer.height:
+            let srcCell = sourceBuffer.getCell(srcScreenX, srcScreenY)
+            destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+        else:
+          # No displacement, copy directly
+          if screenX >= 0 and screenX < sourceBuffer.width and
+             screenY >= 0 and screenY < sourceBuffer.height:
+            let srcCell = sourceBuffer.getCell(screenX, screenY)
+            destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+  ##   x, y: Top-left corner of region
+  ##   width, height: Size of region
+  ##   strength: Displacement strength multiplier (typical: 0.5 to 2.0)
+  ##   mode: Displacement mode (0=radial, 1=horizontal, 2=vertical, 3=both)
+  
+  for row in 0..<height:
+    for col in 0..<width:
+      let screenX = x + col
+      let screenY = y + row
+      
+      # Sample displacement map cell
+      if screenX >= 0 and screenX < displacementBuffer.width and
+         screenY >= 0 and screenY < displacementBuffer.height:
+        let dispCell = displacementBuffer.getCell(screenX, screenY)
+        
+        # Calculate brightness from RGB (simple average)
+        let brightness = float(int(dispCell.style.fg.r) + 
+                               int(dispCell.style.fg.g) + 
+                               int(dispCell.style.fg.b)) / 3.0
+        
+        # Normalize to 0..1 range
+        let intensity = brightness / 255.0
+        
+        # Only displace if there's visible content (not just space)
+        var dx = 0.0
+        var dy = 0.0
+        
+        if dispCell.ch != " " and intensity > 0.1:
+          # Calculate displacement based on mode
+          case mode
+          of 0: # Radial - push away from bright spots
+            let centerX = width / 2
+            let centerY = height / 2
+            let dirX = float(col) - centerX
+            let dirY = float(row) - centerY
+            let dist = sqrt(dirX * dirX + dirY * dirY)
+            if dist > 0.1:
+              dx = (dirX / dist) * intensity * strength
+              dy = (dirY / dist) * intensity * strength
+          of 1: # Horizontal only
+            dx = (intensity - 0.5) * strength * 2.0
+          of 2: # Vertical only
+            dy = (intensity - 0.5) * strength * 2.0
+          of 3: # Both directions (push outward from cell)
+            # Use position within cell for direction
+            dx = (intensity - 0.5) * strength
+            dy = (intensity - 0.5) * strength
+          else:
+            discard
+        
+        # Apply displacement
+        let srcX = clamp(col + int(dx), 0, width - 1)
+        let srcY = clamp(row + int(dy), 0, height - 1)
+        
+        # Read from source buffer
+        let srcScreenX = x + srcX
+        let srcScreenY = y + srcY
+        
+        if srcScreenX >= 0 and srcScreenX < sourceBuffer.width and
+           srcScreenY >= 0 and srcScreenY < sourceBuffer.height:
+          let srcCell = sourceBuffer.getCell(srcScreenX, srcScreenY)
+          destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+
+# ==============================================================================
 # HIGH-LEVEL API FOR NIMINI
 # ==============================================================================
 
@@ -731,6 +1111,184 @@ proc drawShader*(buffer: var TermBuffer) =
                      reduction = r)
   else:
     discard
+
+# ==============================================================================
+# DISPLACEMENT API FOR NIMINI
+# ==============================================================================
+
+proc initDisplacement*(effectId: int, layerId: int, x, y, width, height: int, 
+                       intensity: float = 1.0, speed: float = 1.0, amplitude: float = 1.0) =
+  ## Initialize displacement effect state
+  ## effectId: Which displacement effect to use (0=wave, 1=ripple, 2=noise, etc.)
+  ## intensity: Displacement strength multiplier (0.0 to 1.0+)
+  ## speed: Animation speed multiplier (default 1.0, lower = slower)
+  ## amplitude: Base displacement amount in cells (default 1.0, try 0.1-0.3 for subtle)
+  gDisplacementState = DisplacementState(
+    effectId: effectId,
+    layerId: layerId,
+    x: x,
+    y: y,
+    width: width,
+    height: height,
+    frame: 0,
+    paused: false,
+    intensity: intensity,
+    speed: speed,
+    amplitude: amplitude
+  )
+
+proc updateDisplacement*() =
+  ## Update displacement animation (call in on:update)
+  if gDisplacementState != nil and not gDisplacementState.paused:
+    gDisplacementState.frame += 1
+
+proc pauseDisplacement*() =
+  ## Pause displacement animation
+  if gDisplacementState != nil:
+    gDisplacementState.paused = true
+
+proc resumeDisplacement*() =
+  ## Resume displacement animation
+  if gDisplacementState != nil:
+    gDisplacementState.paused = false
+
+proc resetDisplacement*() =
+  ## Reset displacement to frame 0
+  if gDisplacementState != nil:
+    gDisplacementState.frame = 0
+
+proc setDisplacementEffect*(effectId: int) =
+  ## Change displacement effect
+  if gDisplacementState != nil:
+    gDisplacementState.effectId = effectId
+    gDisplacementState.frame = 0
+
+proc setDisplacementIntensity*(intensity: float) =
+  ## Change displacement intensity
+  if gDisplacementState != nil:
+    gDisplacementState.intensity = intensity
+
+proc setDisplacementSpeed*(speed: float) =
+  ## Change displacement animation speed (1.0 = normal, 0.5 = half speed, 2.0 = double speed)
+  if gDisplacementState != nil:
+    gDisplacementState.speed = speed
+
+proc setDisplacementAmplitude*(amplitude: float) =
+  ## Change displacement amplitude (1.0 = normal, 0.3 = subtle, 0.1 = very subtle)
+  if gDisplacementState != nil:
+    gDisplacementState.amplitude = amplitude
+
+proc drawDisplacement*(buffer, sourceBuffer: var TermBuffer) =
+  ## Apply current displacement effect to buffer (call in on:render)
+  ## Reads from sourceBuffer and writes displaced content to buffer
+  if gDisplacementState == nil:
+    return
+  
+  var displacement: DisplacementFunc
+  
+  # Scale frame by speed for animation control
+  let scaledFrame = int(float(gDisplacementState.frame) * gDisplacementState.speed)
+  
+  case gDisplacementState.effectId
+  of 0: # Horizontal wave
+    displacement = waveDisplacement(amplitude = 2.0 * gDisplacementState.amplitude, frequency = 0.2, speed = 0.1, vertical = false)
+  of 1: # Vertical wave
+    displacement = waveDisplacement(amplitude = 2.0 * gDisplacementState.amplitude, frequency = 0.2, speed = 0.1, vertical = true)
+  of 2: # Ripple (center)
+    displacement = rippleDisplacement(
+      gDisplacementState.width div 2, 
+      gDisplacementState.height div 2,
+      amplitude = 2.0 * gDisplacementState.amplitude, frequency = 0.3, speed = 0.1
+    )
+  of 3: # Noise distortion
+    displacement = noiseDisplacement(scale = 20, amplitude = 1.5 * gDisplacementState.amplitude)
+  of 4: # Heat haze
+    displacement = heatHazeDisplacement(amplitude = 1.0 * gDisplacementState.amplitude, frequency = 0.3, speed = 0.08)
+  of 5: # Swirl (center)
+    displacement = swirlDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      strength = 0.5 * gDisplacementState.amplitude, radius = 20.0
+    )
+  of 6: # Fisheye (center)
+    displacement = fisheyeDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      strength = 0.3 * gDisplacementState.amplitude, radius = 30.0
+    )
+  of 7: # Bulge (center, animated)
+    displacement = bulgeDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      strength = 0.5 * gDisplacementState.amplitude, radius = 15.0, time = scaledFrame
+    )
+  else:
+    return  # Unknown effect
+  
+  applyDisplacement(
+    buffer, sourceBuffer,
+    gDisplacementState.x, gDisplacementState.y,
+    gDisplacementState.width, gDisplacementState.height,
+    displacement,
+    scaledFrame,
+    gDisplacementState.intensity
+  )
+
+proc drawDisplacementInPlace*(buffer: var TermBuffer) =
+  ## Apply current displacement effect in-place (call in on:render)
+  ## Creates temporary buffer - less efficient but more convenient
+  if gDisplacementState == nil:
+    return
+  
+  # Scale frame by speed for animation control
+  let scaledFrame = int(float(gDisplacementState.frame) * gDisplacementState.speed)
+  
+  var displacement: DisplacementFunc
+  
+  case gDisplacementState.effectId
+  of 0: # Horizontal wave
+    displacement = waveDisplacement(amplitude = 2.0 * gDisplacementState.amplitude, frequency = 0.2, speed = 0.1, vertical = false)
+  of 1: # Vertical wave
+    displacement = waveDisplacement(amplitude = 2.0 * gDisplacementState.amplitude, frequency = 0.2, speed = 0.1, vertical = true)
+  of 2: # Ripple
+    displacement = rippleDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      amplitude = 2.0 * gDisplacementState.amplitude, frequency = 0.3, speed = 0.1
+    )
+  of 3: # Noise
+    displacement = noiseDisplacement(scale = 20, amplitude = 1.5 * gDisplacementState.amplitude)
+  of 4: # Heat haze
+    displacement = heatHazeDisplacement(amplitude = 1.0 * gDisplacementState.amplitude, frequency = 0.3, speed = 0.08)
+  of 5: # Swirl
+    displacement = swirlDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      strength = 0.5 * gDisplacementState.amplitude, radius = 20.0
+    )
+  of 6: # Fisheye
+    displacement = fisheyeDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      strength = 0.3 * gDisplacementState.amplitude, radius = 30.0
+    )
+  of 7: # Bulge (animated)
+    displacement = bulgeDisplacement(
+      gDisplacementState.width div 2,
+      gDisplacementState.height div 2,
+      strength = 0.5 * gDisplacementState.amplitude, radius = 15.0, time = scaledFrame
+    )
+  else:
+    return
+  
+  applyDisplacementInPlace(
+    buffer,
+    gDisplacementState.x, gDisplacementState.y,
+    gDisplacementState.width, gDisplacementState.height,
+    displacement,
+    scaledFrame,
+    gDisplacementState.intensity
+  )
 
 # ==============================================================================
 # LEGACY UTILITY FUNCTIONS

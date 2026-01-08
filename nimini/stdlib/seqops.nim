@@ -4,7 +4,7 @@
 import ../runtime
 
 # Create a new sequence with given size
-proc niminiNewSeq*(env: ref Env; args: seq[Value]): Value =
+proc nimini_newSeq*(env: ref Env; args: seq[Value]): Value =
   ## newSeq[T](size: int) - Creates a new sequence of given size
   if args.len < 1:
     quit "newSeq requires at least 1 argument (size)"
@@ -17,7 +17,7 @@ proc niminiNewSeq*(env: ref Env; args: seq[Value]): Value =
   return Value(kind: vkArray, arr: arr)
 
 # Set the length of a sequence
-proc niminiSetLen*(env: ref Env; args: seq[Value]): Value =
+proc nimini_setLen*(env: ref Env; args: seq[Value]): Value =
   ## setLen(seq, newLen: int) - Resizes a sequence
   if args.len < 2:
     quit "setLen requires 2 arguments (seq, newLen)"
@@ -39,7 +39,7 @@ proc niminiSetLen*(env: ref Env; args: seq[Value]): Value =
   return valNil()
 
 # Get the length of a sequence
-proc niminiLen*(env: ref Env; args: seq[Value]): Value =
+proc nimini_len*(env: ref Env; args: seq[Value]): Value =
   ## len(seq) - Returns the length of a sequence or string
   if args.len < 1:
     quit "len requires 1 argument"
@@ -53,7 +53,7 @@ proc niminiLen*(env: ref Env; args: seq[Value]): Value =
     quit "len requires an array or string"
 
 # Add element to sequence
-proc niminiAdd*(env: ref Env; args: seq[Value]): Value =
+proc nimini_add*(env: ref Env; args: seq[Value]): Value =
   ## add(seq, elem) - Adds an element to the end of a sequence
   if args.len < 2:
     quit "add requires 2 arguments (seq, elem)"
@@ -65,7 +65,7 @@ proc niminiAdd*(env: ref Env; args: seq[Value]): Value =
   return valNil()
 
 # Delete element from sequence
-proc niminiDelete*(env: ref Env; args: seq[Value]): Value =
+proc nimini_delete*(env: ref Env; args: seq[Value]): Value =
   ## delete(seq, index) - Deletes an element at the given index
   if args.len < 2:
     quit "delete requires 2 arguments (seq, index)"
@@ -81,7 +81,7 @@ proc niminiDelete*(env: ref Env; args: seq[Value]): Value =
   return valNil()
 
 # Insert element into sequence
-proc niminiInsert*(env: ref Env; args: seq[Value]): Value =
+proc nimini_insert*(env: ref Env; args: seq[Value]): Value =
   ## insert(seq, elem, index) - Inserts an element at the given index
   if args.len < 3:
     quit "insert requires 3 arguments (seq, elem, index)"
@@ -97,7 +97,7 @@ proc niminiInsert*(env: ref Env; args: seq[Value]): Value =
   return valNil()
 
 # Pop element from end of array (like stack)
-proc niminiPop*(env: ref Env; args: seq[Value]): Value =
+proc nimini_pop*(env: ref Env; args: seq[Value]): Value =
   ## pop(seq) - Removes and returns the last element
   if args.len < 1:
     quit "pop requires 1 argument (seq)"
@@ -113,7 +113,7 @@ proc niminiPop*(env: ref Env; args: seq[Value]): Value =
   return item
 
 # Reverse array in-place
-proc niminiReverse*(env: ref Env; args: seq[Value]): Value =
+proc nimini_reverse*(env: ref Env; args: seq[Value]): Value =
   ## reverse(seq) - Reverses an array in-place
   if args.len < 1:
     quit "reverse requires 1 argument (seq)"
@@ -131,7 +131,7 @@ proc niminiReverse*(env: ref Env; args: seq[Value]): Value =
   return valNil()
 
 # Check if array contains element
-proc niminiContains*(env: ref Env; args: seq[Value]): Value =
+proc nimini_contains*(env: ref Env; args: seq[Value]): Value =
   ## contains(seq, item) - Checks if array contains an item
   if args.len < 2:
     quit "contains requires 2 arguments (seq, item)"
@@ -148,7 +148,7 @@ proc niminiContains*(env: ref Env; args: seq[Value]): Value =
   return valBool(false)
 
 # Find index of element
-proc niminiFindIndex*(env: ref Env; args: seq[Value]): Value =
+proc nimini_findIndex*(env: ref Env; args: seq[Value]): Value =
   ## find(seq, item) - Returns the index of item in array, or -1 if not found
   if args.len < 2:
     quit "find requires 2 arguments (seq, item)"

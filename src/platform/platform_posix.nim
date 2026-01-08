@@ -63,14 +63,15 @@ proc clearScreen*() =
   stdout.flushFile()
 
 proc enableMouseReporting*() =
-  ## Enable SGR mouse reporting mode (1006)
-  ## This provides better mouse coordinate reporting
-  stdout.write("\e[?1006h\e[?1000h")
+  ## Enable SGR mouse reporting mode (1006) with motion tracking (1003)
+  ## 1006 = SGR format for better coordinate reporting
+  ## 1003 = Report all mouse motion (movement + buttons)
+  stdout.write("\e[?1006h\e[?1003h")
   stdout.flushFile()
 
 proc disableMouseReporting*() =
   ## Disable mouse reporting
-  stdout.write("\e[?1006l\e[?1000l")
+  stdout.write("\e[?1006l\e[?1003l")
   stdout.flushFile()
 
 proc enableKeyboardProtocol*() =

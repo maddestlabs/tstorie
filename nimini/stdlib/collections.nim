@@ -10,12 +10,12 @@ import std/tables
 # In Nimini runtime, we represent a HashSet as a map with keys and dummy values
 # The presence of a key indicates membership in the set
 
-proc niminiNewHashSet*(env: ref Env; args: seq[Value]): Value =
+proc nimini_newHashSet*(env: ref Env; args: seq[Value]): Value =
   ## newHashSet() - Creates a new empty hash set
   ## In runtime, represented as a map where keys are set members
   return Value(kind: vkMap, map: initTable[string, Value]())
 
-proc niminiHashSetIncl*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hashSetIncl*(env: ref Env; args: seq[Value]): Value =
   ## incl(set, item) - Includes an item in the hash set
   if args.len < 2:
     quit "incl requires 2 arguments (set, item)"
@@ -29,7 +29,7 @@ proc niminiHashSetIncl*(env: ref Env; args: seq[Value]): Value =
   
   return valNil()
 
-proc niminiHashSetExcl*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hashSetExcl*(env: ref Env; args: seq[Value]): Value =
   ## excl(set, item) - Excludes an item from the hash set
   if args.len < 2:
     quit "excl requires 2 arguments (set, item)"
@@ -42,7 +42,7 @@ proc niminiHashSetExcl*(env: ref Env; args: seq[Value]): Value =
   
   return valNil()
 
-proc niminiHashSetContains*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hashSetContains*(env: ref Env; args: seq[Value]): Value =
   ## contains(set, item) - Checks if item is in the hash set
   ## Can also be used as: item in set
   if args.len < 2:
@@ -54,7 +54,7 @@ proc niminiHashSetContains*(env: ref Env; args: seq[Value]): Value =
   let key = $args[1]
   return valBool(args[0].map.hasKey(key))
 
-proc niminiHashSetCard*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hashSetCard*(env: ref Env; args: seq[Value]): Value =
   ## card(set) - Returns the cardinality (size) of the hash set
   if args.len < 1:
     quit "card requires 1 argument (set)"
@@ -64,7 +64,7 @@ proc niminiHashSetCard*(env: ref Env; args: seq[Value]): Value =
   
   return valInt(args[0].map.len)
 
-proc niminiHashSetClear*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hashSetClear*(env: ref Env; args: seq[Value]): Value =
   ## clear(set) - Removes all items from the hash set
   if args.len < 1:
     quit "clear requires 1 argument (set)"
@@ -75,7 +75,7 @@ proc niminiHashSetClear*(env: ref Env; args: seq[Value]): Value =
   args[0].map.clear()
   return valNil()
 
-proc niminiHashSetToSeq*(env: ref Env; args: seq[Value]): Value =
+proc nimini_hashSetToSeq*(env: ref Env; args: seq[Value]): Value =
   ## toSeq(set) - Converts hash set to sequence/array
   if args.len < 1:
     quit "toSeq requires 1 argument (set)"
@@ -96,12 +96,12 @@ proc niminiHashSetToSeq*(env: ref Env; args: seq[Value]): Value =
 # ==============================================================================
 # Represented as an array with special metadata for efficient front operations
 
-proc niminiNewDeque*(env: ref Env; args: seq[Value]): Value =
+proc nimini_newDeque*(env: ref Env; args: seq[Value]): Value =
   ## newDeque() - Creates a new empty double-ended queue
   ## Represented as a simple array in runtime
   return Value(kind: vkArray, arr: @[])
 
-proc niminiDequeAddFirst*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequeAddFirst*(env: ref Env; args: seq[Value]): Value =
   ## addFirst(deque, item) - Adds item to the front of the deque
   if args.len < 2:
     quit "addFirst requires 2 arguments (deque, item)"
@@ -112,7 +112,7 @@ proc niminiDequeAddFirst*(env: ref Env; args: seq[Value]): Value =
   args[0].arr.insert(args[1], 0)
   return valNil()
 
-proc niminiDequeAddLast*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequeAddLast*(env: ref Env; args: seq[Value]): Value =
   ## addLast(deque, item) - Adds item to the back of the deque
   if args.len < 2:
     quit "addLast requires 2 arguments (deque, item)"
@@ -123,7 +123,7 @@ proc niminiDequeAddLast*(env: ref Env; args: seq[Value]): Value =
   args[0].arr.add(args[1])
   return valNil()
 
-proc niminiDequePopFirst*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequePopFirst*(env: ref Env; args: seq[Value]): Value =
   ## popFirst(deque) - Removes and returns the first item
   if args.len < 1:
     quit "popFirst requires 1 argument (deque)"
@@ -138,7 +138,7 @@ proc niminiDequePopFirst*(env: ref Env; args: seq[Value]): Value =
   args[0].arr.delete(0)
   return item
 
-proc niminiDequePopLast*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequePopLast*(env: ref Env; args: seq[Value]): Value =
   ## popLast(deque) - Removes and returns the last item
   if args.len < 1:
     quit "popLast requires 1 argument (deque)"
@@ -153,7 +153,7 @@ proc niminiDequePopLast*(env: ref Env; args: seq[Value]): Value =
   args[0].arr.setLen(args[0].arr.len - 1)
   return item
 
-proc niminiDequePeekFirst*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequePeekFirst*(env: ref Env; args: seq[Value]): Value =
   ## peekFirst(deque) - Returns the first item without removing it
   if args.len < 1:
     quit "peekFirst requires 1 argument (deque)"
@@ -166,7 +166,7 @@ proc niminiDequePeekFirst*(env: ref Env; args: seq[Value]): Value =
   
   return args[0].arr[0]
 
-proc niminiDequePeekLast*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequePeekLast*(env: ref Env; args: seq[Value]): Value =
   ## peekLast(deque) - Returns the last item without removing it
   if args.len < 1:
     quit "peekLast requires 1 argument (deque)"
@@ -179,7 +179,7 @@ proc niminiDequePeekLast*(env: ref Env; args: seq[Value]): Value =
   
   return args[0].arr[^1]
 
-proc niminiDequeClear*(env: ref Env; args: seq[Value]): Value =
+proc nimini_dequeClear*(env: ref Env; args: seq[Value]): Value =
   ## clear(deque) - Removes all items from the deque
   if args.len < 1:
     quit "clear requires 1 argument (deque)"

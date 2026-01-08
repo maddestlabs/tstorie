@@ -198,9 +198,10 @@ proc draw(env: ref Env; args: seq[Value]): Value {.nimini.} =
                 let idx = args[0].i
                 if idx == 0: gDefaultLayer
                 else:
-                  # Try to get by z-order index from app state
-                  if idx < gAppState.layers.len: gAppState.layers[idx]
-                  else: return valNil()
+                  # Auto-create layer if it doesn't exist (z-value = index)
+                  if idx >= gAppState.layers.len:
+                    discard gAppState.addLayer("layer" & $idx, idx)
+                  gAppState.layers[idx]
               elif args[0].kind == vkString:
                 let layerId = args[0].s
                 let foundLayer = getLayer(gAppState, layerId)
@@ -240,9 +241,10 @@ proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
                 let idx = args[0].i
                 if idx == 0: gDefaultLayer
                 else:
-                  # Try to get by z-order index from app state
-                  if idx < gAppState.layers.len: gAppState.layers[idx]
-                  else: return valNil()
+                  # Auto-create layer if it doesn't exist (z-value = index)
+                  if idx >= gAppState.layers.len:
+                    discard gAppState.addLayer("layer" & $idx, idx)
+                  gAppState.layers[idx]
               elif args[0].kind == vkString:
                 let layerId = args[0].s
                 let foundLayer = getLayer(gAppState, layerId)
@@ -271,9 +273,10 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
                 let idx = args[0].i
                 if idx == 0: gDefaultLayer
                 else:
-                  # Try to get by z-order index from app state
-                  if idx < gAppState.layers.len: gAppState.layers[idx]
-                  else: return valNil()
+                  # Auto-create layer if it doesn't exist (z-value = index)
+                  if idx >= gAppState.layers.len:
+                    discard gAppState.addLayer("layer" & $idx, idx)
+                  gAppState.layers[idx]
               elif args[0].kind == vkString:
                 let layerId = args[0].s
                 let foundLayer = getLayer(gAppState, layerId)
@@ -298,6 +301,56 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   layer.buffer.fillRect(x, y, w, h, ch, style)
   return valNil()
+
+# ================================================================
+# LAYER MANAGEMENT
+# ================================================================
+
+proc nimini_addLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## addLayer(id: string, z: int) -> creates a new layer
+  ## Higher z values are drawn on top of lower z values
+  ## Returns the layer index for use with drawing functions
+  if args.len < 2:
+    return valNil()
+  
+  let id = args[0].s
+  let z = valueToInt(args[1])
+  
+  let layer = gAppState.addLayer(id, z)
+  if not layer.isNil:
+    # Return the array index for convenience
+    for i in 0 ..< gAppState.layers.len:
+      if gAppState.layers[i] == layer:
+        return valInt(i)
+  
+  return valNil()
+
+proc nimini_removeLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## removeLayer(id: string) -> removes a layer by ID
+  if args.len < 1:
+    return valNil()
+  
+  let id = args[0].s
+  gAppState.removeLayer(id)
+  return valNil()
+
+proc nimini_setLayerVisible(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## setLayerVisible(id: string, visible: bool) -> show/hide a layer
+  if args.len < 2:
+    return valNil()
+  
+  let id = args[0].s
+  let visible = valueToBool(args[1])
+  
+  let layer = getLayer(gAppState, id)
+  if not layer.isNil:
+    layer.visible = visible
+  
+  return valNil()
+
+proc nimini_getLayerCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## getLayerCount() -> returns the number of layers
+  return valInt(gAppState.layers.len)
 
 # Random number generator and functions are now in tstorie.nim
 
@@ -1100,170 +1153,8 @@ const
 # ================================================================
 # FIGLET FONT HELPERS (Nimini wrappers)
 # ================================================================
-
-# Global cache for loaded figlet fonts is now in tstorie.nim
-
-proc figletLoadFont(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Load a figlet font embedded in the markdown. Args: fontName (string)
-  ## Returns: bool (true if loaded successfully)
-  if args.len < 1:
-    return valBool(false)
-  
-  let fontName = args[0].s
-  
-  # Check if already loaded
-  if gFigletFonts.hasKey(fontName):
-    return valBool(true)
-  
-  # Check if font is embedded in markdown
-  if not gEmbeddedFigletFonts.hasKey(fontName):
-    return valBool(false)
-  
-  # Parse the embedded font
-  try:
-    let font = parseFontFromString(fontName, gEmbeddedFigletFonts[fontName])
-    gFigletFonts[fontName] = font
-    return valBool(true)
-  except:
-    # Suppress figlet loading errors to avoid noisy output during demos
-    discard
-    return valBool(false)
-
-proc figletIsFontLoaded(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Check if a font is loaded. Args: fontName (string)
-  if args.len < 1:
-    return valBool(false)
-  let fontName = args[0].s
-  return valBool(gFigletFonts.hasKey(fontName))
-
-proc figletRender(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Render text with a loaded figlet font. Args: fontName (string), text (string), [layoutMode (int)]
-  ## Returns: array of strings (lines)
-  if args.len < 2:
-    return valArray(@[])
-  
-  let fontName = args[0].s
-  if not gFigletFonts.hasKey(fontName):
-    echo "[figletRender] Font not loaded: ", fontName
-    return valArray(@[])
-  
-  let text = args[1].s
-  let layout = if args.len >= 3: 
-    case valueToInt(args[2])
-    of 1: HorizontalFitting
-    of 2: HorizontalSmushing
-    else: FullWidth
-  else: FullWidth
-  
-  let lines = render(gFigletFonts[fontName], text, layout)
-  # Silent render: return lines without logging to stdout to keep demos clean
-  
-  var result: seq[Value] = @[]
-  for line in lines:
-    result.add(valString(line))
-  return valArray(result)
-
-proc figletListAvailableFonts(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get list of embedded figlet fonts
-  var result: seq[Value] = @[]
-  # Debug: check if table has any keys at all
-  try:
-    for fontName in gEmbeddedFigletFonts.keys:
-      result.add(valString(fontName))
-  except:
-    discard
-  return valArray(result)
-
-proc drawFigletText(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Draw figlet text. Args: layer (int), x (int), y (int), fontName (string), text (string), [layoutMode (int), style (Style), vertical (bool), letterSpacing (int)]
-  ## Convenience function that renders and draws figlet text in one call
-  ## vertical: false=horizontal (default), true=vertical (each char printed downward from y coordinate)
-  ## letterSpacing: number of spaces to add between characters (default: 0)
-  if args.len < 5:
-    return valNil()
-  
-  let layerArg = args[0]
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let fontName = args[3].s
-  let text = args[4].s
-  let layout = if args.len >= 6: 
-    case valueToInt(args[5])
-    of 1: HorizontalFitting
-    of 2: HorizontalSmushing
-    else: FullWidth
-  else: FullWidth
-  
-  # Get style if provided
-  let styleArg = if args.len >= 7: args[6] else: valNil()
-  
-  # Get vertical direction flag (default: false/0 for horizontal)
-  let vertical = if args.len >= 8: valueToInt(args[7]) != 0 else: false
-  
-  # Get letter spacing (default: 0)
-  let letterSpacing = if args.len >= 9: valueToInt(args[8]) else: 0
-  
-  # Check if font is loaded
-  if not gFigletFonts.hasKey(fontName):
-    echo "[drawFigletText] Font not loaded: ", fontName
-    return valNil()
-  
-  # Render the text
-  let lines = render(gFigletFonts[fontName], text, layout)
-  if lines.len == 0:
-    return valNil()
-  
-  if vertical:
-    # Vertical: print each character going downward from y coordinate
-    var currentY = y
-    for ch in text:
-      # Render single character
-      let charLines = render(gFigletFonts[fontName], $ch, layout)
-      var lineY = currentY
-      for line in charLines:
-        if styleArg.kind != vkNil:
-          discard draw(env, @[layerArg, valInt(x), valInt(lineY), valString(line), styleArg])
-        else:
-          discard draw(env, @[layerArg, valInt(x), valInt(lineY), valString(line)])
-        lineY += 1
-      # Move down for next character (plus letter spacing)
-      currentY = lineY + letterSpacing
-  else:
-    # Horizontal: normal left-to-right, top-to-bottom with letter spacing
-    if letterSpacing > 0:
-      # Apply letter spacing by rendering character by character
-      var currentX = x
-      for ch in text:
-        let charLines = render(gFigletFonts[fontName], $ch, layout)
-        if charLines.len > 0:
-          var lineY = y
-          # Find the actual width of this character
-          var charWidth = 0
-          for line in charLines:
-            if line.len > charWidth:
-              charWidth = line.len
-          
-          # Draw each line of the character
-          for line in charLines:
-            if styleArg.kind != vkNil:
-              discard draw(env, @[layerArg, valInt(currentX), valInt(lineY), valString(line), styleArg])
-            else:
-              discard draw(env, @[layerArg, valInt(currentX), valInt(lineY), valString(line)])
-            lineY += 1
-          
-          # Move to next character position (width + spacing)
-          currentX += charWidth + letterSpacing
-    else:
-      # No letter spacing - draw normally
-      var currentY = y
-      for line in lines:
-        if styleArg.kind != vkNil:
-          discard draw(env, @[layerArg, valInt(x), valInt(currentY), valString(line), styleArg])
-        else:
-          discard draw(env, @[layerArg, valInt(x), valInt(currentY), valString(line)])
-        currentY += 1
-  
-  return valNil()
+# Note: Figlet function implementations have been moved to lib/figlet_bindings.nim
+# They are imported and registered below
 
 proc getEmbeddedContent(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get embedded content by name. Args: name (string)
@@ -1309,89 +1200,54 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerTextEditorBindings(runtimeEnv)
   registerParticleBindings(runtimeEnv, state)
   
+  # Register figlet bindings with font cache references and layer system
+  registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
+                        addr gDefaultLayer, addr gAppState)
+  
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)
   registerNative("float", nimini_float)
   registerNative("str", nimini_str)
   
-  # Auto-register all {.nimini.} pragma functions from index.nim
+  # Auto-register all {.nimini.} pragma functions from runtime_api.nim
+  # Note: Functions that need clean script-facing names (without nimini_ prefix)
+  # are registered manually below with registerNative("cleanName", nimini_function)
   exportNiminiProcs(
     print,
     draw, clear, fillRect, writeTextBox,
     randInt, randFloat,
-    nimini_registerGlobalRender, nimini_registerGlobalUpdate, nimini_registerGlobalInput,
-    nimini_unregisterGlobalHandler, nimini_clearGlobalHandlers,
-    nimini_enableMouse, nimini_disableMouse,
     initCanvas,
-    nimini_defaultStyle, nimini_setDefaultStyle, nimini_getStyle,
-    nimini_getThemes, nimini_switchTheme, nimini_getCurrentTheme,
-    # Section management
-    nimini_getCurrentSection, nimini_getAllSections, nimini_getSectionById,
-    nimini_gotoSection, nimini_createSection, nimini_deleteSection, nimini_updateSectionTitle,
-    nimini_setMultiSectionMode, nimini_getMultiSectionMode,
-    nimini_setScrollY, nimini_getScrollY,
-    nimini_getSectionCount, nimini_getCurrentSectionIndex,
-    # Code block access
-    nimini_getSectionCodeBlocks, nimini_getCodeBlock, nimini_getCurrentSectionCodeBlocks,
-    nimini_getCodeBlockText, nimini_getContent,
-    # Embedded content access
-    getEmbeddedContent,
-    # Figlet font rendering - NOTE: Registered separately with metadata below
-    # Browser API
-    nimini_localStorage_setItem, nimini_localStorage_getItem, nimini_window_open,
-    # Animation/transition helpers (simple, safe)
-    nimini_newTransition, nimini_updateTransition, nimini_transitionProgress,
-    nimini_transitionEasedProgress, nimini_transitionIsActive, nimini_resetTransition,
-    nimini_lerp, nimini_lerpInt, nimini_smoothstep,
-    nimini_easeLinear, nimini_easeInQuad, nimini_easeOutQuad, nimini_easeInOutQuad,
-    nimini_easeInCubic, nimini_easeOutCubic, nimini_easeInOutCubic,
-    nimini_easeInSine, nimini_easeOutSine, nimini_easeInOutSine
-    # Complex transition engine disabled - use BufferSnapshot helpers instead
-    # nimini_newTransitionEngine, nimini_fadeEffect, nimini_slideEffect, nimini_wipeEffect,
-    # nimini_dissolveEffect, nimini_pushEffect, nimini_newBufferSnapshot,
-    # nimini_bufferSetCell, nimini_startTransition, nimini_updateTransitions,
-    # nimini_hasActiveTransitions, nimini_getTransitionBuffer, nimini_bufferGetCell,
-    # nimini_bufferWidth, nimini_bufferHeight
+    getEmbeddedContent
+    # Note: Layer management, section management, code blocks, styles, browser API,
+    # animation, and figlet functions are registered separately below
   )
   
-  # Register figlet functions with metadata for export system
-  registerNative("figletLoadFont", figletLoadFont, 
-    storieLibs = @["figlet"],
-    description = "Load a FIGlet font by name")
-  registerNative("figletIsFontLoaded", figletIsFontLoaded,
-    storieLibs = @["figlet"],
-    description = "Check if a FIGlet font is loaded")
-  registerNative("figletRender", figletRender,
-    storieLibs = @["figlet"],
-    description = "Render text using a loaded FIGlet font")
-  registerNative("figletListAvailableFonts", figletListAvailableFonts,
-    storieLibs = @["figlet"],
-    description = "List all available FIGlet fonts")
-  registerNative("drawFigletText", drawFigletText,
-    storieLibs = @["figlet"],
-    dependencies = @["draw"],
-    description = "Draw FIGlet text to a layer")
+  # Register layer management functions
+  registerNative("addLayer", nimini_addLayer)
+  registerNative("removeLayer", nimini_removeLayer)
+  registerNative("setLayerVisible", nimini_setLayerVisible)
+  registerNative("getLayerCount", nimini_getLayerCount)
   
-  # Register platform-specific figlet functions - removed, now unified
+  # Register global handler functions
+  registerNative("registerGlobalRender", nimini_registerGlobalRender)
+  registerNative("registerGlobalUpdate", nimini_registerGlobalUpdate)
+  registerNative("registerGlobalInput", nimini_registerGlobalInput)
+  registerNative("unregisterGlobalHandler", nimini_unregisterGlobalHandler)
+  registerNative("clearGlobalHandlers", nimini_clearGlobalHandlers)
   
-  # Register transition constants
-  defineVar(runtimeEnv, "EASE_LINEAR", valInt(EASE_LINEAR))
-  defineVar(runtimeEnv, "EASE_IN_QUAD", valInt(EASE_IN_QUAD))
-  defineVar(runtimeEnv, "EASE_OUT_QUAD", valInt(EASE_OUT_QUAD))
-  defineVar(runtimeEnv, "EASE_IN_OUT_QUAD", valInt(EASE_IN_OUT_QUAD))
-  defineVar(runtimeEnv, "EASE_IN_CUBIC", valInt(EASE_IN_CUBIC))
-  defineVar(runtimeEnv, "EASE_OUT_CUBIC", valInt(EASE_OUT_CUBIC))
-  defineVar(runtimeEnv, "EASE_IN_OUT_CUBIC", valInt(EASE_IN_OUT_CUBIC))
-  defineVar(runtimeEnv, "EASE_IN_SINE", valInt(7))
-  defineVar(runtimeEnv, "EASE_OUT_SINE", valInt(8))
-  defineVar(runtimeEnv, "EASE_IN_OUT_SINE", valInt(9))
-  defineVar(runtimeEnv, "DIR_LEFT", valInt(DIR_LEFT))
-  defineVar(runtimeEnv, "DIR_RIGHT", valInt(DIR_RIGHT))
-  defineVar(runtimeEnv, "DIR_UP", valInt(DIR_UP))
-  defineVar(runtimeEnv, "DIR_DOWN", valInt(DIR_DOWN))
-  defineVar(runtimeEnv, "DIR_CENTER", valInt(DIR_CENTER))
+  # Register mouse handling
+  registerNative("enableMouse", nimini_enableMouse)
+  registerNative("disableMouse", nimini_disableMouse)
   
-  # Register section management functions with user-friendly names
+  # Register style functions
+  registerNative("defaultStyle", nimini_defaultStyle)
+  registerNative("setDefaultStyle", nimini_setDefaultStyle)
+  registerNative("getStyle", nimini_getStyle)
+  registerNative("getThemes", nimini_getThemes)
+  registerNative("switchTheme", nimini_switchTheme)
+  registerNative("getCurrentTheme", nimini_getCurrentTheme)
+  
+  # Register section management functions
   registerNative("getCurrentSection", nimini_getCurrentSection)
   registerNative("getAllSections", nimini_getAllSections)
   registerNative("getSectionById", nimini_getSectionById)
@@ -1413,8 +1269,52 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerNative("getCodeBlockText", nimini_getCodeBlockText)
   registerNative("getContent", nimini_getContent)
   
-  # Register style functions
-  registerNative("setDefaultStyle", nimini_setDefaultStyle)
+  # Register browser API functions
+  registerNative("localStorage_setItem", nimini_localStorage_setItem)
+  registerNative("localStorage_getItem", nimini_localStorage_getItem)
+  registerNative("window_open", nimini_window_open)
+  
+  # Register animation/transition functions
+  registerNative("newTransition", nimini_newTransition)
+  registerNative("updateTransition", nimini_updateTransition)
+  registerNative("transitionProgress", nimini_transitionProgress)
+  registerNative("transitionEasedProgress", nimini_transitionEasedProgress)
+  registerNative("transitionIsActive", nimini_transitionIsActive)
+  registerNative("resetTransition", nimini_resetTransition)
+  registerNative("lerp", nimini_lerp)
+  registerNative("lerpInt", nimini_lerpInt)
+  registerNative("smoothstep", nimini_smoothstep)
+  registerNative("easeLinear", nimini_easeLinear)
+  registerNative("easeInQuad", nimini_easeInQuad)
+  registerNative("easeOutQuad", nimini_easeOutQuad)
+  registerNative("easeInOutQuad", nimini_easeInOutQuad)
+  registerNative("easeInCubic", nimini_easeInCubic)
+  registerNative("easeOutCubic", nimini_easeOutCubic)
+  registerNative("easeInOutCubic", nimini_easeInOutCubic)
+  registerNative("easeInSine", nimini_easeInSine)
+  registerNative("easeOutSine", nimini_easeOutSine)
+  registerNative("easeInOutSine", nimini_easeInOutSine)
+  
+  # Note: Figlet functions are now registered via exportNiminiProcs above.
+  # The metadata (storieLibs, description, dependencies) for the export system
+  # can be re-added later as pragma parameters when we enhance the macro system.
+  
+  # Register transition constants
+  defineVar(runtimeEnv, "EASE_LINEAR", valInt(EASE_LINEAR))
+  defineVar(runtimeEnv, "EASE_IN_QUAD", valInt(EASE_IN_QUAD))
+  defineVar(runtimeEnv, "EASE_OUT_QUAD", valInt(EASE_OUT_QUAD))
+  defineVar(runtimeEnv, "EASE_IN_OUT_QUAD", valInt(EASE_IN_OUT_QUAD))
+  defineVar(runtimeEnv, "EASE_IN_CUBIC", valInt(EASE_IN_CUBIC))
+  defineVar(runtimeEnv, "EASE_OUT_CUBIC", valInt(EASE_OUT_CUBIC))
+  defineVar(runtimeEnv, "EASE_IN_OUT_CUBIC", valInt(EASE_IN_OUT_CUBIC))
+  defineVar(runtimeEnv, "EASE_IN_SINE", valInt(7))
+  defineVar(runtimeEnv, "EASE_OUT_SINE", valInt(8))
+  defineVar(runtimeEnv, "EASE_IN_OUT_SINE", valInt(9))
+  defineVar(runtimeEnv, "DIR_LEFT", valInt(DIR_LEFT))
+  defineVar(runtimeEnv, "DIR_RIGHT", valInt(DIR_RIGHT))
+  defineVar(runtimeEnv, "DIR_UP", valInt(DIR_UP))
+  defineVar(runtimeEnv, "DIR_DOWN", valInt(DIR_DOWN))
+  defineVar(runtimeEnv, "DIR_CENTER", valInt(DIR_CENTER))
   
   let ctx = NiminiContext(env: runtimeEnv)
   
@@ -2035,6 +1935,17 @@ onRender = proc(state: AppState) =
 proc inputHandler(state: AppState, event: InputEvent): bool =
   if storieCtx.isNil:
     return false
+  
+  # Update mouse position tracking for getMouseX/getMouseY functions
+  case event.kind
+  of MouseEvent:
+    state.lastMouseX = event.mouseX
+    state.lastMouseY = event.mouseY
+  of MouseMoveEvent:
+    state.lastMouseX = event.moveX
+    state.lastMouseY = event.moveY
+  else:
+    discard
   
   # 1. Execute global input handlers first (allow modules to intercept)
   for handler in storieCtx.globalInputHandlers:
