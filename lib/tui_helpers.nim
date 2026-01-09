@@ -265,8 +265,12 @@ proc drawCheckBox*(layer: int, x, y: int, label: string,
 
 proc drawPanel*(layer: int, x, y, w, h: int, title: string,
                borderStyle: string = "single") =
-  ## Draw a titled panel/frame
+  ## Draw a titled panel/frame with filled interior
   let style = tuiGetStyle("border")
+  let bgStyle = tuiGetStyle("default")
+  
+  # Fill interior with spaces to clear background content
+  fillBox(layer, x, y, w, h, " ", bgStyle)
   
   # Draw border
   case borderStyle

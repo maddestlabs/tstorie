@@ -1,22 +1,13 @@
 ---
-title: "Bloxes - ASCII Sokoban"
+title: "Bloxes"
 author: "Maddest Labs"
-minWidth: 40
-minHeight: 16
-theme: "futurism"
-hideHeadings: "true"
-chars: "國人口田回人・雲霧風雨空"
+minWidth: 20
+minHeight: 10
+chars: "國男口田回男・雲霧風雨空"
 doublewidth: "true"
 ---
 
 # Bloxes⠀
-**Goal:** Push all boxes ($) onto goal markers (.) to win!
-chars: "█☻□・■☻‧∴∵⋮⋯ˑ"
-
-**Rules:**
-- You can only **push** boxes, not pull them
-- You cannot push two boxes at once
-- Boxes can't be pushed into walls or other boxes
 
 ```txt
 ; Level 1 - Getting started
@@ -474,6 +465,15 @@ var stylePlayerGoal = getStyle("accent2") # Tertiary accent
 var styleFloor = brightness(getStyle("default"), 0.3)     # Default fg/bg
 var styleOutside = brightness(getStyle("default"), 0.3)       # Dim/muted (fgSecondary)
 
+# Swap foreground and background colors for styleWall
+var temp = styleWall.fg
+styleWall.fg = styleWall.bg
+styleWall.bg = temp
+
+#temp = styleBox.fg
+#styleBox.fg = styleBox.bg
+#styleBox.bg = temp
+
 # Apply inverse for boxGoal and playerGoal (defaults to true)
 styleBoxGoal.inverse = true
 stylePlayerGoal.inverse = true
@@ -499,9 +499,6 @@ var isLevelPack = false
 # Mouse/input state
 var nextMoveDX = 0
 var nextMoveDY = 0
-
-# Sparkle effect timing
-var sparkleTimer = 0.0
 
 # Check if cell is in reachable area
 proc isReachable(x: int, y: int): bool =
@@ -911,27 +908,6 @@ if scaleY < scaleX:
 # Apply scale (clamp to reasonable range)
 if scale > 1.0 and scale < 3.0:
   setFontScale(scale)
-
-# Initialize particle system for ambient rain effect
-particleInit("rain", 100)
-particleSetBackgroundFromStyle("rain", defaultStyle)
-particleConfigureRain("rain", 2.0)
-particleSetDrawMode("rain", 1)  # pdmBackground - only change background, preserve text
-particleSetEmitterPos("rain", 0.0, 1.0)
-particleSetColorRange("rain", 10, 10, 10, 30, 30, 30)
-particleSetEmitterSize("rain", float(termWidth), 1.0)
-particleSetCollision("rain", true, 3)  # Destroy on collision
-
-# Initialize sparkle particle system for win fireworks
-particleInit("sparkles", 150)
-particleSetBackgroundFromStyle("sparkles", defaultStyle)
-particleSetForegroundFromStyle("sparkles", getStyle("accent1"))
-particleConfigureSparkles("sparkles", 80.0)
-particleSetDrawMode("sparkles", 1)  # pdmBackground - only change background
-# particleSetChars("sparkles", "花火光祝星花火光祝星花火光祝星")
-particleSetEmitterPos("sparkles", float(termWidth / 2), float(termHeight / 2))
-particleSetVelocityRange("sparkles", -70.0, -70.0, 70.0, 70.0)
-particleSetLifeRange("sparkles", 0.3, 0.6)
 ```
 
 ```nim on:input
@@ -950,24 +926,15 @@ if event.type == "mouse":
       # [P]rev button (chars 2-8)
       if mouseX >= 2 and mouseX <= 8:
         if isLevelPack:
-          particleClear("rain")
-          particleClear("sparkles")
-          sparkleTimer = 0.0
           loadPrevLevel()
           return true
       # [N]ext button (chars 12-18)
       elif mouseX >= 12 and mouseX <= 18:
         if isLevelPack:
-          particleClear("rain")
-          particleClear("sparkles")
-          sparkleTimer = 0.0
           loadNextLevel()
           return true
       # [R]estart button (right-aligned, last 9 chars)
       elif mouseX >= termWidth - 9:
-        particleClear("rain")
-        particleClear("sparkles")
-        sparkleTimer = 0.0
         if isLevelPack and len(levelPack) > 0:
           parseLevel(levelPack[currentLevelIndex])
         else:
@@ -996,9 +963,6 @@ elif event.type == "text":
   
   # Restart
   if key == "r" or key == "R":
-    particleClear("rain")
-    particleClear("sparkles")
-    sparkleTimer = 0.0
     if isLevelPack and len(levelPack) > 0:
       parseLevel(levelPack[currentLevelIndex])
     else:
@@ -1008,16 +972,10 @@ elif event.type == "text":
   # Level pack navigation
   elif key == "n" or key == "N":
     if isLevelPack:
-      particleClear("rain")
-      particleClear("sparkles")
-      sparkleTimer = 0.0
       loadNextLevel()
       return true
   elif key == "p" or key == "P":
     if isLevelPack:
-      particleClear("rain")
-      particleClear("sparkles")
-      sparkleTimer = 0.0
       loadPrevLevel()
       return true
   
@@ -1044,28 +1002,6 @@ elif event.type == "key":
   return false
 
 return false
-```
-
-```nim on:update
-# Update particle system emitter size to match terminal
-particleSetEmitterSize("rain", float(termWidth), 1.0)
-
-# Update particles continuously
-particleUpdate("rain", deltaTime)
-
-# Update sparkles when game is won with periodic bursts
-if gameWon:
-  sparkleTimer = sparkleTimer + deltaTime
-  
-  # Emit sparkle burst every 0.8 seconds at random position
-  if sparkleTimer >= 0.8:
-    sparkleTimer = 0.0
-    var randomX = float(rand(termWidth))
-    var randomY = float(rand(termHeight))
-    particleSetEmitterPos("sparkles", randomX, randomY)
-    particleEmit("sparkles", 50)
-  
-  particleUpdate("sparkles", deltaTime)
 ```
 
 ```nim on:render
@@ -1168,22 +1104,15 @@ draw(0, movesX, 0, movesText, defaultStyle())
 # Show win message below the level
 var statusY = offsetY + levelHeight + 1
 if gameWon:
-  var winText = "🎉 Level Complete!"
+  var winText = "完 Level Complete!"
   var winX = offsetX + ((levelWidth * charWidth) - len(winText)) / 2
   draw(0, winX, statusY, winText, stylePlayer)
 
 # Show clickable buttons at bottom
 var buttonY = termHeight - 1
 var buttonsLeft = "< [P]rev | [N]ext >"
-var buttonRight = "[R]estart"
+var buttonRight = "[R]estart <<"
 draw(0, 0, buttonY, buttonsLeft, defaultStyle())
 var restartX = termWidth - len(buttonRight)
 draw(0, restartX, buttonY, buttonRight, defaultStyle())
-
-# Render rain particles continuously
-particleRender("rain", 0)
-
-# Render sparkles when game is won
-if gameWon:
-  particleRender("sparkles", 0)
 ```

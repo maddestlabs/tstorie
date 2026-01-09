@@ -1,9 +1,9 @@
 ---
 title: "Depths Beckoning"
 author: "Maddest Labs"
-minWidth: 60
-minHeight: 18
-theme: "nord"
+minWidth: 40
+minHeight: 12
+theme: "coffee"
 ---
 
 ```nim on:init

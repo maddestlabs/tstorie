@@ -7,15 +7,17 @@ Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crtbloom&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
-- [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=notebook&font=Cutive+Mono) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=notebook&font=Courier+Prime) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 - [bloxes.md](https://maddestlabs.github.io/tstorie/?content=demo:bloxes) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/bloxes.md)
 - [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen&theme=nord&shader=graphpaper&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
 - [shader.md](https://maddestlabs.github.io/tstorie?content=demo:shader&fontsize=26&shader=crtbloom) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
 
 Core examples:
+- [edit.md](https://maddestlabs.github.io/tstorie?content=demo:edit) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/edit.md)
 - [layout.md](https://maddestlabs.github.io/tstorie?content=demo:layout&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
-- [tui.md](https://maddestlabs.github.io/tstorie?content=demo:tui&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui_simple.md)
+- [tui.md](https://maddestlabs.github.io/tstorie?content=demo:tui&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
+- [tui3.md](https://maddestlabs.github.io/tstorie?content=demo:tui3&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
 
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie/?content=863a4175989370857ccd67cb5492ac11&shader=crt&font=Zeyada) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
@@ -50,12 +52,10 @@ Create your own project:
 - See your content running live in moments
 
 Native compilation:
-- In your repo, go to Actions -> Export Code and get the exported code
-- Install Nim locally
-- Replace index.nim with your exported code
-- On Linux: `./build.sh`. Windows: `build-win.bat`. For web: `./build-web.sh`
+- Export via CLI: `./tstorie export filename.md`
+- Compile with nim: `nim c fildename.nim`
 
-You'll get a native compiled binary in just moments, Nim compiles super fast.
+You'll get a native compiled binary in just moments, Nim compiles super fast. This is still early in development but supports small projects currently. The export is standalone with zero dependencies.
 
 ### Web Usage
 

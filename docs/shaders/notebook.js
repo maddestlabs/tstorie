@@ -27,8 +27,6 @@ function getShaderConfig() {
             uniform float ambientLight;
             uniform float lightSpeed;
             uniform float lightRange;
-            uniform float vignetteIntensity;
-            uniform float vignettePower;
             uniform float baseBlur;
             uniform float paperNoise;
             varying vec2 vUv;
@@ -121,10 +119,6 @@ function getShaderConfig() {
                 vec3 lightColor = vec3(1.0, 0.98, 0.95);
                 color.rgb *= lightColor * lightFactor;
                 
-                // Apply classic vignette effect
-                float vignette = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
-                color.rgb *= pow(vignette * vignetteIntensity, vignettePower);
-                
                 gl_FragColor = vec4(color.rgb, 1.0);
             }
         `,
@@ -138,15 +132,13 @@ function getShaderConfig() {
             
             // Lighting parameters
             lightIntensity: 0.5,      // Overall light intensity
-            lightRadius: 2.2,         // Size of the light effect
-            lightFalloff: 1.8,        // How quickly light fades
-            ambientLight: 0.15,       // Minimum brightness in darker areas
+            lightRadius: 3.5,         // Size of the light effect
+            lightFalloff: 2.3,        // How quickly light fades
+            ambientLight: 0.35,       // Minimum brightness in darker areas
             lightSpeed: 1.0,          // Speed of light movement
             lightRange: 0.5,          // How far the light moves left/right
             
             // Visual effects
-            vignetteIntensity: 20.0,  // Intensity of the vignette effect
-            vignettePower: 0.25,      // Power/falloff of the vignette
             baseBlur: 0.5,            // Base blur in pixels
             paperNoise: 1.0           // Paper texture intensity (0.0-1.0)
         }

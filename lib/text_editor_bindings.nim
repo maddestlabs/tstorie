@@ -404,7 +404,8 @@ proc nimini_editorMoveBufferEnd*(env: ref Env; args: seq[Value]): Value {.nimini
 # ==============================================================================
 
 proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Draw the editor. Args: layer, x, y, w, h, editorId, showLineNumbers (optional)
+  ## Draw the editor. Args: layer, x, y, w, h, editorId, showLineNumbers (optional), 
+  ## hasSelection, selStartLine, selStartCol, selEndLine, selEndCol (all optional for selection)
   if args.len < 6:
     return valNil()
   
@@ -418,6 +419,20 @@ proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let state = getEditorState(editorId)
   if state.isNil:
     return valNil()
+  
+  # Parse optional selection parameters (args 7-11)
+  if args.len >= 12:
+    let hasSelection = valueToBool(args[7])
+    if hasSelection:
+      state.selection.active = true
+      state.selection.start.line = valueToInt(args[8])
+      state.selection.start.col = valueToInt(args[9])
+      state.selection.`end`.line = valueToInt(args[10])
+      state.selection.`end`.col = valueToInt(args[11])
+    else:
+      state.selection.active = false
+  else:
+    state.selection.active = false
   
   # Create config
   let showLineNumbers = if args.len > 6: valueToBool(args[6]) else: true

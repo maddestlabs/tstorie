@@ -61,10 +61,12 @@ Each style can have the following properties:
 If no styles are configured, the canvas uses these defaults:
 
 - **Headings**: Yellow (#FFAA00), bold
-- **Links**: Blue (#4A9EFF), underlined
+- **Links**: Blue (#4A9EFF), no underline (internal navigation)
 - **Focused Links**: Yellow (#FFD700), bold, underlined
 - **Body**: White (#FFFFFF)
 - **Placeholder**: Dark gray (#303030)
+
+Note: Internal navigation links in canvas mode don't have underlines by default (unlike traditional web links) since the canvas acts more like a game UI. The focused/selected link has an underline to show which option is currently active. You can still add underlines to all links by setting `styles.link.underline: "true"` in your front matter.
 
 ## Color Schemes Examples
 

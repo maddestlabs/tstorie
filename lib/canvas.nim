@@ -916,10 +916,12 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
   result = @[]
   
   # Get link styles from stylesheet or use defaults
+  # For canvas mode (internal navigation links), underline is false by default
+  # This is different from traditional web links since canvas is more like a game UI
   let linkStyle = if styleSheet.hasKey("link"):
                     toStyle(styleSheet["link"])
                   else:
-                    Style(fg: ansiToColor(34), bg: bodyStyle.bg, bold: false, underline: true, italic: false, dim: false)
+                    Style(fg: ansiToColor(34), bg: bodyStyle.bg, bold: false, underline: false, italic: false, dim: false)
   
   let linkFocusedStyle = if styleSheet.hasKey("link_focused"):
                            toStyle(styleSheet["link_focused"])

@@ -221,7 +221,7 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     bg: theme.bgPrimary,
     bold: false,
     italic: false,
-    underline: true,
+    underline: false,  # No underline for internal navigation links by default
     dim: false
   )
   
@@ -231,7 +231,7 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     bg: theme.bgPrimary,
     bold: true,
     italic: false,
-    underline: true,
+    underline: true,  # Keep underline on focused link for visual distinction
     dim: false
   )
   

@@ -689,6 +689,15 @@ proc nimini_copyToClipboard(env: ref Env; args: seq[Value]): Value {.nimini.} =
       return valBool(true)
   return valBool(false)
 
+proc nimini_pasteFromClipboard(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Paste text from clipboard. Returns empty string on native builds.
+  when defined(emscripten):
+    let text = js_callFunction("tStorie_pasteFromClipboard".cstring)
+    return valString($text)
+  else:
+    echo "pasteFromClipboard: (not available in native build)"
+    return valString("")
+
 proc nimini_compressToUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Compress content and return shareable URL. Args: content
   ## Note: This is async in JS, so the URL may not be immediately available
@@ -700,6 +709,41 @@ proc nimini_compressToUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
     else:
       return valString("http://localhost:8000/?content=demo:edit")
   return valString("")
+
+proc nimini_generateAndCopyShareUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Trigger async URL generation and clipboard copy. Args: content
+  ## Returns immediately. Check with checkShareUrlReady() for completion.
+  if args.len >= 1:
+    let content = args[0].s
+    when defined(emscripten):
+      discard js_callFunctionWithArg("tStorie_generateAndCopyShareUrl".cstring, content.cstring)
+    else:
+      echo "generateAndCopyShareUrl: ", content.len, " bytes"
+  return valNil()
+
+proc nimini_checkShareUrlReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if async URL generation is complete. Returns "true" or "false"
+  when defined(emscripten):
+    let ready = js_callFunction("tStorie_checkShareUrlReady".cstring)
+    return valString($ready)
+  else:
+    return valString("true")
+
+proc nimini_getShareUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the generated share URL (call after checkShareUrlReady returns true)
+  when defined(emscripten):
+    let url = js_callFunction("tStorie_getShareUrl".cstring)
+    return valString($url)
+  else:
+    return valString("http://localhost:8000/?content=demo:edit")
+
+proc nimini_checkShareUrlCopied(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if URL was successfully copied to clipboard. Returns "true" or "false"
+  when defined(emscripten):
+    let copied = js_callFunction("tStorie_checkShareUrlCopied".cstring)
+    return valString($copied)
+  else:
+    return valString("true")
 
 proc nimini_navigateTo(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Navigate to a URL (useful for loading saved documents)
@@ -736,7 +780,12 @@ proc registerBrowserApiFuncs*(env: ref Env) =
   registerNative("localStorage_list", nimini_localStorage_list)
   registerNative("localStorage_delete", nimini_localStorage_delete)
   registerNative("copyToClipboard", nimini_copyToClipboard)
+  registerNative("pasteFromClipboard", nimini_pasteFromClipboard)
   registerNative("compressToUrl", nimini_compressToUrl)
+  registerNative("generateAndCopyShareUrl", nimini_generateAndCopyShareUrl)
+  registerNative("checkShareUrlReady", nimini_checkShareUrlReady)
+  registerNative("getShareUrl", nimini_getShareUrl)
+  registerNative("checkShareUrlCopied", nimini_checkShareUrlCopied)
   registerNative("navigateTo", nimini_navigateTo)
 
 # ================================================================

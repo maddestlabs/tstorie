@@ -675,6 +675,24 @@
             }
         };
         
+        // Paste text from clipboard (async operation, stores result)
+        window.tStorie_pasteFromClipboard = function() {
+            try {
+                navigator.clipboard.readText().then(function(text) {
+                    console.log('Pasted from clipboard:', text.substring(0, 50) + '...');
+                    window.tStorie_lastPastedText = text;
+                }).catch(function(e) {
+                    console.error('Clipboard read error:', e);
+                    window.tStorie_lastPastedText = '';
+                });
+                // Return last pasted text or empty if not available yet
+                return window.tStorie_lastPastedText || '';
+            } catch (e) {
+                console.error('Clipboard error:', e);
+                return '';
+            }
+        };
+        
         // Compress content and return shareable URL (synchronous wrapper for async compress)
         window.tStorie_compressToUrl = function(content) {
             // Start async compression but return placeholder
@@ -691,6 +709,55 @@
             });
             // Return last generated URL or placeholder
             return window.tStorie_lastShareUrl || 'Generating...';
+        };
+        
+        // Better async URL generation: triggers generation, copies to clipboard when ready
+        // Returns immediately, sets window.tStorie_shareUrlReady flag when complete
+        window.tStorie_generateAndCopyShareUrl = function(content) {
+            window.tStorie_shareUrlReady = false;
+            window.tStorie_lastShareUrl = '';
+            
+            compress(content).then(function(compressed) {
+                const baseUrl = window.location.origin + window.location.pathname;
+                const shareUrl = baseUrl + '?content=decode:' + compressed;
+                console.log('Generated share URL (' + shareUrl.length + ' chars)');
+                
+                // Store URL
+                window.tStorie_lastShareUrl = shareUrl;
+                
+                // Copy to clipboard
+                return navigator.clipboard.writeText(shareUrl).then(function() {
+                    console.log('✓ URL copied to clipboard!');
+                    window.tStorie_shareUrlReady = true;
+                    window.tStorie_shareUrlCopied = true;
+                }).catch(function(e) {
+                    console.error('Clipboard error:', e);
+                    window.tStorie_shareUrlReady = true;
+                    window.tStorie_shareUrlCopied = false;
+                });
+            }).catch(function(e) {
+                console.error('Compression error:', e);
+                window.tStorie_lastShareUrl = '';
+                window.tStorie_shareUrlReady = true;
+                window.tStorie_shareUrlCopied = false;
+            });
+            
+            return 'started';
+        };
+        
+        // Check if share URL generation is complete
+        window.tStorie_checkShareUrlReady = function() {
+            return window.tStorie_shareUrlReady ? 'true' : 'false';
+        };
+        
+        // Get the generated share URL
+        window.tStorie_getShareUrl = function() {
+            return window.tStorie_lastShareUrl || '';
+        };
+        
+        // Check if URL was copied to clipboard
+        window.tStorie_checkShareUrlCopied = function() {
+            return window.tStorie_shareUrlCopied ? 'true' : 'false';
         };
         
         // Navigate to URL

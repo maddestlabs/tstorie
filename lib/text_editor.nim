@@ -567,18 +567,56 @@ proc drawEditor*(layer: int, x, y, w, h: int, state: EditorState,
     let runes = toRunes(lineText)
     let runeCount = runes.len
     
-    # Apply horizontal scroll
-    var visibleText = ""
-    if state.scrollX < runeCount:
+    # Apply horizontal scroll and render with selection highlighting
+    if state.scrollX < runeCount or runeCount == 0:
       let endCol = min(state.scrollX + contentWidthChars, runeCount)
-      if endCol > state.scrollX:
-        # Extract visible portion using unicode runes
-        var visibleRunes: seq[Rune] = @[]
-        for j in state.scrollX ..< endCol:
-          visibleRunes.add(runes[j])
-        visibleText = $visibleRunes
-    
-    tuiDraw(layer, contentX + 2, screenY, visibleText, bgStyle)
+      
+      # Check if this line has selection
+      var selStartCol = -1
+      var selEndCol = -1
+      
+      if state.selection.active:
+        let selStart = state.selection.start
+        let selEnd = state.selection.`end`
+        let minLine = min(selStart.line, selEnd.line)
+        let maxLine = max(selStart.line, selEnd.line)
+        let minCol = if selStart.line < selEnd.line: selStart.col elif selStart.line > selEnd.line: selEnd.col else: min(selStart.col, selEnd.col)
+        let maxCol = if selStart.line < selEnd.line: selEnd.col elif selStart.line > selEnd.line: selStart.col else: max(selStart.col, selEnd.col)
+        
+        if i >= minLine and i <= maxLine:
+          if i == minLine and i == maxLine:
+            # Selection on single line
+            selStartCol = max(minCol, state.scrollX)
+            selEndCol = min(maxCol, endCol)
+          elif i == minLine:
+            # Start of multi-line selection
+            selStartCol = max(minCol, state.scrollX)
+            selEndCol = endCol
+          elif i == maxLine:
+            # End of multi-line selection
+            selStartCol = state.scrollX
+            selEndCol = min(maxCol, endCol)
+          else:
+            # Middle of multi-line selection
+            selStartCol = state.scrollX
+            selEndCol = endCol
+      
+      # Render line with selection highlighting
+      for j in state.scrollX ..< endCol:
+        let ch = if j < runeCount: $runes[j] else: " "
+        let isSelected = selStartCol >= 0 and j >= selStartCol and j < selEndCol
+        let style = if isSelected:
+                      # Create inverted style for selection
+                      var invStyle = bgStyle
+                      let tempColor = invStyle.fg
+                      invStyle.fg = invStyle.bg
+                      invStyle.bg = tempColor
+                      invStyle
+                    else:
+                      bgStyle
+        
+        tuiDraw(layer, contentX + 2 + (j - state.scrollX), screenY, ch, style)
+
   
   # Draw cursor (inverted character at cursor position)
   if state.cursor.line >= visibleStartLine and state.cursor.line < visibleEndLine:
@@ -673,10 +711,10 @@ proc handleEditorKeyPress*(state: EditorState, keyCode: int, key: string,
     else:
       moveCursorToLineEnd(state)
     return true
-  of 8:   # Backspace
+  of 8, 127:   # Backspace (8=BS, 127=DEL - both common for backspace)
     backspaceAtCursor(state)
     return true
-  of 46:  # Delete
+  of 46:  # Delete (forward delete)
     deleteAtCursor(state)
     return true
   of 13:  # Enter
