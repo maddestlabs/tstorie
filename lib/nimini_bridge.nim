@@ -309,6 +309,33 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     # Fallback to default style
     return styleConfigToValue(getDefaultStyleConfig())
   
+  env.vars["brightness"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## brightness(style: Style, factor: float) -> Style
+    ## Adjusts the brightness of a style's foreground color
+    ## factor < 1.0 = darker, factor > 1.0 = brighter
+    ## Example: brightness(getStyle("default"), 0.3) for 30% brightness
+    if args.len < 2:
+      raise newException(ValueError, "brightness() requires 2 arguments: style and factor")
+    
+    let styleMap = args[0].map
+    let factor = args[1].f
+    
+    # Clone the style map
+    var newStyle = initTable[string, Value]()
+    for k, v in styleMap:
+      newStyle[k] = v
+    
+    # Adjust foreground color
+    if newStyle.hasKey("fg"):
+      let fg = newStyle["fg"].map
+      var newFg = initTable[string, Value]()
+      newFg["r"] = valInt(int(clamp(float(fg["r"].i) * factor, 0.0, 255.0)))
+      newFg["g"] = valInt(int(clamp(float(fg["g"].i) * factor, 0.0, 255.0)))
+      newFg["b"] = valInt(int(clamp(float(fg["b"].i) * factor, 0.0, 255.0)))
+      newStyle["fg"] = valMap(newFg)
+    
+    return valMap(newStyle)
+  
   # ============================================================================
   # Input Handling
   # ============================================================================
@@ -345,6 +372,72 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
   env.vars["getMouseY"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
     ## Get the last known mouse Y coordinate
     return valInt(appState.lastMouseY)
+  
+  # ============================================================================
+  # Font Metrics and Scaling Functions (WASM only)
+  # ============================================================================
+  
+  when defined(emscripten):
+    proc emGetCharPixelWidth(): float {.importc.}
+    proc emGetCharPixelHeight(): float {.importc.}
+    proc emGetViewportPixelWidth(): int {.importc.}
+    proc emGetViewportPixelHeight(): int {.importc.}
+    proc emSetFontSize(size: int) {.importc.}
+    proc emSetFontScale(scale: float) {.importc.}
+  
+  env.vars["getCharPixelWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the pixel width of a character in the current font
+    when defined(emscripten):
+      return valFloat(emGetCharPixelWidth())
+    else:
+      return valFloat(10.0)  # Default fallback for native
+  
+  env.vars["getCharPixelHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the pixel height of a character in the current font
+    when defined(emscripten):
+      return valFloat(emGetCharPixelHeight())
+    else:
+      return valFloat(20.0)  # Default fallback for native
+  
+  env.vars["getViewportPixelWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the pixel width of the viewport/window
+    when defined(emscripten):
+      return valInt(emGetViewportPixelWidth())
+    else:
+      return valInt(800)  # Default fallback for native
+  
+  env.vars["getViewportPixelHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Get the pixel height of the viewport/window
+    when defined(emscripten):
+      return valInt(emGetViewportPixelHeight())
+    else:
+      return valInt(600)  # Default fallback for native
+  
+  env.vars["setFontSize"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Set the font size in pixels. Args: size (int)
+    if args.len > 0:
+      let size = case args[0].kind
+        of vkInt: args[0].i
+        of vkFloat: args[0].f.int
+        else: 16
+      when defined(emscripten):
+        emSetFontSize(size)
+    return valNil()
+  
+  env.vars["setFontScale"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## Scale the current font size by a multiplier. Args: scale (float)
+    if args.len > 0:
+      let scale = case args[0].kind
+        of vkFloat: args[0].f
+        of vkInt: args[0].i.float
+        else: 1.0
+      when defined(emscripten):
+        emSetFontScale(scale)
+    return valNil()
+  
+  # ============================================================================
+  # Performance Functions
+  # ============================================================================
   
   env.vars["getTargetFps"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
     ## Get the target FPS

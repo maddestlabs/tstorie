@@ -258,25 +258,25 @@ if event.type == "key":
     return true
   
   # Arrow keys - Manual control of circle 1
-  if keyCode == 1000:  # Up
+  if keyCode == 10000:  # Up
     circle1Y = circle1Y - 1.0
     if circle1Y < 20.0:
       circle1Y = 20.0
     message = "Red circle moved up"
     return true
-  elif keyCode == 1001:  # Down
+  elif keyCode == 10001:  # Down
     circle1Y = circle1Y + 1.0
     if circle1Y > 26.0:
       circle1Y = 26.0
     message = "Red circle moved down"
     return true
-  elif keyCode == 1002:  # Left
+  elif keyCode == 10002:  # Left
     circle1X = circle1X - 1.0
     if circle1X < 37.0:
       circle1X = 37.0
     message = "Red circle moved left"
     return true
-  elif keyCode == 1003:  # Right
+  elif keyCode == 10003:  # Right
     circle1X = circle1X + 1.0
     if circle1X > 62.0:
       circle1X = 62.0

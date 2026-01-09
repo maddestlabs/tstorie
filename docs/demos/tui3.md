@@ -161,10 +161,10 @@ if event.type == "key":
   
   # Handle input based on focus area
   if focusArea == 0:  # Radio buttons
-    if keyCode == 1000 or keyCode == 1001:  # Up/Down arrows
-      if keyCode == 1000:  # Up
+    if keyCode == 10000 or keyCode == 10001:  # Up/Down arrows
+      if keyCode == 10000:  # Up
         radioFocusIndex = (radioFocusIndex - 1 + len(radioOptions)) mod len(radioOptions)
-      elif keyCode == 1001:  # Down
+      elif keyCode == 10001:  # Down
         radioFocusIndex = (radioFocusIndex + 1) mod len(radioOptions)
       return true
     
@@ -180,24 +180,24 @@ if event.type == "key":
       message = if dropdownOpen: "Dropdown opened" else: "Dropdown closed"
       return true
     
-    if dropdownOpen and (keyCode == 1000 or keyCode == 1001):  # Up/Down
-      if keyCode == 1000:  # Up
+    if dropdownOpen and (keyCode == 10000 or keyCode == 10001):  # Up/Down
+      if keyCode == 10000:  # Up
         dropdownSelected = (dropdownSelected - 1 + len(dropdownOptions)) mod len(dropdownOptions)
-      elif keyCode == 1001:  # Down
+      elif keyCode == 10001:  # Down
         dropdownSelected = (dropdownSelected + 1) mod len(dropdownOptions)
       message = "Selected: " & dropdownOptions[dropdownSelected]
       return true
   
   elif focusArea == 2:  # List
-    if keyCode == 1000 or keyCode == 1001:  # Up/Down arrows
-      if keyCode == 1000:  # Up
+    if keyCode == 10000 or keyCode == 10001:  # Up/Down arrows
+      if keyCode == 10000:  # Up
         if listSelected > 0:
           listSelected = listSelected - 1
           # Auto-scroll when selection moves out of view
           if listSelected < listScrollOffset:
             listScrollOffset = listSelected
           message = "Selected: " & listItems[listSelected]
-      elif keyCode == 1001:  # Down
+      elif keyCode == 10001:  # Down
         if listSelected < len(listItems) - 1:
           listSelected = listSelected + 1
           # Auto-scroll when selection moves out of view
@@ -221,10 +221,10 @@ if event.type == "key":
   
   elif focusArea == 3:  # Form
     # Arrow keys to switch between fields
-    if keyCode == 1000 or keyCode == 1001:  # Up/Down
-      if keyCode == 1000:  # Up
+    if keyCode == 10000 or keyCode == 10001:  # Up/Down
+      if keyCode == 10000:  # Up
         formFocusIndex = (formFocusIndex - 1 + 2) mod 2
-      elif keyCode == 1001:  # Down
+      elif keyCode == 10001:  # Down
         formFocusIndex = (formFocusIndex + 1) mod 2
       return true
     
@@ -242,28 +242,28 @@ if event.type == "key":
   
   elif focusArea == 4:  # Text area
     # Arrow key navigation
-    if keyCode == 1000:  # Up
+    if keyCode == 10000:  # Up
       if textCursorLine > 0:
         textCursorLine = textCursorLine - 1
         # Clamp cursor column to new line length
         if textCursorCol > len(textLines[textCursorLine]):
           textCursorCol = len(textLines[textCursorLine])
       return true
-    elif keyCode == 1001:  # Down
+    elif keyCode == 10001:  # Down
       if textCursorLine < len(textLines) - 1:
         textCursorLine = textCursorLine + 1
         # Clamp cursor column to new line length
         if textCursorCol > len(textLines[textCursorLine]):
           textCursorCol = len(textLines[textCursorLine])
       return true
-    elif keyCode == 1002:  # Left
+    elif keyCode == 10002:  # Left
       if textCursorCol > 0:
         textCursorCol = textCursorCol - 1
       elif textCursorLine > 0:
         textCursorLine = textCursorLine - 1
         textCursorCol = len(textLines[textCursorLine])
       return true
-    elif keyCode == 1003:  # Right
+    elif keyCode == 10003:  # Right
       if textCursorCol < len(textLines[textCursorLine]):
         textCursorCol = textCursorCol + 1
       elif textCursorLine < len(textLines) - 1:

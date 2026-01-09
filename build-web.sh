@@ -144,6 +144,7 @@ NIM_OPTS="c
   --passL:--js-library --passL:web/audio_nodes_bridge.js
   --passL:--js-library --passL:web/figlet_bridge.js
   --passL:--js-library --passL:web/document_bridge.js
+  --passL:--js-library --passL:web/font_metrics_bridge.js
   -o:$OUTPUT_DIR/tstorie.wasm.js
   tstorie.nim"
 

@@ -70,6 +70,28 @@ class TStorieTerminal {
         this.resize();
     }
     
+    getCharPixelWidth() {
+        return this.charWidth;
+    }
+    
+    getCharPixelHeight() {
+        return this.charHeight;
+    }
+    
+    getViewportPixelWidth() {
+        return window.innerWidth;
+    }
+    
+    getViewportPixelHeight() {
+        return window.innerHeight;
+    }
+    
+    setFontScale(scale) {
+        // Scale the current font size
+        const newSize = Math.round(this.fontSize * scale);
+        this.setFontSize(newSize);
+    }
+    
     setupCanvas() {
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -171,28 +193,28 @@ class TStorieTerminal {
             case 'Enter': keyCode = 13; break;
             case 'Delete': keyCode = 46; break;
             
-            case 'ArrowUp': keyCode = 1000; break;
-            case 'ArrowDown': keyCode = 1001; break;
-            case 'ArrowLeft': keyCode = 1002; break;
-            case 'ArrowRight': keyCode = 1003; break;
+            case 'ArrowUp': keyCode = 10000; break;
+            case 'ArrowDown': keyCode = 10001; break;
+            case 'ArrowLeft': keyCode = 10002; break;
+            case 'ArrowRight': keyCode = 10003; break;
             
-            case 'Home': keyCode = 1004; break;
-            case 'End': keyCode = 1005; break;
-            case 'PageUp': keyCode = 1006; break;
-            case 'PageDown': keyCode = 1007; break;
+            case 'Home': keyCode = 10004; break;
+            case 'End': keyCode = 10005; break;
+            case 'PageUp': keyCode = 10006; break;
+            case 'PageDown': keyCode = 10007; break;
             
-            case 'F1': keyCode = 1008; break;
-            case 'F2': keyCode = 1009; break;
-            case 'F3': keyCode = 1010; break;
-            case 'F4': keyCode = 1011; break;
-            case 'F5': keyCode = 1012; break;
-            case 'F6': keyCode = 1013; break;
-            case 'F7': keyCode = 1014; break;
-            case 'F8': keyCode = 1015; break;
-            case 'F9': keyCode = 1016; break;
-            case 'F10': keyCode = 1017; break;
-            case 'F11': keyCode = 1018; break;
-            case 'F12': keyCode = 1019; break;
+            case 'F1': keyCode = 10008; break;
+            case 'F2': keyCode = 10009; break;
+            case 'F3': keyCode = 10010; break;
+            case 'F4': keyCode = 10011; break;
+            case 'F5': keyCode = 10012; break;
+            case 'F6': keyCode = 10013; break;
+            case 'F7': keyCode = 10014; break;
+            case 'F8': keyCode = 10015; break;
+            case 'F9': keyCode = 10016; break;
+            case 'F10': keyCode = 10017; break;
+            case 'F11': keyCode = 10018; break;
+            case 'F12': keyCode = 10019; break;
             
             default:
                 // Handle regular character input
@@ -440,4 +462,33 @@ async function inittstorie() {
 // Export for use in HTML
 if (typeof window !== 'undefined') {
     window.inittstorie = inittstorie;
+    
+    // Export font metric and scaling functions globally for WASM access
+    window.getCharPixelWidth = function() {
+        return terminal ? terminal.getCharPixelWidth() : 10;
+    };
+    
+    window.getCharPixelHeight = function() {
+        return terminal ? terminal.getCharPixelHeight() : 20;
+    };
+    
+    window.getViewportPixelWidth = function() {
+        return terminal ? terminal.getViewportPixelWidth() : window.innerWidth;
+    };
+    
+    window.getViewportPixelHeight = function() {
+        return terminal ? terminal.getViewportPixelHeight() : window.innerHeight;
+    };
+    
+    window.setFontSize = function(size) {
+        if (terminal) {
+            terminal.setFontSize(size);
+        }
+    };
+    
+    window.setFontScale = function(scale) {
+        if (terminal) {
+            terminal.setFontScale(scale);
+        }
+    };
 }

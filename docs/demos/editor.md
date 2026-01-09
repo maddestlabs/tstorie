@@ -573,14 +573,14 @@ if event.type == "key":
       focusedComponent = 0
       statusMessage = "Menu closed"
       return 1
-    elif keyCode == 1000:  # Up arrow
+    elif keyCode == 10000:  # Up arrow
       if hoveredMenuItem > 0:
         hoveredMenuItem = hoveredMenuItem - 1
         # Skip separators
         if activeMenu == "file" and (hoveredMenuItem == 3 or hoveredMenuItem == 5):
           hoveredMenuItem = hoveredMenuItem - 1
       return 1
-    elif keyCode == 1001:  # Down arrow
+    elif keyCode == 10001:  # Down arrow
       var maxItem = 0
       if activeMenu == "file":
         maxItem = 4
@@ -730,7 +730,7 @@ if event.type == "key":
       statusMessage = "Inserted tab (spaces)"
     elif keyCode == 46:
       statusMessage = "Deleted forward"
-    elif keyCode == 37 or keyCode == 38 or keyCode == 39 or keyCode == 40 or keyCode == 1000 or keyCode == 1001 or keyCode == 1002 or keyCode == 1003:
+    elif keyCode == 37 or keyCode == 38 or keyCode == 39 or keyCode == 40 or keyCode == 10000 or keyCode == 10001 or keyCode == 10002 or keyCode == 10003:
       let cursor = editorGetCursor(editor)
       statusMessage = "Moved to line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
     elif keyCode == 36:

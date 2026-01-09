@@ -50,15 +50,7 @@ canvasUpdate()
 ```
 
 # Canvas Presentations
-⠀
-```ascii
-| Month    | Savings |
-| -------- | ------- |
-| January  | $250    |
-| February | $80     |
-| March    | $420    |
-```
-⠀
+
 This demo showcases the presentation mode of the canvas system, where arrow keys navigate between slides instead of following links.
 ⠀
 ### Navigation Guide

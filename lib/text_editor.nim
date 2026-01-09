@@ -649,16 +649,16 @@ proc handleEditorKeyPress*(state: EditorState, keyCode: int, key: string,
   let shift = "shift" in mods
   
   case keyCode
-  of 37, 1002:  # Left arrow (browser: 37, terminal: 1002)
+  of 37, 10002:  # Left arrow (browser: 37, terminal: 10002)
     moveCursorLeft(state)
     return true
-  of 38, 1000:  # Up arrow (browser: 38, terminal: 1000)
+  of 38, 10000:  # Up arrow (browser: 38, terminal: 10000)
     moveCursorUp(state)
     return true
-  of 39, 1003:  # Right arrow (browser: 39, terminal: 1003)
+  of 39, 10003:  # Right arrow (browser: 39, terminal: 10003)
     moveCursorRight(state)
     return true
-  of 40, 1001:  # Down arrow (browser: 40, terminal: 1001)
+  of 40, 10001:  # Down arrow (browser: 40, terminal: 10001)
     moveCursorDown(state)
     return true
   of 36:  # Home

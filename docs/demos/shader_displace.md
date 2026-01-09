@@ -191,11 +191,11 @@ if event.type == "text":
     print "Animation reset"
 
 elif event.type == "key":
-  if event.keyCode == 1002:  # Left arrow
+  if event.keyCode == 10002:  # Left arrow
     currentEffect = (currentEffect - 1 + numEffects) mod numEffects
     var renderHeight = termHeight - 4
     initDisplacement(currentEffect, displayLayer, 0, 1, termWidth, renderHeight, intensity)
-  elif event.keyCode == 1003:  # Right arrow
+  elif event.keyCode == 10003:  # Right arrow
     currentEffect = (currentEffect + 1) mod numEffects
     var renderHeight = termHeight - 4
     initDisplacement(currentEffect, displayLayer, 0, 1, termWidth, renderHeight, intensity)

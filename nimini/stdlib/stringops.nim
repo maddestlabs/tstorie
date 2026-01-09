@@ -78,13 +78,24 @@ proc nimini_endsWith*(env: ref Env; args: seq[Value]): Value =
 # Split string by delimiter
 proc nimini_split*(env: ref Env; args: seq[Value]): Value =
   ## split(s: string, sep: string) - Split string by separator into array
+  ## Special handling: if sep is "\n", it splits by actual newline (char 10)
   if args.len < 2:
     quit "split requires 2 arguments"
   
   if args[0].kind != vkString or args[1].kind != vkString:
     quit "split requires string arguments"
   
-  let parts = strutils.split(args[0].s, args[1].s)
+  # Special case: if separator is the string "\n", split by actual newline character
+  let separator = args[1].s
+  var parts: seq[string] = @[]
+  
+  if separator == "\\n" or (separator.len == 1 and ord(separator[0]) == 10):
+    # Split by actual newline character (ASCII 10)
+    parts = strutils.split(args[0].s, '\n')
+  else:
+    # Normal string split
+    parts = strutils.split(args[0].s, separator)
+  
   var arr: seq[Value] = @[]
   for part in parts:
     arr.add(valString(part))
@@ -94,6 +105,7 @@ proc nimini_split*(env: ref Env; args: seq[Value]): Value =
 # Join array of strings with separator
 proc nimini_join*(env: ref Env; args: seq[Value]): Value =
   ## join(arr: array, sep: string) - Join array elements with separator
+  ## Special handling: if sep is "\n", it joins with actual newline (char 10)
   if args.len < 2:
     quit "join requires 2 arguments"
   
@@ -113,7 +125,14 @@ proc nimini_join*(env: ref Env; args: seq[Value]): Value =
     else:
       parts.add("")
   
-  return valString(strutils.join(parts, args[1].s))
+  # Special case: if separator is the string "\n", use actual newline character
+  let separator = args[1].s
+  if separator == "\\n" or (separator.len == 1 and ord(separator[0]) == 10):
+    # Join with actual newline character (ASCII 10)
+    return valString(strutils.join(parts, "\n"))
+  else:
+    # Normal join
+    return valString(strutils.join(parts, separator))
 
 # Strip whitespace from string
 proc nimini_strip*(env: ref Env; args: seq[Value]): Value =

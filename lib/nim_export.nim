@@ -1156,6 +1156,17 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "    result = defaultStyle()\n"
   result &= "\n"
   
+  # Style brightness adjustment
+  result &= "# Style brightness adjustment\n"
+  result &= "proc brightness(style: Style, factor: float): Style =\n"
+  result &= "  ## Adjusts the brightness of a style's foreground color\n"
+  result &= "  ## factor < 1.0 = darker, factor > 1.0 = brighter\n"
+  result &= "  result = style\n"
+  result &= "  result.fg.r = uint8(clamp(float(style.fg.r) * factor, 0.0, 255.0))\n"
+  result &= "  result.fg.g = uint8(clamp(float(style.fg.g) * factor, 0.0, 255.0))\n"
+  result &= "  result.fg.b = uint8(clamp(float(style.fg.b) * factor, 0.0, 255.0))\n"
+  result &= "\n"
+  
   # Unified Drawing API
   result &= "# Unified Drawing API - works with any layer\n"
   result &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
@@ -1397,6 +1408,17 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
   result &= "  else:\n"
   result &= "    result = defaultStyle()\n"
+  result &= "\n"
+  
+  # Style brightness adjustment
+  result &= "# Style brightness adjustment\n"
+  result &= "proc brightness(style: Style, factor: float): Style =\n"
+  result &= "  ## Adjusts the brightness of a style's foreground color\n"
+  result &= "  ## factor < 1.0 = darker, factor > 1.0 = brighter\n"
+  result &= "  result = style\n"
+  result &= "  result.fg.r = uint8(clamp(float(style.fg.r) * factor, 0.0, 255.0))\n"
+  result &= "  result.fg.g = uint8(clamp(float(style.fg.g) * factor, 0.0, 255.0))\n"
+  result &= "  result.fg.b = uint8(clamp(float(style.fg.b) * factor, 0.0, 255.0))\n"
   result &= "\n"
   
   # Unified Drawing API
@@ -1733,6 +1755,17 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "      bold: sc.bold, italic: sc.italic, underline: sc.underline, dim: sc.dim)\n"
   result.code &= "  else:\n"
   result.code &= "    result = defaultStyle()\n"
+  result.code &= "\n"
+  
+  # Style brightness adjustment
+  result.code &= "# Style brightness adjustment\n"
+  result.code &= "proc brightness(style: Style, factor: float): Style =\n"
+  result.code &= "  ## Adjusts the brightness of a style's foreground color\n"
+  result.code &= "  ## factor < 1.0 = darker, factor > 1.0 = brighter\n"
+  result.code &= "  result = style\n"
+  result.code &= "  result.fg.r = uint8(clamp(float(style.fg.r) * factor, 0.0, 255.0))\n"
+  result.code &= "  result.fg.g = uint8(clamp(float(style.fg.g) * factor, 0.0, 255.0))\n"
+  result.code &= "  result.fg.b = uint8(clamp(float(style.fg.b) * factor, 0.0, 255.0))\n"
   result.code &= "\n"
   
   # Unified Drawing API

@@ -1479,10 +1479,10 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
     return false
   
   # Arrow keys and Tab for link navigation
-  const INPUT_UP = 1000
-  const INPUT_DOWN = 1001
-  const INPUT_LEFT = 1002
-  const INPUT_RIGHT = 1003
+  const INPUT_UP = 10000
+  const INPUT_DOWN = 10001
+  const INPUT_LEFT = 10002
+  const INPUT_RIGHT = 10003
   const INPUT_TAB = 9
   const INPUT_ENTER = 13
   
