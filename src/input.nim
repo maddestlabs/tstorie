@@ -156,6 +156,16 @@ proc handleCsi(vt: var TerminalInputParser, command: char): seq[InputEvent] =
       if (mods and 0x4) != 0:
         modifiers.incl ModCtrl
 
+      # Detect Ctrl-Mousewheel and temporarily disable mouse tracking
+      if scroll and (mods and 0x4) != 0:
+        when not defined(emscripten):
+          # Disable mouse tracking for 1 second to let terminal handle font resizing
+          disableMouseReporting()
+          vt.mouseTrackingDisabled = true
+          vt.mouseTrackingReenableTime = epochTime() + 1.0
+        # Don't generate event - let it pass through to terminal
+        return result
+
       if move:
         result.add InputEvent(kind: MouseMoveEvent, moveX: col, moveY: row, moveMods: modifiers)
       elif scroll:
@@ -404,6 +414,16 @@ proc parseInput*(vt: var TerminalInputParser, text: openArray[char]): seq[InputE
 # ================================================================
 # HIGH-LEVEL POLLING API
 # ================================================================
+
+proc checkMouseTrackingReenabled*(parser: var TerminalInputParser) =
+  ## Check if mouse tracking should be re-enabled after Ctrl-Mousewheel timeout
+  ## Call this once per frame in your main loop
+  when not defined(emscripten):
+    if parser.mouseTrackingDisabled:
+      let currentTime = epochTime()
+      if currentTime >= parser.mouseTrackingReenableTime:
+        enableMouseReporting()
+        parser.mouseTrackingDisabled = false
 
 proc pollInput*(parser: var TerminalInputParser): seq[InputEvent] =
   ## Convenience function that polls terminal for input and parses it

@@ -213,6 +213,8 @@ type
     endedInEsc*: bool
     enableEscapeTimeout*: bool
     escapeTimeout*: int
+    mouseTrackingDisabled*: bool
+    mouseTrackingReenableTime*: float
 
 # ================================================================
 # INPUT PARSER INITIALIZATION
@@ -225,6 +227,8 @@ proc newTerminalInputParser*(): TerminalInputParser =
   result.enableEscapeTimeout = true
   result.escapeTimeout = 300
   result.escTimer = 0.0  # Will be set when first used
+  result.mouseTrackingDisabled = false
+  result.mouseTrackingReenableTime = 0.0
 
 # ================================================================
 # RENDERING TYPES

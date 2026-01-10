@@ -1323,6 +1323,9 @@ proc main() =
           else:
             discard callOnInput(state, event)
         
+        # Check if mouse tracking should be re-enabled after Ctrl-Mousewheel
+        checkMouseTrackingReenabled(state.inputParser)
+        
         let (newW, newH) = getTermSize()
         if newW != state.termWidth or newH != state.termHeight:
           state.resizeState(newW, newH)
