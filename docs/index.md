@@ -78,8 +78,11 @@ var sparklesAngle = 0.0
 
 if event.type == "key":
   if event.action == "press":
+    # Pass key events to canvas system
     var handled = canvasHandleKey(event.keyCode, 0)
-
+    if handled:
+      return true
+  return false
 elif event.type == "mouse":
   # Always track mouse position (during press, release, and move)
   if event.action == "press":
