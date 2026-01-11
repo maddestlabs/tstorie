@@ -11,8 +11,6 @@ shaders: "grid2x1+sand+gradualblur"
 ---
 
 # Stone Garden⠀
-`⇑⇓⟹⟸`
-`^v><`
 ```txt
 ; Level 1 - Getting started
 #######
