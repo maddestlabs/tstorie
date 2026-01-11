@@ -244,7 +244,7 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
     bg: theme.bgPrimary,
     bold: true,
     italic: false,
-    underline: true,  # Keep underline on focused link for visual distinction
+    underline: false,  # No underline on focused link for cleaner UI
     dim: false
   )
   

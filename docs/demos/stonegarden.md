@@ -5,7 +5,7 @@ author: "Maddest Labs"
 minWidth: 20
 minHeight: 10
 chars: "岩僧石座固僧・苔霧松竹梅"
-doublewidth: "true"
+doubleWidth: "true"
 theme: "stonegarden"
 shaders: "grid2x1+sand+gradualblur"
 ---
@@ -380,12 +380,6 @@ var playerOnGoalChar = "+"
 var floorChar = " "
 var outsideChars = ["~", ".", ":", "·", "∙"]  # Array of 5 outside chars for random selection
 
-# Parse double-width support
-var doubleWidth = false
-if len(doublewidth) > 0:
-  if doublewidth == "true":
-    doubleWidth = true
-
 if len(chars) >= 8:
   # Parse chars string with proper UTF-8 multi-byte character handling
   var charsList = []
@@ -446,9 +440,9 @@ if len(chars) >= 8:
       while len(outsideChars) < 5:
         outsideChars = outsideChars + [outsideChars[len(outsideChars) - 1]]
 
-# Calculate character width for rendering
 var charWidth = 1
-if doubleWidth:
+# Calculate character width for rendering
+if doubleWidth == "true":
   charWidth = 2
 
 # Random outside character selection
@@ -459,14 +453,14 @@ proc getRandomOutsideChar(x: int, y: int): string =
 
 # Get style objects - use theme defaults, unless user defines custom styles
 # Available theme styles: default, accent1, accent2, accent3, border, info, dim, etc.
-var styleWall = getStyle("bright")       # Border color (accent2)
-var stylePlayer = getStyle("accent1")    # Primary accent
-var styleBox = getStyle("dim")          # Info color (accent1)
-var styleGoal = getStyle("accent2")      # Tertiary accent
-var styleBoxGoal = getStyle("accent2")   # Tertiary accent
-var stylePlayerGoal = getStyle("accent2") # Tertiary accent
-var styleFloor = brightness(getStyle("default"), 0.3)     # Default fg/bg
-var styleOutside = brightness(getStyle("default"), 0.3)       # Dim/muted (fgSecondary)
+var styleWall = getStyle("bright")
+var stylePlayer = getStyle("accent1")
+var styleBox = getStyle("dim")
+var styleGoal = getStyle("accent2")
+var styleBoxGoal = getStyle("accent2")
+var stylePlayerGoal = getStyle("accent2")
+var styleFloor = brightness(getStyle("default"), 0.3)
+var styleOutside = brightness(getStyle("default"), 0.3)
 
 # Swap foreground and background colors for styleWall
 var temp = styleWall.fg
@@ -923,8 +917,8 @@ if event.type == "mouse":
     var mouseX = getMouseX()
     var mouseY = getMouseY()
     
-    # Check if clicking on button areas at bottom
-    var buttonY = termHeight - 1
+    # Check if clicking on button areas at top
+    var buttonY = 0
     if mouseY == buttonY:
       # 前 button (chars 2-4)
       if mouseX >= 2 and mouseX <= 4:
@@ -1094,30 +1088,8 @@ while bottomY < termHeight - 1:
     fillX = fillX + charWidth
   bottomY = bottomY + 1
 
-# Show level indicator (top-left)
-if isLevelPack:
-  var levelNum = $(currentLevelIndex + 1) & "/" & $len(levelPack)
-  var accentStyle = getStyle("accent2")
-  draw(0, 0, 0, "面", accentStyle)
-  draw(0, 2, 0, ":" & levelNum, defaultStyle())
-
-# Show move count (top-right, accounting for 3 digits)
-var movesNum = $moveCount
-var movesText = "手:" & movesNum
-var movesX = termWidth - len(movesText)
-var accentStyle = getStyle("accent2")
-draw(0, movesX, 0, "手", accentStyle)
-draw(0, movesX + 2, 0, ":" & movesNum, defaultStyle())
-
-# Show win message below the level
-var statusY = offsetY + levelHeight + 1
-if gameWon:
-  var winText = "完 Level Complete!"
-  var winX = offsetX + ((levelWidth * charWidth) - len(winText)) / 2
-  draw(0, winX, statusY, winText, stylePlayer)
-
-# Show clickable buttons at bottom
-var buttonY = termHeight - 1
+# Show clickable buttons at top (line 0) with kanji
+var buttonY = 0
 var accentStyle = getStyle("accent2")
 # Left buttons: Previous and Next
 draw(0, 0, buttonY, "< ", defaultStyle())
@@ -1127,6 +1099,25 @@ draw(0, 7, buttonY, "次", accentStyle)
 draw(0, 9, buttonY, " >", defaultStyle())
 # Right button: Restart with circular arrow
 var restartX = termWidth - 4
-draw(0, restartX, buttonY, "復", accentStyle)
-draw(0, restartX + 2, buttonY, "↻", defaultStyle())
+if restartX > 0:
+  draw(0, restartX, buttonY, "復", accentStyle)
+  draw(0, restartX + 2, buttonY, "↻", defaultStyle())
+
+# Show win message below the level
+var statusY = offsetY + levelHeight + 1
+if gameWon:
+  var winText = "完 Level Complete!"
+  var winX = offsetX + ((levelWidth * charWidth) - len(winText)) / 2
+  draw(0, winX, statusY, winText, stylePlayer)
+
+# Show level indicator and move count on bottom line (plain ASCII only)
+var statusY = termHeight - 1
+if isLevelPack:
+  var levelNum = $(currentLevelIndex + 1) & "/" & $len(levelPack)
+  draw(0, 0, statusY, levelNum, defaultStyle())
+# Move count (right-aligned)
+var movesNum = $moveCount
+var movesX = termWidth - len(movesNum)
+if movesX > 0:
+  draw(0, movesX, statusY, movesNum, defaultStyle())
 ```

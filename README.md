@@ -5,13 +5,13 @@ Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with
 Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 
 Demos:
-- [stonegarden.md](https://maddestlabs.github.io/tstorie/?content=demo:stonegarden&shader=grid2x1+sand+gradualblur) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/stonegarden.md)
+- [stonegarden.md](https://maddestlabs.github.io/tstorie/?content=demo:stonegarden&shader=sand+gradualblur&font=LXGW+WenKai+Mono+TC) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/stonegarden.md)
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crtbloom&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
 - [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=notebook&font=Courier+Prime) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
-- [dungen.md](https://maddestlabs.github.io/tstorie?content=demo:dungen&theme=nord&shader=graphpaper&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie/?content=demo:dungen&theme=coffee&shader=grid+sand+gradualblur&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
-- [shader.md](https://maddestlabs.github.io/tstorie?content=demo:shader&fontsize=26&shader=crtbloom) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
+- [shader.md](https://maddestlabs.github.io/tstorie?content=demo:shader&fontsize=26&shader=gradualblur+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
 
 Core examples:
 - [edit.md](https://maddestlabs.github.io/tstorie?content=demo:edit) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/edit.md)

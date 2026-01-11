@@ -85,11 +85,10 @@ if event.type == "key":
   return false
 elif event.type == "mouse":
   # Always track mouse position (during press, release, and move)
-  if event.action == "press":
-    mouseDown = true
-    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
-  elif event.action == "release":
-    mouseDown = false
+  if event.action == "release":
+    var handled = canvasHandleMouse(event.x, event.y, event.button, false)
+    if handled:
+      return true
 ```
 
 ```nim on:render

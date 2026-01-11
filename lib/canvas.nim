@@ -144,6 +144,11 @@ var
   gViewportWidth: int
   gViewportHeight: int
 
+# Global references needed by nimini wrappers (set by registerCanvasBindings)
+var gCanvasBuffer: ptr TermBuffer
+var gCanvasAppState: ptr AppState
+var gCanvasStyleSheet: ptr StyleSheet
+
 # ================================================================
 # SECTION STATE MANAGEMENT
 # ================================================================
@@ -926,7 +931,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
   let linkFocusedStyle = if styleSheet.hasKey("link_focused"):
                            toStyle(styleSheet["link_focused"])
                          else:
-                           Style(fg: ansiToColor(33), bg: bodyStyle.bg, bold: true, underline: true, italic: false, dim: false)
+                           Style(fg: ansiToColor(33), bg: bodyStyle.bg, bold: true, underline: false, italic: false, dim: false)
   
   var currentX = x
   var pos = 0
@@ -1473,6 +1478,25 @@ proc canvasUpdate*(deltaTime: float) =
     return
   
   updateCamera(deltaTime, gViewportWidth, gViewportHeight)
+  
+  # Check if mousefocus is enabled (default: true, can be disabled with frontmatter: mousefocus: "false")
+  let mouseFocusEnabled = not (canvasState.frontMatter.hasKey("mousefocus") and 
+                               canvasState.frontMatter["mousefocus"].toLowerAscii() in ["false", "no", "0"])
+  
+  # Update hover focus for links when mousefocus is enabled and not in presentation mode
+  if mouseFocusEnabled and not canvasState.presentationMode and not gCanvasAppState.isNil:
+    # Get current mouse position from app state (updated by mouse move events)
+    let mouseX = gCanvasAppState.lastMouseX
+    let mouseY = gCanvasAppState.lastMouseY
+    
+    # Check if mouse is hovering over any link
+    for i, link in canvasState.links:
+      if mouseX >= link.screenX and mouseX < link.screenX + link.width and
+         mouseY == link.screenY:
+        # Mouse is hovering over this link - focus it
+        if canvasState.focusedLinkIdx != i:
+          canvasState.focusedLinkIdx = i
+        break
 
 proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
   ## Handle keyboard input
@@ -1573,8 +1597,8 @@ proc canvasHandleMouse*(mouseX, mouseY: int, button: int, isDown: bool): bool =
   if canvasState.isNil:
     return false
   
-  # Only handle left mouse button clicks (mouse down events)
-  if button != 0 or not isDown:
+  # Only handle left mouse button clicks (mouse release events)
+  if button != 0 or isDown:
     return false
   
   # PRESENTATION MODE: Screen-region navigation
@@ -1621,11 +1645,6 @@ proc getSectionCount*(): int =
 # ================================================================
 # NIMINI BINDINGS
 # ================================================================
-
-# Global references needed by nimini wrappers (set by registerCanvasBindings)
-var gCanvasBuffer: ptr TermBuffer
-var gCanvasAppState: ptr AppState
-var gCanvasStyleSheet: ptr StyleSheet
 
 # Helper to convert Value to int (handles both int and float values)
 # This may be duplicated in including contexts but that's okay for private helpers

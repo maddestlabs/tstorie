@@ -90,11 +90,13 @@ elif event.type == "mouse":
       # Spawn splat particles at click location
       particleSetEmitterPos("splat", float(event.x), float(event.y))
       particleEmit("splat", rand(10) + 12)  # 12-21 particles for bigger splat
-    
-    # Pass mouse events to canvas system (only on press, not release)
-    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
+  
+  # Pass mouse release events to canvas system for link navigation
+  if event.action == "release":
+    var handled = canvasHandleMouse(event.x, event.y, event.button, false)
     if handled:
       return true
+  
   return false
 
 return false
