@@ -37,6 +37,15 @@ proc getStyle(name: string): Style =
   else:
     result = defaultStyle()
 
+# Style brightness adjustment
+proc brightness(style: Style, factor: float): Style =
+  ## Adjusts the brightness of a style's foreground color
+  ## factor < 1.0 = darker, factor > 1.0 = brighter
+  result = style
+  result.fg.r = uint8(clamp(float(style.fg.r) * factor, 0.0, 255.0))
+  result.fg.g = uint8(clamp(float(style.fg.g) * factor, 0.0, 255.0))
+  result.fg.b = uint8(clamp(float(style.fg.b) * factor, 0.0, 255.0))
+
 # Unified Drawing API - works with any layer
 proc draw(layer: string, x, y: int, text: string, style: Style = getStyle("default")) =
   let targetLayer = if layer == "default": gDefaultLayer else: getLayer(gState, layer)
@@ -71,6 +80,8 @@ proc fillRect(layer: string, x, y, w, h: int, ch: string, style: Style = getStyl
 proc print(args: varargs[string, `$`]) = echo args.join(" ")
 template termWidth: int = gState.termWidth
 template termHeight: int = gState.termHeight
+proc getMouseX(): int = gState.lastMouseX
+proc getMouseY(): int = gState.lastMouseY
 proc str(x: int): string = $x
 proc str(x: float): string = $x
 proc str(x: bool): string = $x
@@ -145,6 +156,9 @@ proc main() =
               # Check if click was in the box
               if mouseX >= 10 and mouseX <= 29 and mouseY >= 14 and mouseY <= 18:
                 draw(0, 2, termHeight - 1, "Box clicked at (" & str(mouseX) & ", " & str(mouseY) & ")")
+
+        # Check if mouse tracking should be re-enabled
+        checkMouseTrackingReenabled(gInputParser)
 
         # Render
         # Clear screen

@@ -32,6 +32,13 @@ proc registerTStorieExportMetadata*() =
   gFunctionMetadata["termHeight"] = FunctionMetadata(
     description: "Get terminal height - requires runtime context")
   
+  # Mouse position functions -> available in runtime context
+  gFunctionMetadata["getMouseX"] = FunctionMetadata(
+    description: "Get last known mouse X coordinate")
+  
+  gFunctionMetadata["getMouseY"] = FunctionMetadata(
+    description: "Get last known mouse Y coordinate")
+  
   # Style/Theme functions -> lib/storie_themes
   gFunctionMetadata["getStyle"] = FunctionMetadata(
     storieLibs: @["storie_themes"],

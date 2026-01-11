@@ -11,14 +11,16 @@ shaders: "grid2x1+sand+gradualblur"
 ---
 
 # Stone Garden⠀
-
+`⇑⇓⟹⟸`
+`^v><`
 ```txt
 ; Level 1 - Getting started
 #######
-#     ###
-# $$.$  #
-# @..   #
-#########
+#     ####
+#        #
+# @>>$>>.#
+#        #
+##########
 ;
 ; 2
 ##########
@@ -38,11 +40,11 @@ shaders: "grid2x1+sand+gradualblur"
 ##  .    #
 ### $    #
 ####  .$ #
-####.@   #
-####    .#
-#### $$ ##
-####     #
-##########
+  ##.@   #
+  ##    .#
+  ## $$ ##
+  ##     #
+  ########
 ;
 ; 4
 ##########
@@ -446,9 +448,11 @@ if doubleWidth == "true":
   charWidth = 2
 
 # Random outside character selection
-proc getRandomOutsideChar(x: int, y: int): string =
-  # Position-based selection (no animation)
-  var idx = (x + y * 7) mod len(outsideChars)
+proc getRandomOutsideChar(x: int, y: int, offset: int): string =
+  # Hash-based wave pattern - pseudo-random with wave-like structure
+  var hash = (x * 73 + y * 37) mod 997  # Prime-based hash for randomness
+  var wave = (x + y * 2) div 3  # Gentle diagonal wave component
+  var idx = (hash + wave + offset) mod len(outsideChars)
   return outsideChars[idx]
 
 # Get style objects - use theme defaults, unless user defines custom styles
@@ -482,11 +486,14 @@ var boxes = []  # Each box is [x, y]
 var goals = []  # Each goal is [x, y]
 var walls = []  # Each wall is [x, y]
 var reachableArea = []  # Cells reachable from player start [x, y]
+var arrows = []  # Tutorial arrows: [x, y, direction] where direction is "^", "v", ">", "<"
 var levelWidth = 0
 var levelHeight = 0
 var moveCount = 0
 var gameWon = false
 var currentLevelData = ""
+var frameCount = 0  # Animation frame counter
+var arrowAnimTick = 0  # Arrow animation tick (increments every N frames)
 
 # Level pack state
 var levelPack = []  # Array of level strings
@@ -506,12 +513,22 @@ proc isReachable(x: int, y: int): bool =
     i = i + 1
   return false
 
+# Get arrow at position (returns direction char or empty string)
+proc getArrow(x: int, y: int): string =
+  var i = 0
+  while i < len(arrows):
+    if arrows[i][0] == x and arrows[i][1] == y:
+      return arrows[i][2]
+    i = i + 1
+  return ""
+
 # Parse level from string (standard Sokoban format)
 proc parseLevel(levelData: string) =
   boxes = []
   goals = []
   walls = []
   reachableArea = []
+  arrows = []
   playerX = 0
   playerY = 0
   moveCount = 0
@@ -554,6 +571,9 @@ proc parseLevel(levelData: string) =
         goals = goals + [[x, y]]
       elif ch == "#" or ch == wallChar:
         walls = walls + [[x, y]]
+      # Tutorial arrows (walkable floor with visual hints)
+      elif ch == "^" or ch == "v" or ch == ">" or ch == "<":
+        arrows = arrows + [[x, y, ch]]
       # Spaces and other characters are empty cells - no action needed
       
       x = x + 1
@@ -966,12 +986,13 @@ elif event.type == "text":
       parseLevel(currentLevelData)
     return true
   
-  # Level pack navigation
-  elif key == "n" or key == "N":
+  # Level pack navigation - Next
+  elif key == "n" or key == "N" or key == "+":
     if isLevelPack:
       loadNextLevel()
       return true
-  elif key == "p" or key == "P":
+  # Level pack navigation - Previous
+  elif key == "p" or key == "P" or key == "-":
     if isLevelPack:
       loadPrevLevel()
       return true
@@ -995,6 +1016,16 @@ elif event.type == "key":
     elif code == 10003:  # Right
       if tryMove(1, 0):
         return true
+    # Next level: Enter (13) or Return (10004)
+    elif code == 13 or code == 10004:
+      if isLevelPack:
+        loadNextLevel()
+        return true
+    # Previous level: Backspace (8) or Delete (10005)
+    elif code == 8 or code == 10005:
+      if isLevelPack:
+        loadPrevLevel()
+        return true
   
   return false
 
@@ -1004,6 +1035,17 @@ return false
 ```nim on:render
 # Clear screen
 clear()
+
+# Increment frame counter for smooth animation every frame
+frameCount = frameCount + 1
+
+# Calculate animation offset for win state
+var animOffset = 0
+if gameWon:
+  var time = now()
+  var second = time.second
+  # Cycle through array positions every second
+  animOffset = second mod len(outsideChars)
 
 # Calculate rendering offset to center the level (both horizontal and vertical)
 # For double-width chars, ensure offsetX aligns to character boundaries
@@ -1019,7 +1061,7 @@ var topY = 1
 while topY < offsetY:
   var fillX = 0
   while fillX < termWidth:
-    draw(0, fillX, topY, getRandomOutsideChar(fillX, topY), styleOutside)
+    draw(0, fillX, topY, getRandomOutsideChar(fillX, topY, animOffset), styleOutside)
     fillX = fillX + charWidth
   topY = topY + 1
 
@@ -1029,7 +1071,7 @@ while y < levelHeight:
   # Draw outside area on the left
   var leftX = 0
   while leftX < offsetX:
-    draw(0, leftX, offsetY + y, getRandomOutsideChar(leftX, offsetY + y), styleOutside)
+    draw(0, leftX, offsetY + y, getRandomOutsideChar(leftX, offsetY + y, animOffset), styleOutside)
     leftX = leftX + charWidth
   
   # Draw the game grid
@@ -1062,9 +1104,27 @@ while y < levelHeight:
     elif hasWall(x, y):
       ch = wallChar
       style = styleWall
+    # Check for tutorial arrow (acts like floor tile)
+    elif len(getArrow(x, y)) > 0:
+      var arrowDir = getArrow(x, y)
+      ch = arrowDir
+      # Randomly pick color for each arrow based on position and frame count
+      var colorSeed = (x * 7 + y * 13 + frameCount div 15) mod 6
+      if colorSeed == 0:
+        style = getStyle("accent1")
+      elif colorSeed == 1:
+        style = getStyle("accent2")
+      elif colorSeed == 2:
+        style = getStyle("accent3")
+      elif colorSeed == 3:
+        style = getStyle("info")
+      elif colorSeed == 4:
+        style = getStyle("bright")
+      else:
+        style = getStyle("border")
     # Check if unreachable area (outside)
     elif not isReachable(x, y):
-      ch = getRandomOutsideChar(x, y)
+      ch = getRandomOutsideChar(x, y, animOffset)
       style = styleOutside
     
     # Draw the character (layer 0, accounting for charWidth)
@@ -1074,7 +1134,7 @@ while y < levelHeight:
   # Draw outside area on the right
   var rightX = offsetX + (levelWidth * charWidth)
   while rightX < termWidth:
-    draw(0, rightX, offsetY + y, getRandomOutsideChar(rightX, offsetY + y), styleOutside)
+    draw(0, rightX, offsetY + y, getRandomOutsideChar(rightX, offsetY + y, animOffset), styleOutside)
     rightX = rightX + charWidth
   
   y = y + 1
@@ -1084,7 +1144,7 @@ var bottomY = offsetY + levelHeight
 while bottomY < termHeight - 1:
   var fillX = 0
   while fillX < termWidth:
-    draw(0, fillX, bottomY, getRandomOutsideChar(fillX, bottomY), styleOutside)
+    draw(0, fillX, bottomY, getRandomOutsideChar(fillX, bottomY, animOffset), styleOutside)
     fillX = fillX + charWidth
   bottomY = bottomY + 1
 

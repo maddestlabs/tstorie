@@ -30,9 +30,8 @@ if event.type == "key":
   return false
 
 elif event.type == "mouse":
-  if event.action == "press":
-    # Pass mouse events to canvas system (only on press, not release)
-    var handled = canvasHandleMouse(event.x, event.y, event.button, true)
+  if event.action == "release":
+    var handled = canvasHandleMouse(event.x, event.y, event.button, false)
     if handled:
       return true
   return false

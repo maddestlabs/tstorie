@@ -577,6 +577,43 @@ proc extractProcedures*(code: string): seq[string] =
     # If parsing fails, can't extract procs
     discard
 
+proc fixIntegerDivision*(code: string): string =
+  ## Convert floating-point division (/) to integer division (div) when appropriate
+  ## This is needed because nimini uses JavaScript semantics where / always returns float,
+  ## but exported Nim code needs explicit integer division with div operator
+  result = ""
+  let lines = code.split('\n')
+  
+  for line in lines:
+    var fixedLine = line
+    # Simple heuristic: look for patterns like "var x = y / 2" where result is assigned to int
+    # More sophisticated: replace / with div when both operands appear to be integers
+    # For now, we'll do a simple pattern-based replacement in specific contexts
+    
+    # Pattern: "padding / 2" -> "padding div 2" (common in UI code)
+    if line.contains(" / 2") and not line.contains("float"):
+      fixedLine = line.replace(" / 2", " div 2")
+    
+    result.add(fixedLine & "\n")
+  
+  result = result.strip()
+
+proc removeReturnStatements*(code: string): string =
+  ## Remove return statements from event handler code
+  ## In nimini runtime, event handlers can return false to not consume events,
+  ## but in exported standalone code, these return statements are invalid
+  result = ""
+  let lines = code.split('\n')
+  
+  for line in lines:
+    let trimmed = line.strip()
+    # Skip lines that start with "return false" or "return true" (ignoring comments)
+    if trimmed.startsWith("return false") or trimmed.startsWith("return true"):
+      continue
+    result.add(line & "\n")
+  
+  result = result.strip()
+
 proc removeProcedures*(code: string, procNames: HashSet[string]): string =
   ## Remove proc definitions from code, leaving only calls
   ## This is a simplified text-based approach for Phase 3
@@ -927,6 +964,9 @@ proc buildExportContext*(doc: MarkdownDocument): ExportContext =
   for codeBlock in doc.codeBlocks:
     var processedCode = removeVarDeclForGlobals(codeBlock.code, globalNames)
     processedCode = removeProcedures(processedCode, extractedProcNames)
+    # Apply export-specific transformations
+    processedCode = fixIntegerDivision(processedCode)
+    processedCode = removeReturnStatements(processedCode)
     
     case codeBlock.lifecycle
     of "init":
@@ -1202,6 +1242,8 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
   result &= "template termWidth: int = gState.termWidth\n"
   result &= "template termHeight: int = gState.termHeight\n"
+  result &= "proc getMouseX(): int = gState.lastMouseX\n"
+  result &= "proc getMouseY(): int = gState.lastMouseY\n"
   result &= "proc str(x: int): string = $x\n"
   result &= "proc str(x: float): string = $x\n"
   result &= "proc str(x: bool): string = $x\n"
@@ -1459,6 +1501,8 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
   result &= "template termWidth: int = gState.termWidth\n"
   result &= "template termHeight: int = gState.termHeight\n"
+  result &= "proc getMouseX(): int = gState.lastMouseX\n"
+  result &= "proc getMouseY(): int = gState.lastMouseY\n"
   result &= "proc str(x: int): string = $x\n"
   result &= "proc str(x: float): string = $x\n"
   result &= "proc str(x: bool): string = $x\n"
@@ -1809,6 +1853,8 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
   result.code &= "template termWidth: int = gState.termWidth\n"
   result.code &= "template termHeight: int = gState.termHeight\n"
+  result.code &= "proc getMouseX(): int = gState.lastMouseX\n"
+  result.code &= "proc getMouseY(): int = gState.lastMouseY\n"
   result.code &= "proc str(x: int): string = $x\n"
   result.code &= "proc str(x: float): string = $x\n"
   result.code &= "proc str(x: bool): string = $x\n"

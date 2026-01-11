@@ -3,7 +3,6 @@
 ## This allows exported code to use the same event handling API as the runtime
 
 import types
-import strutils
 
 type
   SimpleEvent* = object
@@ -11,8 +10,9 @@ type
     x*, y*: int
     button*: string
     action*: string
-    key*: int
-    mods*: string
+    keyCode*: int    # Matches nimini runtime API
+    mods*: seq[string]  # Matches nimini runtime API - array of modifier strings
+    text*: string
 
 proc toSimpleEvent*(evt: InputEvent): SimpleEvent =
   ## Convert native InputEvent to simplified event object
@@ -20,17 +20,16 @@ proc toSimpleEvent*(evt: InputEvent): SimpleEvent =
   case evt.kind
   of KeyEvent:
     result.`type` = "key"
-    result.key = evt.keyCode
+    result.keyCode = evt.keyCode
     result.action = case evt.keyAction
       of Press: "press"
       of Release: "release"
       of Repeat: "repeat"
-    var modStrs: seq[string]
-    if ModShift in evt.keyMods: modStrs.add("shift")
-    if ModAlt in evt.keyMods: modStrs.add("alt")
-    if ModCtrl in evt.keyMods: modStrs.add("ctrl")
-    if ModSuper in evt.keyMods: modStrs.add("super")
-    result.mods = modStrs.join(",")
+    result.mods = @[]
+    if ModShift in evt.keyMods: result.mods.add("shift")
+    if ModAlt in evt.keyMods: result.mods.add("alt")
+    if ModCtrl in evt.keyMods: result.mods.add("ctrl")
+    if ModSuper in evt.keyMods: result.mods.add("super")
   of MouseEvent:
     result.`type` = "mouse"
     result.x = evt.mouseX
@@ -52,6 +51,7 @@ proc toSimpleEvent*(evt: InputEvent): SimpleEvent =
     result.y = evt.moveY
   of TextEvent:
     result.`type` = "text"
+    result.text = evt.text
   of ResizeEvent:
     result.`type` = "resize"
     result.x = evt.newWidth
