@@ -120,6 +120,16 @@ const
     accent2:      (0xbf'u8, 0x8c'u8, 0x6f'u8),  # Tan
     accent3:      (0xf2'u8, 0xd3'u8, 0xac'u8)   # Cream accent
   )
+  
+  StoneGarden* = ThemeColors(
+    bgPrimary:    (0x1a'u8, 0x1d'u8, 0x1e'u8),  # Darker stone (better contrast)
+    bgSecondary:  (0x2d'u8, 0x30'u8, 0x32'u8),  # Elevated surfaces
+    fgPrimary:    (0xe8'u8, 0xe6'u8, 0xe3'u8),  # Soft cream
+    fgSecondary:  (0x98'u8, 0x96'u8, 0x93'u8),  # Muted stone text
+    accent1:      (0x8d'u8, 0xb8'u8, 0x8d'u8),  # Bright moss green (player)
+    accent2:      (0xc4'u8, 0xa7'u8, 0x77'u8),  # Warm sand/stone (walls)
+    accent3:      (0x5a'u8, 0x7a'u8, 0x8e'u8)   # Cool blue-gray stone (boxes)
+  )
 
 proc getAvailableThemes*(): seq[string] =
   ## Get list of all available theme names
@@ -133,7 +143,8 @@ proc getAvailableThemes*(): seq[string] =
     "terminal",
     "solarized-dark",
     "futurism",
-    "coffee"
+    "coffee",
+    "stonegarden"
   ]
 
 proc getTheme*(name: string): ThemeColors =
@@ -159,6 +170,8 @@ proc getTheme*(name: string): ThemeColors =
     return Futurism
   of "coffee", "chocolate":
     return Coffee
+  of "stonegarden", "stone-garden", "zen", "zen-garden":
+    return StoneGarden
   else:
     # Default to Catppuccin if theme not found
     return CatppuccinMocha

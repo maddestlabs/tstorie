@@ -287,16 +287,16 @@ proc toInt*(v: Value): int =
 # ------------------------------------------------------------------------------
 
 type
-  ControlFlow = enum
+  ControlFlow* = enum  # Export the enum
     cfNone,        # Normal execution
     cfReturn,      # Return from function
     cfBreak,       # Break out of loop
     cfContinue     # Continue to next iteration
 
-  ExecResult = object
-    controlFlow: ControlFlow
-    value: Value
-    label: string  # Optional label for break/continue
+  ExecResult* = object  # Export the type
+    controlFlow*: ControlFlow  # Export the field
+    value*: Value  # Export the field
+    label*: string  # Optional label for break/continue
 
 proc noReturn(): ExecResult =
   ExecResult(controlFlow: cfNone, value: valNil(), label: "")
@@ -310,16 +310,16 @@ proc withBreak(label: string = ""): ExecResult =
 proc withContinue(label: string = ""): ExecResult =
   ExecResult(controlFlow: cfContinue, value: valNil(), label: label)
 
-proc hasReturn(r: ExecResult): bool =
+proc hasReturn*(r: ExecResult): bool =
   r.controlFlow == cfReturn
 
-proc hasBreak(r: ExecResult): bool =
+proc hasBreak*(r: ExecResult): bool =
   r.controlFlow == cfBreak
 
-proc hasContinue(r: ExecResult): bool =
+proc hasContinue*(r: ExecResult): bool =
   r.controlFlow == cfContinue
 
-proc hasControlFlow(r: ExecResult): bool =
+proc hasControlFlow*(r: ExecResult): bool =
   r.controlFlow != cfNone
 
 # ------------------------------------------------------------------------------
@@ -512,6 +512,11 @@ proc evalExpr(e: Expr; env: ref Env): Value =
         return valBool(true)
       let r = evalExpr(e.right, env)
       return valBool(toBool(r))
+    elif e.op == "xor":
+      # XOR operator - evaluates both sides
+      let l = evalExpr(e.left, env)
+      let r = evalExpr(e.right, env)
+      return valBool(toBool(l) xor toBool(r))
 
     # Evaluate both sides for other operators
     let l = evalExpr(e.left, env)

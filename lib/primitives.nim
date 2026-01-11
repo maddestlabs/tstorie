@@ -1,8 +1,10 @@
-## Procedural Generation Primitives
+## Primitives - The Foundation of tStorie
 ## 
-## A library of deterministic primitives for procedural generation,
-## designed like nodes in a visual programming system (TiXL/Tool3 style).
-## 
+## A comprehensive library of deterministic primitives for building
+## visual effects, audio synthesis, procedural generation, transitions,
+## and any other computational creative tasks.
+##
+## Designed like nodes in a visual programming system (TiXL/Tool3 style).
 ## All functions are deterministic and produce identical results in
 ## both native Nim and nimini scripted implementations.
 ##
@@ -15,6 +17,7 @@
 ## - Integer math where possible (no float drift)
 ## - Composable (outputs feed into other primitives)
 ## - Small, single-responsibility operations
+## - Universal applicability (shaders, audio, particles, transitions, etc.)
 
 import std/[random, math]
 

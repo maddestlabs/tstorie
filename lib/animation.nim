@@ -3,7 +3,7 @@
 ## 
 ## NOTE: This module is for FLOAT-BASED VISUAL ANIMATIONS.
 ## For DETERMINISTIC PROCEDURAL GENERATION (seed-based systems),
-## use lib/procgen_primitives.nim instead, which provides INTEGER-BASED
+## use lib/primitives.nim instead, which provides INTEGER-BASED
 ## easing functions that guarantee identical results across implementations.
 ##
 ## See ANIMATION_VS_PROCGEN_EASING.md for detailed comparison.
@@ -15,7 +15,7 @@ import math
 
 # ================================================================
 # EASING FUNCTIONS (Float-based for smooth visual animations)
-# For deterministic procedural generation, use lib/procgen_primitives.nim
+# For deterministic procedural generation, use lib/primitives.nim
 # ================================================================
 
 proc easeLinear*(t: float): float = t

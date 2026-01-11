@@ -1,13 +1,16 @@
 ---
-title: "Bloxes"
+title: "Stone Garden"
+alttitle: "石庭/Sekitei"
 author: "Maddest Labs"
 minWidth: 20
 minHeight: 10
-chars: "國男口田回男・雲霧風雨空"
+chars: "岩僧石座固僧・苔霧松竹梅"
 doublewidth: "true"
+theme: "stonegarden"
+shaders: "grid2x1+sand+gradualblur"
 ---
 
-# Bloxes⠀
+# Stone Garden⠀
 
 ```txt
 ; Level 1 - Getting started
@@ -923,18 +926,18 @@ if event.type == "mouse":
     # Check if clicking on button areas at bottom
     var buttonY = termHeight - 1
     if mouseY == buttonY:
-      # [P]rev button (chars 2-8)
-      if mouseX >= 2 and mouseX <= 8:
+      # 前 button (chars 2-4)
+      if mouseX >= 2 and mouseX <= 4:
         if isLevelPack:
           loadPrevLevel()
           return true
-      # [N]ext button (chars 12-18)
-      elif mouseX >= 12 and mouseX <= 18:
+      # 次 button (chars 7-9)
+      elif mouseX >= 7 and mouseX <= 9:
         if isLevelPack:
           loadNextLevel()
           return true
-      # [R]estart button (right-aligned, last 9 chars)
-      elif mouseX >= termWidth - 9:
+      # 復↻ button (right-aligned)
+      elif mouseX >= termWidth - 4:
         if isLevelPack and len(levelPack) > 0:
           parseLevel(levelPack[currentLevelIndex])
         else:
@@ -1093,13 +1096,18 @@ while bottomY < termHeight - 1:
 
 # Show level indicator (top-left)
 if isLevelPack:
-  var levelText = "Lvl: " & $(currentLevelIndex + 1) & "/" & $len(levelPack)
-  draw(0, 0, 0, levelText, defaultStyle())
+  var levelNum = $(currentLevelIndex + 1) & "/" & $len(levelPack)
+  var accentStyle = getStyle("accent2")
+  draw(0, 0, 0, "面", accentStyle)
+  draw(0, 2, 0, ":" & levelNum, defaultStyle())
 
 # Show move count (top-right, accounting for 3 digits)
-var movesText = "Moves: " & $moveCount
+var movesNum = $moveCount
+var movesText = "手:" & movesNum
 var movesX = termWidth - len(movesText)
-draw(0, movesX, 0, movesText, defaultStyle())
+var accentStyle = getStyle("accent2")
+draw(0, movesX, 0, "手", accentStyle)
+draw(0, movesX + 2, 0, ":" & movesNum, defaultStyle())
 
 # Show win message below the level
 var statusY = offsetY + levelHeight + 1
@@ -1110,9 +1118,15 @@ if gameWon:
 
 # Show clickable buttons at bottom
 var buttonY = termHeight - 1
-var buttonsLeft = "< [P]rev | [N]ext >"
-var buttonRight = "[R]estart <<"
-draw(0, 0, buttonY, buttonsLeft, defaultStyle())
-var restartX = termWidth - len(buttonRight)
-draw(0, restartX, buttonY, buttonRight, defaultStyle())
+var accentStyle = getStyle("accent2")
+# Left buttons: Previous and Next
+draw(0, 0, buttonY, "< ", defaultStyle())
+draw(0, 2, buttonY, "前", accentStyle)
+draw(0, 4, buttonY, " | ", defaultStyle())
+draw(0, 7, buttonY, "次", accentStyle)
+draw(0, 9, buttonY, " >", defaultStyle())
+# Right button: Restart with circular arrow
+var restartX = termWidth - 4
+draw(0, restartX, buttonY, "復", accentStyle)
+draw(0, restartX + 2, buttonY, "↻", defaultStyle())
 ```

@@ -1,7 +1,7 @@
 ## Test that procedural generation primitives are accessible from nimini scripts
 
 import ../nimini
-import ../lib/procgen_primitives
+import ../lib/primitives
 import std/strutils
 
 let testScript = """

@@ -204,7 +204,7 @@ proc spawnParticles(seed: int, count: int): seq[Particle] =
 ## Next Steps
 
 1. ✅ Document discovered requirements (this file)
-2. ⬜ Create `lib/procgen_primitives.nim` with math/geometric functions
+2. ⬜ Create `lib/primitives.nim` with math/geometric functions
 3. ⬜ Add to nimini stdlib: `nimini/stdlib/procgen.nim`
 4. ⬜ Create test suite: `tests/test_determinism.nim`
 5. ⬜ Add noise/hash functions

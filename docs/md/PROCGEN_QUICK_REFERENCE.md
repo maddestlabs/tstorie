@@ -164,7 +164,7 @@ for step in 0..<5:
 
 ```nim
 # Native Nim
-import lib/procgen_primitives
+import lib/primitives
 
 # Nimini script  
 # Functions automatically available!

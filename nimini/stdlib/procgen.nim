@@ -1,7 +1,7 @@
 ## Procedural Generation Primitives for Nimini
-## Exposes lib/procgen_primitives.nim functions to nimini scripts
+## Exposes lib/primitives.nim functions to nimini scripts
 
-import ../../lib/procgen_primitives
+import ../../lib/primitives
 import ../runtime
 import std/random
 

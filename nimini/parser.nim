@@ -54,6 +54,7 @@ proc expect(p: var Parser; kind: TokenKind; msg: string): Token =
 proc precedence(op: string): int =
   case op
   of "or": 1
+  of "xor": 2  # XOR operator at level 2
   of "and": 2
   of "==", "!=", "<", "<=", ">", ">=": 3
   of "..", "..<": 3  # Range operators at same level as comparison
@@ -655,11 +656,11 @@ proc parseExpr(p: var Parser; prec=0; allowDoNotation=true): Expr =
     var isOp = false
     var opLexeme = ""
 
-    # Check if current token is an operator or keyword operator (and/or/mod/div/shl/shr)
+    # Check if current token is an operator or keyword operator (and/or/xor/mod/div/shl/shr)
     if cur.kind == tkOp:
       isOp = true
       opLexeme = cur.lexeme
-    elif cur.kind == tkIdent and (cur.lexeme in ["and", "or", "mod", "div", "shl", "shr"]):
+    elif cur.kind == tkIdent and (cur.lexeme in ["and", "or", "xor", "mod", "div", "shl", "shr"]):
       isOp = true
       opLexeme = cur.lexeme
 

@@ -6,7 +6,7 @@ Successfully implemented a comprehensive library of **73 deterministic primitive
 
 ## ✅ What We Built
 
-### 1. Core Primitive Library (`lib/procgen_primitives.nim`)
+### 1. Core Primitive Library (`lib/primitives.nim`)
 
 **Math Nodes (9 primitives)**
 - `idiv`, `imod`, `iabs`, `sign` - Core integer operations

@@ -5,6 +5,8 @@
 
 import std/[tables, math]
 import particles
+import graph
+import primitives
 import ../nimini
 import ../src/types
 import ../src/layers
@@ -501,6 +503,161 @@ proc particleConfigureBugs*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 # ================================================================
+# NEW GRAPH-BASED CONFIGURATION
+# ================================================================
+
+proc particleConfigureVortex*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure vortex effect using graph-based motion
+  ## Args: name (string), centerX (float), centerY (float), strength (float, optional, default=1.0)
+  if args.len < 3 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let centerX = args[1].f
+  let centerY = args[2].f
+  let strength = if args.len >= 4: args[3].f else: 1.0
+  
+  let ps = gParticleSystems[name]
+  
+  # Configure vortex with graph-based motion
+  ps.motionGraph = configureVortexGraph(centerX, centerY)
+  ps.effectMode = pemParticles
+  
+  # Set basic parameters
+  ps.emitRate = 30.0 * strength
+  ps.velocityMin = (-5.0, -5.0)
+  ps.velocityMax = (5.0, 5.0)
+  ps.lifeMin = 3.0
+  ps.lifeMax = 5.0
+  ps.chars = @["*", "+", "·", "•", "○"]
+  ps.colorMin = Color(r: 255, g: 150, b: 255)
+  ps.colorMax = Color(r: 100, g: 200, b: 255)
+  
+  return valNil()
+
+proc particleConfigureRadialExplosion*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure radial explosion effect using graph-based motion
+  ## Args: name (string), centerX (float), centerY (float)
+  if args.len < 3 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let centerX = args[1].f
+  let centerY = args[2].f
+  
+  let ps = gParticleSystems[name]
+  
+  # Configure explosion with graph-based motion
+  ps.motionGraph = configureExplosionGraph((x: centerX, y: centerY))
+  ps.effectMode = pemParticles
+  
+  # Set basic parameters
+  ps.emitRate = 0.0  # Manual emit only
+  ps.velocityMin = (-15.0, -15.0)
+  ps.velocityMax = (15.0, 15.0)
+  ps.lifeMin = 1.0
+  ps.lifeMax = 2.0
+  ps.chars = @["*", "◆", "●", "■", "@", "#"]
+  ps.colorMin = Color(r: 255, g: 200, b: 0)
+  ps.colorMax = Color(r: 255, g: 100, b: 0)
+  ps.gravity = 10.0
+  
+  return valNil()
+
+proc particleConfigureMatrixHybrid*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure Matrix rain with hybrid mode (particles + spatial trails)
+  ## Args: name (string), intensity (float, optional, default=20.0)
+  if args.len < 1 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let intensity = if args.len >= 2: args[1].f else: 20.0
+  
+  let ps = gParticleSystems[name]
+  
+  # Configure Matrix with hybrid mode
+  ps.spatialDisplacementGraph = configureMatrixTrailGraph()
+  ps.spatialColorGraph = configureMatrixTrailGraph()
+  ps.effectMode = pemHybrid
+  ps.effectFlags = ParticleEffectFlags(replaceChar: true, modulateColor: true)
+  
+  # Set basic parameters
+  ps.emitRate = intensity
+  ps.emitterShape = esLine  # Spawn across top of screen
+  ps.velocityMin = (0.0, 8.0)
+  ps.velocityMax = (0.0, 12.0)
+  ps.lifeMin = 3.0
+  ps.lifeMax = 6.0
+  ps.chars = @["0", "1", "A", "B", "Z", "Ω", "∑", "π"]
+  ps.colorMin = Color(r: 0, g: 255, b: 0)
+  ps.colorMax = Color(r: 100, g: 255, b: 100)
+  ps.gravity = 0.0
+  ps.trailEnabled = true
+  ps.trailMaxLength = 12
+  ps.trailSpacing = 0.8
+  ps.trailFade = true
+  
+  return valNil()
+
+proc particleConfigureRippleField*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure ripple displacement field with static rain particles to displace
+  ## Args: name (string)
+  if args.len < 1 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let ps = gParticleSystems[name]
+  
+  # Configure as hybrid: particles + spatial displacement
+  ps.spatialDisplacementGraph = configureRippleDisplacementGraph()
+  ps.effectMode = pemHybrid  # Emit particles AND apply displacement
+  ps.effectFlags = ParticleEffectFlags(displace: true)
+  
+  # Emit gentle rain to have something to displace
+  ps.emitRate = 5.0
+  ps.emitterShape = esLine
+  ps.velocityMin = (0.0, 3.0)
+  ps.velocityMax = (0.0, 5.0)
+  ps.lifeMin = 8.0
+  ps.lifeMax = 12.0
+  ps.chars = @["·", "•", "○", "◦"]
+  ps.colorMin = Color(r: 100, g: 150, b: 255)
+  ps.colorMax = Color(r: 150, g: 200, b: 255)
+  ps.gravity = 0.0
+  ps.fadeOut = false
+  
+  return valNil()
+
+proc particleConfigureCustomGraph*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Configure custom multi-force graph (gravity + wind + oscillation)
+  ## Args: name (string), gravityStrength (float), windStrength (float)
+  if args.len < 3 or not gParticleSystems.hasKey(args[0].s):
+    return valNil()
+  
+  let name = args[0].s
+  let gravityStr = args[1].f
+  let windStr = args[2].f
+  
+  let ps = gParticleSystems[name]
+  
+  # For now, use simple parameters  (TODO: build actual graph)
+  ps.effectMode = pemParticles
+  
+  # Set basic parameters
+  ps.emitRate = 20.0
+  ps.velocityMin = (-2.0, 0.0)
+  ps.velocityMax = (2.0, 5.0)
+  ps.lifeMin = 2.0
+  ps.lifeMax = 4.0
+  ps.chars = @[".", "o", "O", "@", "◉"]
+  ps.colorMin = Color(r: 100, g: 200, b: 255)
+  ps.colorMax = Color(r: 200, g: 255, b: 255)
+  ps.gravity = gravityStr
+  ps.windForce = (windStr, 0.0)
+  
+  return valNil()
+
+# ================================================================
 # REGISTRATION
 # ================================================================
 
@@ -552,3 +709,11 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleConfigureColorblast"] = valNativeFunc(particleConfigureColorblast)
   env.vars["particleConfigureMatrix"] = valNativeFunc(particleConfigureMatrix)
   env.vars["particleConfigureBugs"] = valNativeFunc(particleConfigureBugs)
+  
+  # NEW: Graph-based configurations
+  env.vars["particleConfigureVortex"] = valNativeFunc(particleConfigureVortex)
+  env.vars["particleConfigureRadialExplosion"] = valNativeFunc(particleConfigureRadialExplosion)
+  env.vars["particleConfigureMatrixHybrid"] = valNativeFunc(particleConfigureMatrixHybrid)
+  env.vars["particleConfigureRippleField"] = valNativeFunc(particleConfigureRippleField)
+  env.vars["particleConfigureCustomGraph"] = valNativeFunc(particleConfigureCustomGraph)
+

@@ -167,8 +167,25 @@ class TStorieTerminal {
         
         // Focus canvas on load
         this.canvas.focus();
-        this.canvas.addEventListener('blur', () => {
-            setTimeout(() => this.canvas.focus(), 0);
+        this.canvas.addEventListener('blur', (e) => {
+            // Don't refocus if user clicked on settings panel or its inputs
+            setTimeout(() => {
+                const activeElement = document.activeElement;
+                const settingsPanel = document.getElementById('settings-panel');
+                const settingsToggle = document.getElementById('settings-toggle');
+                
+                // Check if focus moved to settings panel or its children, or the toggle button
+                if (activeElement && 
+                    (activeElement === settingsPanel || 
+                     activeElement === settingsToggle ||
+                     settingsPanel?.contains(activeElement))) {
+                    // Let the settings panel keep focus
+                    return;
+                }
+                
+                // Otherwise, refocus the canvas for keyboard input
+                this.canvas.focus();
+            }, 0);
         });
     }
     

@@ -196,7 +196,7 @@ Run multiple times with same seed - should always produce identical output.
 
 ### 3. Export to Native
 
-When using tstorie's export feature, the generated native Nim code will use the same primitives from `lib/procgen_primitives.nim`, guaranteeing identical results.
+When using tstorie's export feature, the generated native Nim code will use the same primitives from `lib/primitives.nim`, guaranteeing identical results.
 
 ### 4. Verify
 
@@ -409,7 +409,7 @@ Result:     Different dungeons with same seed ❌
 ### After (Guaranteed Same)
 
 ```
-Native:     Uses lib/procgen_primitives.nim
+Native:     Uses lib/primitives.nim
 Scripted:   Uses same primitives via nimini/stdlib/procgen.nim
 Result:     Identical dungeons with same seed ✅
 ```

@@ -15,7 +15,7 @@
 ##   on:render -> drawShader()
 
 import std/[math]
-import procgen_primitives
+import primitives
 
 when not declared(Color):
   import ../src/types

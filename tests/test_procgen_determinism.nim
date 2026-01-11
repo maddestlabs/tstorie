@@ -2,7 +2,7 @@
 ## Validates that primitives produce identical results in native and scripted implementations
 
 import std/[random, strformat]
-import ../lib/procgen_primitives
+import ../lib/primitives
 
 ## ============================================================================
 ## Test Framework

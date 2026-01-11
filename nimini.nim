@@ -59,8 +59,8 @@ export seqops
 export FunctionMetadata, gFunctionMetadata, getImports, getStorieLibs, hasMetadata
 
 # Import stdlib modules
-import nimini/stdlib/[mathops, typeconv, collections, random, stringops]
-export mathops, typeconv, collections, random, stringops
+import nimini/stdlib/[mathops, typeconv, collections, random, stringops, chainable]
+export mathops, typeconv, collections, random, stringops, chainable
 
 # Initialize standard library - must be called after initRuntime()
 proc initStdlib*() =
@@ -151,7 +151,15 @@ proc initStdlib*() =
     # Shader primitives - color palettes
     nimini_colorHeatmap, nimini_colorPlasma, nimini_colorCoolWarm,
     nimini_colorFire, nimini_colorOcean, nimini_colorNeon,
-    nimini_colorMatrix, nimini_colorGrayscale
+    nimini_colorMatrix, nimini_colorGrayscale,
+    
+    # Chainable array operations (UFCS support) - use "Arr" suffix to avoid conflicts
+    nimini_filterArr, nimini_mapArr, nimini_sortedArr, nimini_reversedArr,
+    nimini_takeArr, nimini_dropArr, nimini_sumArr, nimini_firstArr, nimini_lastArr,
+    nimini_uniqueArr, nimini_countArr, nimini_anyArr, nimini_allArr,
+    
+    # Chainable string operations - use "Str" suffix
+    nimini_trimStr, nimini_concatStr
   )
   
   # Note: Metadata (imports, descriptions) has been removed for brevity

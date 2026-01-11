@@ -1,8 +1,8 @@
 ---
 title: "Welcome to t|Storie"
 author: "Maddest Labs"
-minWidth: 60
-minHeight: 18
+minWidth: 30
+minHeight: 12
 theme: "futurism"
 targetFPS: 60
 ---

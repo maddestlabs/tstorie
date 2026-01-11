@@ -77,7 +77,7 @@ executeBlock(deltaTime = dt)
 
 ## Best Practices
 
-### Use `procgen_primitives.nim` for Core Math
+### Use `primitives.nim` for Core Math
 ```nim
 # Place WASM-tested utilities here
 proc intHash2D*(x, y, seed: int): int =

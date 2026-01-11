@@ -26,7 +26,7 @@ let progress = trans.easedProgress()  # 0.0..1.0
 lerpColor(startColor, endColor, progress)
 ```
 
-### lib/procgen_primitives.nim - Procedural Generation
+### lib/primitives.nim - Procedural Generation
 **Purpose**: Deterministic seed-based procedural generation
 
 **Characteristics**:
@@ -68,7 +68,7 @@ proc easeInQuad(t: float): float = t * t
 
 ### The Integer Solution
 ```nim
-# Integer version (procgen_primitives.nim)  
+# Integer version (primitives.nim)  
 proc easeInQuad(t: int): int = (t * t) div 1000
 
 # ALWAYS gives exact same result:
@@ -86,7 +86,7 @@ let t = rng.randFloat()  # 0.0..1.0
 let eased = easeInQuad(t)  # Float! Will drift!
 ```
 
-**After** (using procgen_primitives.nim - CORRECT):
+**After** (using primitives.nim - CORRECT):
 ```nim
 var rng = initRand(seed)
 let t = rng.rand(1000)  # 0..1000
@@ -105,14 +105,14 @@ let progress = easeInQuad(animProgress)  # 0.0..1.0
 
 **Procedural easing** (int): Import explicitly when needed
 ```nim
-import lib/procgen_primitives
+import lib/primitives
 let curveValue = easeInQuad(t)  # 0..1000
 ```
 
 Or use qualified imports:
 ```nim
 import lib/animation as anim
-import lib/procgen_primitives as procgen
+import lib/primitives as procgen
 
 anim.easeInQuad(0.5)      # Float version
 procgen.easeInQuad(500)   # Integer version
@@ -120,7 +120,7 @@ procgen.easeInQuad(500)   # Integer version
 
 ## Summary
 
-| Feature | animation.nim | procgen_primitives.nim |
+| Feature | animation.nim | primitives.nim |
 |---------|--------------|------------------------|
 | Input type | `float` (0.0..1.0) | `int` (0..1000) |
 | Output type | `float` | `int` |

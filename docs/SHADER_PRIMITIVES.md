@@ -1,6 +1,6 @@
 # Shader Primitives Reference
 
-This document describes the shader-oriented procedural generation primitives added to `lib/procgen_primitives.nim` and how to use them in both nimini scripts and exported native code.
+This document describes the shader-oriented procedural generation primitives added to `lib/primitives.nim` and how to use them in both nimini scripts and exported native code.
 
 ## Overview
 
@@ -357,7 +357,7 @@ var angle = polarAngle(x, y, centerX, centerY)
 - ❌ Fixed effects, hard to customize
 - ❌ Can't combine effects
 
-**Shader Primitives** (`lib/procgen_primitives.nim`):
+**Shader Primitives** (`lib/primitives.nim`):
 - ✅ Fully composable
 - ✅ Create custom effects
 - ✅ Mix and match patterns
@@ -376,13 +376,13 @@ These primitives work seamlessly with tstorie's export system because:
 3. **Deterministic**: Same inputs always produce same outputs
 4. **Portable**: Works on any platform (WASM, native, exported)
 
-When you export a nimini script using shader primitives, the exported code will use the exact same functions from `lib/procgen_primitives.nim`, ensuring identical results.
+When you export a nimini script using shader primitives, the exported code will use the exact same functions from `lib/primitives.nim`, ensuring identical results.
 
 ## See Also
 
 - [shader_demo.md](docs/demos/shader_demo.md) - Monolithic shader system demos
 - [shader_primitives_demo.md](docs/demos/shader_primitives_demo.md) - Interactive primitive composition demos
-- [procgen_primitives.nim](lib/procgen_primitives.nim) - Full primitive library source
+- [primitives.nim](lib/primitives.nim) - Full primitive library source
 - [DUNGEN_SUMMARY.md](DUNGEN_SUMMARY.md) - Dungeon generation using same primitives
 
 ## Function Quick Reference
