@@ -57,6 +57,16 @@ Native compilation:
 
 You'll get a native compiled binary in just moments, Nim compiles super fast. This is still early in development but supports small projects currently. The export is standalone with zero dependencies.
 
+### Desktop App (tStauri)
+
+**[tStauri](tstauri/)** is a desktop runner that lets you drag and drop `.md` files to run them locally:
+- 🖥️ Native desktop app for Linux, macOS, and Windows
+- 📁 Drag & drop `.md` files to run instantly
+- ⚡ Uses the same WASM engine as the web version
+- 🔒 Runs completely offline
+
+See [tstauri/README.md](tstauri/README.md) for installation and development instructions.
+
 ### Web Usage
 
 **Quick Start with Content Parameter:**

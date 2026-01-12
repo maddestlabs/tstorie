@@ -1,0 +1,73 @@
+{
+  "productName": "tStauri",
+  "version": "0.1.0",
+  "identifier": "com.maddestlabs.tstauri",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "npm run vite:build",
+    "frontendDist": "../dist-frontend"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../../docs/tstorie.js",
+      "../../docs/tstorie.wasm.js",
+      "../../docs/tstorie.wasm.wasm"
+    ],
+    "externalBin": [],
+    "copyright": "",
+    "category": "DeveloperTool",
+    "shortDescription": "Desktop tStorie runner",
+    "longDescription": "Drag and drop tStorie .md documents to run them with the WASM engine",
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "wix": {
+        "language": "en-US"
+      },
+      "nsis": {
+        "languages": ["en-US"],
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "tStauri",
+        "width": 640,
+        "height": 480,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": true,
+        "devtools": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://tauri.localhost asset: https://asset.localhost http://asset.localhost blob:; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' http://asset.localhost https://asset.localhost asset: blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+    },
+    "withGlobalTauri": true
+  }
+}

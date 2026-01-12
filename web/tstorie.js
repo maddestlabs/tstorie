@@ -344,7 +344,18 @@ class TStorieTerminal {
         }
         
         // Get cell data from WASM
-        const ch = Module.UTF8ToString(Module._emGetCell(x, y));
+        let ch = Module.UTF8ToString(Module._emGetCell(x, y));
+        
+        // Filter out middle dot (・/U+30FB) used as terminal rendering workaround
+        // It's added after arrow characters in level data to fix terminal glitches
+        // but should not be rendered in canvas. Check if previous cell has an arrow.
+        if (ch === '・' && x > 0) {
+            const prevCh = Module.UTF8ToString(Module._emGetCell(x - 1, y));
+            // If previous character is an ASCII arrow, filter the middle dot
+            if (prevCh === '>' || prevCh === '<' || prevCh === '^' || prevCh === 'v') {
+                ch = '';
+            }
+        }
         
         const fgR = Module._emGetCellFgR(x, y);
         const fgG = Module._emGetCellFgG(x, y);

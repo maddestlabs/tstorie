@@ -571,6 +571,7 @@ proc parseLevel(levelData: string) =
         walls = walls + [[x, y]]
       # Tutorial arrows (walkable floor with visual hints)
       elif ch == "^" or ch == "v" or ch == ">" or ch == "<":
+        ch = ch & "・"
         arrows = arrows + [[x, y, ch]]
       # Spaces and other characters are empty cells - no action needed
       
