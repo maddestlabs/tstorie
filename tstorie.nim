@@ -26,8 +26,7 @@ when not defined(emscripten):
 
 # These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
 # so they must be included to share the same namespace
-include lib/events            # Event handling system
-include lib/animation         # Animation helpers and easing
+import lib/animation          # Animation helpers and easing (now pure math, can be imported)
 include lib/canvas            # Canvas navigation system
 include lib/audio             # Audio system
 

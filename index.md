@@ -1,5 +1,5 @@
 ---
-title: "Welcome to t|Storie"
+title: "t|Storie ꭲꭼꭱꮇꮖꮑꭺꮮ ꭼꮑᏽꮖꮑꭼ"
 author: "Maddest Labs"
 minWidth: 30
 minHeight: 12
@@ -18,8 +18,6 @@ var visitedFrontmatter = false
 var visitedRendering = false
 var visitedInteractive = false
 var explorerLevel = 0
-
-print "t|Storie walkthrough initialized"
 
 # Initialize canvas system - start at section 1
 initCanvas(1)
@@ -136,11 +134,11 @@ if inFinalStats:
 # Welcome to
 ⠀
 ```ansi
-[38;2;0;217;142m  ▄  [0m [1;37m█[0m [38;2;100;100;100m▄▄▄▄   ▄                     [0m
-[38;2;0;217;142m ▄█▄ [0m [1;37m█[0m [38;2;100;100;100m█     ▄█▄  ▄▄▄▄ ▄▄▄▄ ▄  ▄▄▄▄▄[0m
-[38;2;0;217;142m  █  [0m [1;37m█[0m [38;2;100;100;100m▀▀▀▀▄  █   █  █ █    █  █▄▄▄█[0m
-[38;2;0;217;142m  █  [0m [1;37m█[0m [38;2;100;100;100m    █  █   █  █ █    █  █    [0m
-[38;2;0;217;142m  ▀▀ [0m [1;37m█[0m [38;2;100;100;100m▀▀▀▀   ▀▀  ▀▀▀▀ ▀    ▀  ▀▀▀▀▀[0m
+[38;2;0;217;142m  ▄ [0m [1;37m█[0m [38;2;100;100;100m▄▄▄▄   ▄                     [0m
+[38;2;0;217;142m ▄█▄[0m [1;37m█[0m [38;2;100;100;100m█     ▄█▄  ▄▄▄▄ ▄▄▄▄ ▄  ▄▄▄▄▄[0m
+[38;2;0;217;142m  █ [0m [1;37m█[0m [38;2;100;100;100m▀▀▀▀▄  █   █  █ █    █  █▄▄▄█[0m
+[38;2;0;217;142m  █ [0m [1;37m█[0m [38;2;100;100;100m    █  █   █  █ █    █  █    [0m
+[38;2;0;217;142m  ▀▀[0m [1;37m█[0m [38;2;100;100;100m▀▀▀▀   ▀▀  ▀▀▀▀ ▀    ▀  ▀▀▀▀▀[0m
 ```
 ⠀
 The abominable, little terminal engine that could,
@@ -148,9 +146,9 @@ but probably shouldn't!
 ⠀
 **Ready to explore?**
 ⠀
-- [Start the tour](#tour_start)  
-- [Learn about Markdown first](#what_is_markdown)  
-- [Skip to advanced features](#advanced_hub)
+- [Start the tour](#tour-start)  
+- [Learn about Markdown first](#what-is-markdown)  
+- [Skip to advanced features](#advanced-hub)
 
 # What is Markdown?
 ⠀
@@ -163,8 +161,8 @@ For example:
 ⠀
 t|Storie extends Markdown with code blocks that can respond to events, render graphics, and create interactive experiences.
 ⠀
-- [Continue the tour](#tour_start)  
-- [Return to start](#welcome_to)
+- [Continue the tour](#tour-start)  
+- [Return to start](#welcome-to)
 
 # Tour Start
 ⠀
@@ -181,10 +179,10 @@ Each Section can contain:
 Let's explore each feature:
 ⠀
 - [Front Matter Variables](#frontmatter)
-- [Markdown Sections](#markdown_sections)
-- [Canvas & Rendering](#canvas_rendering)
-- [Interactive Code](#interactive_code)
-- [Skip to the end](#journey_complete)
+- [Markdown Sections](#markdown-sections)
+- [Canvas & Rendering](#canvas-rendering)
+- [Interactive Code](#interactive-code)
+- [Skip to the end](#journey-complete)
 
 # Frontmatter
 ⠀
@@ -203,8 +201,8 @@ These variables become **global variables** in your code blocks! For example, th
 ⠀
 Front matter is perfect for configuration, game state, or any data you want to access throughout your document.
 ⠀
-- [Continue to Markdown sections](#markdown_sections)  
-- [Back to tour start](#tour_start)
+- [Continue to Markdown sections](#markdown-sections)  
+- [Back to tour start](#tour-start)
 
 ```nim on:enter
 visitedFrontmatter = true
@@ -222,9 +220,9 @@ Sections can be:
 ⠀
 Right now, you're in a hidden Section that's navigable via links but doesn't appear in the main contents listing. This is perfect for creating branching narratives!
 ⠀
-- [Learn about canvas rendering](#canvas_rendering)  
-- [Jump to interactive code](#interactive_code)  
-- [Back to tour start](#tour_start)
+- [Learn about canvas rendering](#canvas-rendering)  
+- [Jump to interactive code](#interactive-code)  
+- [Back to tour start](#tour-start)
 
 ```nim on:enter
 visitedMarkdown = true
@@ -242,9 +240,9 @@ t|Storie provides a powerful terminal-based canvas with multiple layers:
 ⠀
 Use `on:render` code blocks to draw each frame!
 ⠀
-- [Explore interactive code](#interactive_code)  
-- [See a rendering example](#render_example)  
-- [Back to tour](#tour_start)
+- [Explore interactive code](#interactive-code)  
+- [See a rendering example](#render-example)  
+- [Back to tour](#tour-start)
 
 ```nim on:enter
 visitedRendering = true
@@ -269,8 +267,8 @@ This code would run **every frame** and:
 ⠀
 You can combine multiple layers to create complex UIs and graphics!
 ⠀
-- [Continue to interactive code](#interactive_code)  
-- [Back to canvas info](#canvas_rendering)
+- [Continue to interactive code](#interactive-code)  
+- [Back to canvas info](#canvas-rendering)
 
 # Interactive Code
 ⠀
@@ -286,9 +284,9 @@ You can track state with variables, respond to player input, and create fully in
 ⠀
 The canvas navigation system you're using right now is built with these code blocks.
 ⠀
-- [Learn about advanced features](#advanced_hub)  
-- [Complete the tour](#journey_complete)  
-- [Back to tour start](#tour_start)
+- [Learn about advanced features](#advanced-hub)  
+- [Complete the tour](#journey-complete)  
+- [Back to tour start](#tour-start)
 
 ```nim on:enter
 visitedInteractive = true
@@ -299,12 +297,12 @@ explorerLevel++
 ⠀
 Ready to dive deeper? t|Storie includes powerful features for creating sophisticated interactive experiences:
 ⠀
-- [Animation & Effects](#animation_features)  
-- [Audio System](#audio_features)  
-- [State Management](#state_management)  
-- [Layout & Themes](#layout_themes)  
-- [Gist Integration](#gist_integration)  
-- [Complete the tour](#journey_complete)
+- [Animation & Effects](#animation-features)  
+- [Audio System](#audio-features)  
+- [State Management](#state-management)  
+- [Layout & Themes](#layout-themes)  
+- [Gist Integration](#gist-integration)  
+- [Complete the tour](#journey-complete)
 
 # Animation Features
 ⠀
@@ -321,7 +319,7 @@ Combined with the rendering system, you can create:
 ⠀
 Check out `lib/animation.nim` and `lib/transition_helpers.nim` for the full API.
 ⠀
-- [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced-hub)
 
 # audio_features
 ⠀
@@ -339,7 +337,7 @@ Perfect for:
 ⠀
 See `lib/audio.nim`, `lib/audio_gen.nim`, and `lib/audio_nodes.nim` for details.
 ⠀
-- [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced-hub)
 
 # State Management
 ⠀
@@ -360,7 +358,7 @@ Manage complex application state with:
 - One-time visits
 - Conditional content
 ⠀
-- [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced-hub)
 
 # Layout Themes
 ⠀
@@ -379,7 +377,7 @@ Customize your experience:
 ⠀
 Check `lib/layout.nim` and `lib/storie_themes.nim`.
 ⠀
-- [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced-hub)
 
 # Gist Integration
 ⠀
@@ -392,7 +390,7 @@ Load and share documents easily:
 ⠀
 GitHub Gist is totally free, facilitates sharing and collaboration and includes built-in version control. Made a mistake in your code? No problem, just revert back to previous version.
 ⠀
-- [Back to advanced hub](#advanced_hub)
+- [Back to advanced hub](#advanced-hub)
 
 # Journey Complete
 ⠀
@@ -405,8 +403,8 @@ Congratulations! You've explored t|Storie and learned about:
 ✓ Event handling
 ✓ Advanced features
 ⠀
-- [What's Next](#whats_next)
-- [Return to start](#welcome_to)
+- [What's Next](#whats-next)
+- [Return to start](#welcome-to)
 
 ```nim on:enter
 # Activate fire particles in this section
@@ -427,9 +425,9 @@ Check out these example documents:
 ⠀
 Or dive into the source code in `lib/` to see how it all works!
 ⠀
-- [Start over](#welcome_to)  
-- [Explore advanced features](#advanced_hub)  
-- [See your explorer stats](#final_stats)
+- [Start over](#welcome-to)  
+- [Explore advanced features](#advanced-hub)  
+- [See your explorer stats](#final-stats)
 
 # Final Stats
 ⠀
@@ -453,8 +451,8 @@ if visitedInteractive:
 ⠀
 You've completed the t|Storie walkthrough!
 ⠀
-- [Start over](#welcome_to)  
-- [Return to journey complete](#journey_complete)
+- [Start over](#welcome-to)  
+- [Return to journey complete](#journey-complete)
 
 ```nim on:render
 # Display explorer level at the bottom

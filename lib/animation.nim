@@ -8,8 +8,9 @@
 ##
 ## See ANIMATION_VS_PROCGEN_EASING.md for detailed comparison.
 ## 
-## This module expects Color, Style, AppState, Layer, and black() 
-## to be available from the importing/including context.
+## This module contains only pure math functions and has no dependencies
+## on tstorie core types. Color/Style/Buffer operations have been moved
+## to src/types.nim and src/layers.nim respectively.
 
 import math
 
@@ -51,30 +52,12 @@ proc easeInOutSine*(t: float): float =
 
 # ================================================================
 # INTERPOLATION
+# (Core lerp functions moved to src/types.nim)
 # ================================================================
 
 proc lerp*(a, b, t: float): float =
   ## Linear interpolation
   a + (b - a) * t
-
-proc lerpColor*(a, b: Color, t: float): Color =
-  ## Interpolate between two colors
-  Color(
-    r: uint8(lerp(float(a.r), float(b.r), t)),
-    g: uint8(lerp(float(a.g), float(b.g), t)),
-    b: uint8(lerp(float(a.b), float(b.b), t))
-  )
-
-proc lerpStyle*(a, b: Style, t: float): Style =
-  ## Linear interpolation between two styles (colors fade, other attributes switch at midpoint)
-  Style(
-    fg: lerpColor(a.fg, b.fg, t),
-    bg: lerpColor(a.bg, b.bg, t),
-    bold: if t < 0.5: a.bold else: b.bold,
-    underline: if t < 0.5: a.underline else: b.underline,
-    italic: if t < 0.5: a.italic else: b.italic,
-    dim: if t < 0.5: a.dim else: b.dim
-  )
 
 # ================================================================
 # ANIMATION STATE
@@ -130,64 +113,13 @@ proc isDone*(anim: Animation): bool =
 # For simple single-particle helpers, use the particles module instead.
 
 # ================================================================
-# TRANSITION STATE MANAGERS
-# ================================================================
-
-type
-  TransitionState* = object
-    duration*: float
-    elapsed*: float
-    active*: bool
-    easingFunc*: proc(t: float): float
-
-proc newTransition*(duration: float, easing: proc(t: float): float = easeLinear): TransitionState =
-  ## Create a new transition state tracker
-  TransitionState(duration: duration, elapsed: 0.0, active: true, easingFunc: easing)
-
-proc update*(trans: var TransitionState, dt: float) =
-  ## Update transition progress
-  if not trans.active:
-    return
-  
-  trans.elapsed += dt
-  if trans.elapsed >= trans.duration:
-    trans.elapsed = trans.duration
-    trans.active = false
-
-proc progress*(trans: TransitionState): float =
-  ## Get raw linear progress (0.0 to 1.0)
-  if trans.duration == 0.0:
-    return 1.0
-  return min(trans.elapsed / trans.duration, 1.0)
-
-proc easedProgress*(trans: TransitionState): float =
-  ## Get eased progress (0.0 to 1.0) using the transition's easing function
-  trans.easingFunc(trans.progress())
-
-proc isActive*(trans: TransitionState): bool =
-  ## Check if transition is still running
-  trans.active
-
-proc reset*(trans: var TransitionState) =
-  ## Reset transition to beginning
-  trans.elapsed = 0.0
-  trans.active = true
-
-# ================================================================
 # ADDITIONAL INTERPOLATION HELPERS
+# (lerpRGB moved to src/types.nim)
 # ================================================================
 
 proc lerpInt*(a, b: int, t: float): int =
   ## Linear interpolation for integers
   int(float(a) + (float(b) - float(a)) * t)
-
-proc lerpRGB*(r1, g1, b1, r2, g2, b2: int, t: float): Color =
-  ## Interpolate between two RGB values
-  Color(
-    r: uint8(lerpInt(r1, r2, t)),
-    g: uint8(lerpInt(g1, g2, t)),
-    b: uint8(lerpInt(b1, b2, t))
-  )
 
 proc smoothstep*(t: float): float =
   ## Smooth interpolation (smoother than linear, less aggressive than ease functions)
@@ -206,80 +138,5 @@ proc inverseLerp*(a, b, value: float): float =
 
 # ================================================================
 # BUFFER SNAPSHOT SYSTEM
+# (Moved to src/layers.nim - these functions work with core TermBuffer type)
 # ================================================================
-
-type
-  BufferSnapshot* = object
-    ## A captured snapshot of a buffer state for manual transitions
-    width*, height*: int
-    cells*: seq[tuple[ch: string, style: Style]]
-
-proc newBufferSnapshot*(width, height: int): BufferSnapshot =
-  ## Create a new empty buffer snapshot
-  result.width = width
-  result.height = height
-  result.cells = newSeq[tuple[ch: string, style: Style]](width * height)
-  let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
-  for i in 0 ..< result.cells.len:
-    result.cells[i] = (" ", defStyle)
-
-proc captureFromCells*(cells: seq[tuple[ch: string, style: Style]], width, height: int): BufferSnapshot =
-  ## Create a snapshot from a cell array
-  result.width = width
-  result.height = height
-  result.cells = cells
-
-proc getCell*(snapshot: BufferSnapshot, x, y: int): tuple[ch: string, style: Style] =
-  ## Get a cell from the snapshot (returns default style if out of bounds)
-  if x < 0 or x >= snapshot.width or y < 0 or y >= snapshot.height:
-    let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
-    return (" ", defStyle)
-  let idx = y * snapshot.width + x
-  if idx >= 0 and idx < snapshot.cells.len:
-    return snapshot.cells[idx]
-  let defStyle = Style(fg: white(), bg: black(), bold: false, underline: false, italic: false, dim: false)
-  return (" ", defStyle)
-
-proc setCell*(snapshot: var BufferSnapshot, x, y: int, ch: string, style: Style) =
-  ## Set a cell in the snapshot
-  if x < 0 or x >= snapshot.width or y < 0 or y >= snapshot.height:
-    return
-  let idx = y * snapshot.width + x
-  if idx >= 0 and idx < snapshot.cells.len:
-    snapshot.cells[idx] = (ch, style)
-
-proc captureBuffer*(buffer: TermBuffer): BufferSnapshot =
-  ## Capture the current state of a TermBuffer into a snapshot
-  result = newBufferSnapshot(buffer.width, buffer.height)
-  for y in 0 ..< buffer.height:
-    for x in 0 ..< buffer.width:
-      let cell = buffer.getCell(x, y)
-      result.setCell(x, y, cell.ch, cell.style)
-
-proc applySnapshot*(snapshot: BufferSnapshot, buffer: var TermBuffer) =
-  ## Apply a snapshot to a TermBuffer
-  for y in 0 ..< min(snapshot.height, buffer.height):
-    for x in 0 ..< min(snapshot.width, buffer.width):
-      let cell = snapshot.getCell(x, y)
-      buffer.write(x, y, cell.ch, cell.style)
-
-proc blendSnapshots*(a, b: BufferSnapshot, t: float): BufferSnapshot =
-  ## Blend two buffer snapshots together using linear interpolation
-  ## t=0.0 returns snapshot a, t=1.0 returns snapshot b
-  let width = min(a.width, b.width)
-  let height = min(a.height, b.height)
-  result = newBufferSnapshot(width, height)
-  
-  for y in 0 ..< height:
-    for x in 0 ..< width:
-      let cellA = a.getCell(x, y)
-      let cellB = b.getCell(x, y)
-      
-      # Interpolate style (colors fade)
-      let style = lerpStyle(cellA.style, cellB.style, t)
-      
-      # Character switches at midpoint
-      let ch = if t < 0.5: cellA.ch else: cellB.ch
-      
-      result.setCell(x, y, ch, style)
-

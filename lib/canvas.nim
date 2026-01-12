@@ -205,6 +205,7 @@ proc restoreSection*(sectionTitle: string) =
 
 proc findSectionByReference*(reference: string): SectionLayout =
   ## Find a section by ID or title (case-insensitive partial match)
+  ## Supports both hyphen and underscore variants for backward compatibility
   if canvasState.isNil:
     return SectionLayout()
   
@@ -214,15 +215,20 @@ proc findSectionByReference*(reference: string): SectionLayout =
     refStr = refStr[1..^1]
   
   let lowerRef = refStr.toLowerAscii()
+  # Normalize reference for flexible matching (support both - and _)
+  let normalizedRef = lowerRef.replace("_", "-")
   
   # Try exact title match first (most common)
   for layout in canvasState.sections:
     if layout.section.title == refStr:
       return layout
   
-  # Try exact ID match
+  # Try exact ID match (both original and normalized)
   for layout in canvasState.sections:
     if layout.section.id == refStr:
+      return layout
+    let normalizedId = layout.section.id.replace("_", "-")
+    if normalizedId == normalizedRef:
       return layout
   
   # Try case-insensitive title match
@@ -656,7 +662,9 @@ proc formatHeading*(text: string): string =
   while cleaned.len > 0 and cleaned[0] == '#':
     cleaned = cleaned[1..^1]
   cleaned = cleaned.strip()
+  # Replace both underscores and hyphens with spaces for display
   cleaned = cleaned.replace("_", " ")
+  cleaned = cleaned.replace("-", " ")
   
   # Title case each word
   var words: seq[string] = @[]

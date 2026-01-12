@@ -49,8 +49,8 @@ This demo tests the new canvas metadata features:
 
 Navigate with arrow keys or click links below.
 
-[Go to Regular Section](#regular_section)
-[Go to Large Art Section](#large_art)
+[Go to Regular Section](#regular-section)
+[Go to Large Art Section](#large-art)
 [Try to go to Decoration](#decoration) (should not work - it's not navigable)
 
 # Regular Section
@@ -59,7 +59,7 @@ This is a normal section with default dimensions (60x20).
 
 It can be navigated to via links and arrow keys.
 
-[Go to Wide Section](#wide_section)
+[Go to Wide Section](#wide-section)
 [Back to Introduction](#introduction)
 
 # Wide Section {"width": "100"}
@@ -70,8 +70,8 @@ It's much wider than the default 60 characters, so it can display more content o
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore.
 
-[Go to Tall Section](#tall_section)
-[Back to Regular](#regular_section)
+[Go to Tall Section](#tall-section)
+[Back to Regular](#regular-section)
 
 # Tall Section {"height": "40"}
 
@@ -108,8 +108,8 @@ Line 30
 
 Much more content fits!
 
-[Go to Large Art](#large_art)
-[Back to Wide](#wide_section)
+[Go to Large Art](#large-art)
+[Back to Wide](#wide-section)
 
 # Large Art Section {"width": "120", "height": "50"}
 
@@ -163,7 +163,7 @@ Back to normal content flow.
 
 The decoration section to the right (if you pan there) won't interrupt keyboard navigation.
 
-[Go to Custom Position](#custom_pos)
+[Go to Custom Position](#custom-pos)
 [Back to Introduction](#introduction)
 
 # Custom Position Section {"x": "200", "y": "50", "width": "80", "height": "25"}

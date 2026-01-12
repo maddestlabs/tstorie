@@ -170,6 +170,44 @@ proc toAnsi8*(c: Color): int =
   return code
 
 # ================================================================
+# COLOR AND STYLE INTERPOLATION
+# ================================================================
+# Moved from lib/animation.nim - these work with core Color/Style types
+
+proc lerpColor*(a, b: Color, t: float): Color =
+  ## Interpolate between two colors
+  ## t: 0.0 = color a, 1.0 = color b
+  Color(
+    r: uint8(float(a.r) + (float(b.r) - float(a.r)) * t),
+    g: uint8(float(a.g) + (float(b.g) - float(a.g)) * t),
+    b: uint8(float(a.b) + (float(b.b) - float(a.b)) * t)
+  )
+
+proc lerpStyle*(a, b: Style, t: float): Style =
+  ## Linear interpolation between two styles
+  ## Colors fade smoothly, other attributes switch at midpoint
+  Style(
+    fg: lerpColor(a.fg, b.fg, t),
+    bg: lerpColor(a.bg, b.bg, t),
+    bold: if t < 0.5: a.bold else: b.bold,
+    underline: if t < 0.5: a.underline else: b.underline,
+    italic: if t < 0.5: a.italic else: b.italic,
+    dim: if t < 0.5: a.dim else: b.dim
+  )
+
+proc lerpRGB*(r1, g1, b1, r2, g2, b2: int, t: float): Color =
+  ## Interpolate between two RGB values
+  ## t: 0.0 = first color, 1.0 = second color
+  let r = int(float(r1) + (float(r2) - float(r1)) * t)
+  let g = int(float(g1) + (float(g2) - float(g1)) * t)
+  let b = int(float(b1) + (float(b2) - float(b1)) * t)
+  Color(
+    r: uint8(clamp(r, 0, 255)),
+    g: uint8(clamp(g, 0, 255)),
+    b: uint8(clamp(b, 0, 255))
+  )
+
+# ================================================================
 # TERMINAL INPUT PARSER TYPES
 # ================================================================
 

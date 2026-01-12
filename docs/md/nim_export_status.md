@@ -109,7 +109,6 @@
 - **Audio**: initAudio, playTone, playSound, registerSound, playBleep, playJump, playHit, playLaser, playPowerUp, playLanding, stopAll, playSample
 - **Animation**: easeLinear, easeInQuad, easeOutQuad, easeInOutQuad, easeInCubic, easeOutCubic, easeInOutCubic, easeInSine, easeOutSine, easeInOutSine, lerp, lerpColor, lerpStyle, newAnimation, newParticle
 - **TextField**: newTextField, setText, insert, deleteChar, backspace, moveCursorLeft, moveCursorRight, moveCursorHome, moveCursorEnd
-- **Events**: newTerminalEventHandler, captureKey, ignoreKey, isKeyPressed, dispatchEvent
 - **Transitions**: captureTermBuffer, transitionBuffers, transitionRegion
 - **TUI**: newWidgetManager, newLabel, newButton, newCheckBox, newTextBox
 - **Section Manager**: navigateToSection, getCurrentSection

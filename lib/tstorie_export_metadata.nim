@@ -299,27 +299,6 @@ proc registerTStorieExportMetadata*() =
     storieLibs: @["textfield"],
     description: "Move cursor to end")
   
-  # Event handling -> lib/events
-  gFunctionMetadata["newTerminalEventHandler"] = FunctionMetadata(
-    storieLibs: @["events"],
-    description: "Create terminal event handler")
-  
-  gFunctionMetadata["captureKey"] = FunctionMetadata(
-    storieLibs: @["events"],
-    description: "Register key for capture")
-  
-  gFunctionMetadata["ignoreKey"] = FunctionMetadata(
-    storieLibs: @["events"],
-    description: "Register key to ignore")
-  
-  gFunctionMetadata["isKeyPressed"] = FunctionMetadata(
-    storieLibs: @["events"],
-    description: "Check if key is currently pressed")
-  
-  gFunctionMetadata["dispatchEvent"] = FunctionMetadata(
-    storieLibs: @["events"],
-    description: "Dispatch input event to handlers")
-  
   # Transition effects -> lib/transition_helpers
   gFunctionMetadata["captureTermBuffer"] = FunctionMetadata(
     storieLibs: @["transition_helpers"],

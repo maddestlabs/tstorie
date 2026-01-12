@@ -155,16 +155,16 @@ proc parseFrontMatter*(content: string): FrontMatter =
     inc i
 
 proc generateSectionId*(title: string): string =
-  ## Generate a URL-safe section ID from a title
+  ## Generate a URL-safe section ID from a title (GitHub markdown standard)
   result = ""
   for c in title.toLowerAscii():
     if c in {'a'..'z', '0'..'9'}:
       result.add(c)
     elif c == ' ' or c == '-' or c == '_':
-      if result.len > 0 and result[^1] != '_':
-        result.add('_')
-  # Remove trailing underscores
-  while result.len > 0 and result[^1] == '_':
+      if result.len > 0 and result[^1] != '-':
+        result.add('-')
+  # Remove trailing hyphens
+  while result.len > 0 and result[^1] == '-':
     result.setLen(result.len - 1)
   if result.len == 0:
     result = "section"

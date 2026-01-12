@@ -1043,69 +1043,6 @@ proc writeTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # ANIMATION HELPERS (Nimini wrappers)
 # ================================================================
 
-proc nimini_newTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Create a transition state tracker: newTransition(duration, easingId)
-  if args.len < 1:
-    return valNil()
-  let duration = if args[0].kind == vkFloat: args[0].f else: float(args[0].i)
-  let easingId = if args.len > 1: valueToInt(args[1]) else: 0
-  
-  let easing = case easingId
-    of 0: easeLinear
-    of 1: easeInQuad
-    of 2: easeOutQuad
-    of 3: easeInOutQuad
-    of 4: easeInCubic
-    of 5: easeOutCubic
-    of 6: easeInOutCubic
-    of 7: easeInSine
-    of 8: easeOutSine
-    of 9: easeInOutSine
-    else: easeLinear
-  
-  # Allocate on heap so it persists
-  let trans = create(TransitionState)
-  trans[] = newTransition(duration, easing)
-  return valInt(cast[int](trans))
-
-proc nimini_updateTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update transition: updateTransition(transId, deltaTime)
-  if args.len < 2:
-    return valNil()
-  var transPtr = cast[ptr TransitionState](valueToInt(args[0]))
-  let dt = if args[1].kind == vkFloat: args[1].f else: float(args[1].i)
-  transPtr[].update(dt)
-  return valNil()
-
-proc nimini_transitionProgress(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get linear progress: transitionProgress(transId) -> 0.0 to 1.0
-  if args.len < 1:
-    return valFloat(0.0)
-  let transPtr = cast[ptr TransitionState](valueToInt(args[0]))
-  return valFloat(transPtr[].progress())
-
-proc nimini_transitionEasedProgress(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Get eased progress: transitionEasedProgress(transId) -> 0.0 to 1.0
-  if args.len < 1:
-    return valFloat(0.0)
-  let transPtr = cast[ptr TransitionState](valueToInt(args[0]))
-  return valFloat(transPtr[].easedProgress())
-
-proc nimini_transitionIsActive(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Check if transition is active: transitionIsActive(transId) -> bool
-  if args.len < 1:
-    return valBool(false)
-  let transPtr = cast[ptr TransitionState](valueToInt(args[0]))
-  return valBool(transPtr[].isActive())
-
-proc nimini_resetTransition(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Reset transition: resetTransition(transId)
-  if args.len < 1:
-    return valNil()
-  var transPtr = cast[ptr TransitionState](valueToInt(args[0]))
-  transPtr[].reset()
-  return valNil()
-
 proc nimini_lerp(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Linear interpolation: lerp(a, b, t)
   if args.len < 3:
@@ -1323,13 +1260,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerNative("localStorage_getItem", nimini_localStorage_getItem)
   registerNative("window_open", nimini_window_open)
   
-  # Register animation/transition functions
-  registerNative("newTransition", nimini_newTransition)
-  registerNative("updateTransition", nimini_updateTransition)
-  registerNative("transitionProgress", nimini_transitionProgress)
-  registerNative("transitionEasedProgress", nimini_transitionEasedProgress)
-  registerNative("transitionIsActive", nimini_transitionIsActive)
-  registerNative("resetTransition", nimini_resetTransition)
+  # Register animation/easing functions
   registerNative("lerp", nimini_lerp)
   registerNative("lerpInt", nimini_lerpInt)
   registerNative("smoothstep", nimini_smoothstep)

@@ -22,9 +22,6 @@ shaders: "grid2x1+sand+gradualblur"
 ;
 ; 2
 ##########
-##########
-##########
-##########
 ##@#######
 # $   ####
 # ..$$ ###
@@ -1169,14 +1166,14 @@ if gameWon:
   var winX = offsetX + ((levelWidth * charWidth) - len(winText)) / 2
   draw(0, winX, statusY, winText, stylePlayer)
 
-# Show level indicator and move count on bottom line (plain ASCII only)
+# Show level indicator and move count on bottom line (plain ASCII only, centered)
 var statusY = termHeight - 1
 if isLevelPack:
   var levelNum = $(currentLevelIndex + 1) & "/" & $len(levelPack)
-  draw(0, 0, statusY, levelNum, defaultStyle())
-# Move count (right-aligned)
-var movesNum = $moveCount
-var movesX = termWidth - len(movesNum)
-if movesX > 0:
-  draw(0, movesX, statusY, movesNum, defaultStyle())
+  var statusText = levelNum
+  # Add move counter if there are moves
+  if moveCount > 0:
+    statusText = statusText & " > " & $moveCount
+  var statusX = (termWidth - len(statusText)) / 2
+  draw(0, statusX, statusY, statusText, defaultStyle())
 ```
