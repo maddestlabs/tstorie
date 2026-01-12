@@ -1,5 +1,5 @@
 ---
-theme: "futurism"
+theme: "neotopia"
 ---
 
 # Figlet Helper Demo

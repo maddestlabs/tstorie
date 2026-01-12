@@ -3,7 +3,7 @@ title: "t|HΞR Voice"
 author: "Maddest Labs"
 minWidth: 50
 minHeight: 14
-theme: "futurism"
+theme: "neotopia"
 hideHeadings: "true"
 hideSections: "true"
 # Border/Frame styles

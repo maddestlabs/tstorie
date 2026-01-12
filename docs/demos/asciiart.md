@@ -1,6 +1,6 @@
 ---
 title: "ASCII Art Demo"
-theme: "miami-vice"
+theme: "alleycat"
 ---
 
 # ASCII Art Demo

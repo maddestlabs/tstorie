@@ -2,7 +2,7 @@
 title: "TStorie Editor"
 minWidth: 120
 minHeight: 35
-theme: "futurism"
+theme: "neotopia"
 ---
 
 # 📝 TStorie Editor
@@ -31,7 +31,7 @@ else:
   add(initialContent, "title: My TStorie Document")
   add(initialContent, "minWidth: 100")
   add(initialContent, "minHeight: 30")
-  add(initialContent, "theme: futurism")
+  add(initialContent, "theme: neotopia")
   add(initialContent, "---")
   add(initialContent, "")
   add(initialContent, "# Welcome to TStorie!")

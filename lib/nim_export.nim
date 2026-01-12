@@ -49,6 +49,10 @@ proc analyzeExpression(expr: Expr, imports: var ImportInfo) =
   
   case expr.kind
   of ekCall:
+    # Check for particle functions - they need the particles module
+    if expr.funcName.startsWith("particle"):
+      imports.storieLibImports.incl("particles")
+    
     # Simply look up the function's metadata!
     if gFunctionMetadata.hasKey(expr.funcName):
       let meta = gFunctionMetadata[expr.funcName]
@@ -1176,6 +1180,14 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "  var gTerminalState: TerminalState\n"
   result &= "\n"
   
+  # Particle system state (if particles imported)
+  if "particles" in ctx.imports.storieLibImports:
+    result &= "# Particle system state\n"
+    result &= "import lib/particles\n"
+    result &= "import lib/particles_bindings\n"
+    result &= "var gParticleSystems = initTable[string, ParticleSystem]()\n"
+    result &= "\n"
+  
   # Style helper function (must come before drawing API)
   result &= "# Style helper function\n"
   result &= "proc getStyle(name: string): Style =\n"
@@ -1249,6 +1261,8 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "proc str(x: bool): string = $x\n"
   result &= "proc str(x: string): string = x\n"
   result &= "\n"
+  
+  # Note: Particle functions are now provided by lib/particles_bindings
   
   # Global variables
   if ctx.globalVars.len > 0:
@@ -1432,6 +1446,14 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "  var gTerminalState: TerminalState\n"
   result &= "\n"
   
+  # Particle system state (if particles imported)
+  if "particles" in ctx.imports.storieLibImports:
+    result &= "# Particle system state\n"
+    result &= "import lib/particles\n"
+    result &= "import lib/particles_bindings\n"
+    result &= "var gParticleSystems = initTable[string, ParticleSystem]()\n"
+    result &= "\n"
+  
   # Add simplified event API
   result &= generateSimpleEventHelpers()
   
@@ -1508,6 +1530,8 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "proc str(x: bool): string = $x\n"
   result &= "proc str(x: string): string = x\n"
   result &= "\n"
+  
+  # Note: Particle functions are now provided by lib/particles_bindings
   
   # Global variables
   if ctx.globalVars.len > 0:

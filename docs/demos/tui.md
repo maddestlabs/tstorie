@@ -3,8 +3,8 @@ title: "Scripted TUI Demo"
 minWidth: 60
 minHeight: 35
 # Theme-aware demo - works with any theme!
-# Try: futurism (default), catppuccin, nord, dracula, miami-vice, outrun, etc.
-theme: "futurism"
+# Try: neotopia (default), catppuccin, nord, dracula, miami-vice, outrun, etc.
+theme: "neotopia"
 # Custom highlight style inherits background from theme
 styles.highlight.fg: "#FFFF00"
 styles.highlight.bold: "true"

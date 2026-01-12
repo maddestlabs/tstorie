@@ -1,6 +1,6 @@
-// Bloom Shader for tStorie (Optimized)
-// Beautiful Gaussian bloom with excellent performance
-// 48 samples total instead of 80
+// Bloom Shader for tStorie (Improved)
+// Smooth Gaussian bloom with controllable halo spread
+// No more "copies" or box blur artifacts
 
 function getShaderConfig() {
     return {
@@ -29,8 +29,8 @@ function getShaderConfig() {
             
             varying vec2 vUv;
             
-            #define BLOOM_TAPS 12
-            #define NUM_RINGS 4
+            #define BLOOM_TAPS 16
+            #define NUM_RINGS 5
             
             // Calculate perceived brightness (luminance)
             float luminance(vec3 color) {
@@ -112,11 +112,11 @@ function getShaderConfig() {
         `,
         
         uniforms: {
-            bloomIntensity: 0.15,
-            bloomRadius: 22.0,
-            bloomSpread: 1.0,
-            bloomThreshold: 0.15,
-            bloomSoftness: 1.5
+            bloomIntensity: 0.15,      // How strong the bloom effect is
+            bloomRadius: 22.0,         // Maximum reach of the bloom halo
+            bloomSpread: 1.0,          // Distance between sample rings (0.5-2.0)
+            bloomThreshold: 0.15,      // Brightness threshold
+            bloomSoftness: 1.5         // Smoothness of threshold falloff
         }
     };
 }

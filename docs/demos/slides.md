@@ -3,7 +3,7 @@ title: "Canvas Presentation Demo"
 author: "Maddest Labs"
 minWidth: 60
 minHeight: 12
-theme: "futurism"
+theme: "neotopia"
 ---
 
 ```nim on:init

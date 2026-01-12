@@ -69,6 +69,31 @@ proc registerTStorieExportMetadata*() =
     storieLibs: @["canvas"],
     description: "Clear layer to transparent")
   
+  # Canvas navigation system -> lib/canvas
+  gFunctionMetadata["initCanvas"] = FunctionMetadata(
+    storieLibs: @["canvas", "section_manager"],
+    description: "Initialize canvas system with starting section")
+  
+  gFunctionMetadata["canvasRender"] = FunctionMetadata(
+    storieLibs: @["canvas"],
+    description: "Render canvas with current section")
+  
+  gFunctionMetadata["canvasUpdate"] = FunctionMetadata(
+    storieLibs: @["canvas"],
+    description: "Update canvas camera and animations")
+  
+  gFunctionMetadata["canvasHandleKey"] = FunctionMetadata(
+    storieLibs: @["canvas"],
+    description: "Handle keyboard input for canvas navigation")
+  
+  gFunctionMetadata["canvasHandleMouse"] = FunctionMetadata(
+    storieLibs: @["canvas"],
+    description: "Handle mouse input for canvas navigation")
+  
+  gFunctionMetadata["getSectionMetrics"] = FunctionMetadata(
+    storieLibs: @["canvas"],
+    description: "Get current section metrics")
+  
   # Layout functions -> lib/layout
   gFunctionMetadata["wrapText"] = FunctionMetadata(
     storieLibs: @["layout"],
@@ -257,6 +282,191 @@ proc registerTStorieExportMetadata*() =
   gFunctionMetadata["lerpStyle"] = FunctionMetadata(
     storieLibs: @["animation"],
     description: "Interpolate between two styles")
+  
+  # Particle system functions -> lib/particles
+  gFunctionMetadata["particleInit"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Initialize particle system")
+  
+  gFunctionMetadata["particleUpdate"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Update particle system")
+  
+  gFunctionMetadata["particleRender"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Render particle system")
+  
+  gFunctionMetadata["particleEmit"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Emit particles")
+  
+  gFunctionMetadata["particleClear"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Clear all particles")
+  
+  gFunctionMetadata["particleGetCount"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Get active particle count")
+  
+  gFunctionMetadata["particleSetGravity"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set gravity force")
+  
+  gFunctionMetadata["particleSetWind"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set wind force")
+  
+  gFunctionMetadata["particleSetTurbulence"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set turbulence intensity")
+  
+  gFunctionMetadata["particleSetDamping"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set velocity damping")
+  
+  gFunctionMetadata["particleSetEmitRate"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set emission rate")
+  
+  gFunctionMetadata["particleSetEmitterPos"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set emitter position")
+  
+  gFunctionMetadata["particleSetEmitterSize"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set emitter size")
+  
+  gFunctionMetadata["particleSetVelocityRange"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set velocity range")
+  
+  gFunctionMetadata["particleSetLifeRange"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set particle lifetime range")
+  
+  gFunctionMetadata["particleSetCollision"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Enable/disable collision")
+  
+  gFunctionMetadata["particleSetStickChar"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set particle sticky character")
+  
+  gFunctionMetadata["particleSetChars"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set particle character set")
+  
+  gFunctionMetadata["particleSetBackgroundColor"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set background color")
+  
+  gFunctionMetadata["particleSetColorRange"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set particle color range")
+  
+  gFunctionMetadata["particleSetTrailEnabled"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Enable/disable particle trails")
+  
+  gFunctionMetadata["particleSetTrailLength"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set trail length")
+  
+  gFunctionMetadata["particleSetTrailSpacing"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set trail spacing")
+  
+  gFunctionMetadata["particleSetTrailFade"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Enable/disable trail fade")
+  
+  gFunctionMetadata["particleSetTrailChars"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set trail character set")
+  
+  gFunctionMetadata["particleCheckHit"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Check particle collision at position")
+  
+  gFunctionMetadata["particleSetEmitterShape"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set emitter shape")
+  
+  gFunctionMetadata["particleSetBounceElasticity"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set bounce elasticity")
+  
+  gFunctionMetadata["particleSetFadeOut"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Enable particle fade out")
+  
+  gFunctionMetadata["particleSetColorInterpolation"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set color interpolation")
+  
+  gFunctionMetadata["particleSetDrawMode"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set particle draw mode")
+  
+  gFunctionMetadata["particleSetBackgroundFromStyle"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set background from style")
+  
+  gFunctionMetadata["particleSetForegroundFromStyle"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Set foreground from style")
+  
+  gFunctionMetadata["particleConfigureRain"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure rain effect preset")
+  
+  gFunctionMetadata["particleConfigureSnow"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure snow effect preset")
+  
+  gFunctionMetadata["particleConfigureFire"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure fire effect preset")
+  
+  gFunctionMetadata["particleConfigureSparkles"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure sparkles effect preset")
+  
+  gFunctionMetadata["particleConfigureExplosion"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure explosion effect preset")
+  
+  gFunctionMetadata["particleConfigureColorblast"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure colorblast effect preset")
+  
+  gFunctionMetadata["particleConfigureMatrix"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure matrix effect preset")
+  
+  gFunctionMetadata["particleConfigureBugs"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure bugs effect preset")
+  
+  gFunctionMetadata["particleConfigureVortex"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure vortex effect preset")
+  
+  gFunctionMetadata["particleConfigureRadialExplosion"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure radial explosion effect preset")
+  
+  gFunctionMetadata["particleConfigureMatrixHybrid"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure matrix hybrid effect preset")
+  
+  gFunctionMetadata["particleConfigureRippleField"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure ripple field effect preset")
+  
+  gFunctionMetadata["particleConfigureCustomGraph"] = FunctionMetadata(
+    storieLibs: @["particles"],
+    description: "Configure custom graph-based particle behavior")
   
   gFunctionMetadata["newParticle"] = FunctionMetadata(
     storieLibs: @["animation"],

@@ -2,7 +2,7 @@
 title: "Advanced TUI Widgets Demo"
 minWidth: 80
 minHeight: 40
-theme: "futurism"
+theme: "neotopia"
 ---
 
 # Advanced TUI Widgets Showcase

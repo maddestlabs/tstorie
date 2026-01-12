@@ -272,9 +272,9 @@ Your torch flickers in the darkness. The adventure begins here.
 ⠀
 **What do you do?**
 ⠀
-- [Enter the ruins](hall-of-statues)  
-- [Examine the entrance more carefully](entrance-examine)  
-- [Light a better torch](prepare-torch)
+- [Enter the ruins](#hall-of-statues)  
+- [Examine the entrance more carefully](#entrance-examine)  
+- [Light a better torch](#prepare-torch)
 
 # entrance_examine {"hidden": true, "removeAfterVisit": "true"}
 ⠀
@@ -284,9 +284,9 @@ You take a moment to inspect the entrance more carefully. Ancient runes are carv
 ⠀
 Beside the entrance, you notice an old iron sconce. It's empty, but appears functional.
 ⠀
-- [Enter the ruins](hall-of-statues)  
-- [Take the sconce](take-sconce)  
-- [Go back](entrance)
+- [Enter the ruins](#hall-of-statues)  
+- [Take the sconce](#take-sconce)  
+- [Go back](#entrance)
 
 # prepare_torch {"hidden": true, "removeAfterVisit": "true"}
 ⠀
@@ -294,8 +294,8 @@ You take time to properly prepare your torch, wrapping it with oil-soaked cloth 
 ⠀
 *You feel more confident with better light.*
 ⠀
-- [Enter the ruins](hall-of-statues)  
-- [Return to the entrance](entrance)
+- [Enter the ruins](#hall-of-statues)  
+- [Return to the entrance](#entrance)
 
 ```nim on:enter
 hasTorch = true
@@ -313,11 +313,11 @@ Passages branch off in three directions:
 ⠀
 The main entrance lies behind you.
 ⠀
-- [Go north toward the water](underground-river)  
-- [Go east toward the blue glow](crystal-chamber)  
-- [Go west toward the smell](alchemist-lab)  
-- [Examine the statues](examine-statues)  
-- [Return to entrance](entrance)
+- [Go north toward the water](#underground-river)  
+- [Go east toward the blue glow](#crystal-chamber)  
+- [Go west toward the smell](#alchemist-lab)  
+- [Examine the statues](#examine-statues)  
+- [Return to entrance](#entrance)
 
 # examine_statues {"hidden": true}
 ⠀
@@ -329,8 +329,8 @@ The **third statue** bears a broken chain, face sorrowful.
 ⠀
 At the base of the third statue, you notice something glinting in the torchlight.
 ⠀
-- [Take the glinting object](find-key)  
-- [Return to the hall](hall-of-statues)
+- [Take the glinting object](#find-key)  
+- [Return to the hall](#hall-of-statues)
 
 # find_key {"hidden": true, "removeAfterVisit": "true"}
 ⠀
@@ -338,7 +338,7 @@ You reach down and pick up a small, tarnished **brass key**. It's surprisingly h
 ⠀
 *This might unlock something important.*
 ⠀
-[Return to the hall](hall-of-statues)
+[Return to the hall](#hall-of-statues)
 
 ```nim on:enter
 hasKey = true
@@ -350,9 +350,9 @@ The passage opens into a cavern split by a **rushing underground river**. The wa
 ⠀
 On the far side, you can see a doorway carved into the rock.
 ⠀
-- [Cross the bridge carefully](cross-bridge)  
-- [Search for another way](search-riverbank)  
-- [Return to the hall](hall-of-statues)
+- [Cross the bridge carefully](#cross-bridge)  
+- [Search for another way](#search-riverbank)  
+- [Return to the hall](#hall-of-statues)
 
 # cross_bridge {"hidden": true}
 ⠀
@@ -362,8 +362,8 @@ But the bridge holds. Barely.
 ⠀
 You make it to the other side, heart pounding.
 ⠀
-- [Enter the carved doorway](treasure-vault)  
-- [Go back across (carefully)](underground-river)
+- [Enter the carved doorway](#treasure-vault)  
+- [Go back across (carefully)](#underground-river)
 
 # search_riverbank {"hidden": true}
 ⠀
@@ -371,9 +371,9 @@ You search along the riverbank, looking for another way across. Behind a fallen 
 ⠀
 A safer path, if you're willing to climb.
 ⠀
-- [Take the high route](treasure-vault)  
-- [Just use the bridge](cross-bridge)  
-- [Go back](underground-river)
+- [Take the high route](#treasure-vault)  
+- [Just use the bridge](#cross-bridge)  
+- [Go back](#underground-river)
 
 # crystal_chamber {"hidden": true}
 ⠀
@@ -383,10 +383,10 @@ In the center of the room stands a stone pedestal. Resting atop it is a beautifu
 ⠀
 The chamber has two other exits: one to the north and one continuing east.
 ⠀
-- [Take the amulet](take-amulet)  
-- [Go north](library)  
-- [Continue east](guardian-chamber)  
-- [Return to the hall](hall-of-statues)
+- [Take the amulet](#take-amulet)  
+- [Go north](#library)  
+- [Continue east](#guardian-chamber)  
+- [Return to the hall](#hall-of-statues)
 
 # take_amulet {"hidden": true, "removeAfterVisit": "true"}
 ⠀
@@ -394,9 +394,9 @@ You reach for the amulet. The moment your fingers touch the cold silver, the cry
 ⠀
 *The amulet pulses with protective magic.*
 ⠀
-- [Go north](library)  
-- [Continue east](guardian-chamber)  
-- [Return to crystal chamber](crystal-chamber)
+- [Go north](#library)  
+- [Continue east](#guardian-chamber)  
+- [Return to crystal chamber](#crystal-chamber)
 
 ```nim on:enter
 hasAmulet = true
@@ -410,9 +410,9 @@ You open the book. The pages are filled with riddles and wisdom of the ancients.
 ⠀
 *"The guardian seeks not strength, but humility. The warrior who bows is greater than one who strikes."*
 ⠀
-- [Study more of the book](library)  
-- [Go south](crystal-chamber)  
-- [Go back to the hall](hall-of-statues)
+- [Study more of the book](#library)  
+- [Go south](#crystal-chamber)  
+- [Go back to the hall](#hall-of-statues)
 
 ```nim on:enter
 visitedLibrary = true
@@ -424,9 +424,9 @@ The acrid smell leads you to an old laboratory. Broken glass and ceramic vessels
 ⠀
 Among the debris, you find a workbench with several intact bottles. One contains a glowing green liquid labeled *"Essence of Light"* in faded script.
 ⠀
-- [Take the essence](take-essence)  
-- [Search the room more carefully](search-lab)  
-- [Return to the hall](hall-of-statues)
+- [Take the essence](#take-essence)  
+- [Search the room more carefully](#search-lab)  
+- [Return to the hall](#hall-of-statues)
 
 # take_essence {"hidden": true, "removeAfterVisit": "true"}
 ⠀
@@ -434,8 +434,8 @@ You carefully pocket the glowing essence. It feels warm through the glass.
 ⠀
 *This might prove useful.*
 ⠀
-- [Search the room](search-lab)  
-- [Return to the hall](hall-of-statues)
+- [Search the room](#search-lab)  
+- [Return to the hall](#hall-of-statues)
 
 ```nim on:enter
 hasEssence = true
@@ -447,8 +447,8 @@ Searching more carefully, you find the alchemist's journal beneath some rubble. 
 ⠀
 *"My experiments with the guardian have failed. It cannot be destroyed, only understood. I leave this place to whatever fate awaits. May those who follow be wiser than I."*
 ⠀
-- [Return to the laboratory](alchemist-lab)  
-- [Go to the hall](hall-of-statues)
+- [Return to the laboratory](#alchemist-lab)  
+- [Go to the hall](#hall-of-statues)
 
 # guardian_chamber {"hidden": true}
 ⠀
@@ -460,11 +460,11 @@ The Guardian speaks, its voice like grinding boulders:
 ⠀
 Three pedestals surround the guardian, each marked with a symbol: **Sword**, **Shield**, and **Chains**.
 ⠀
-- [Place an offering on the Sword pedestal](guardian-fail)  
-- [Place an offering on the Shield pedestal](guardian-fail)  
-- [Place an offering on the Chains pedestal](guardian-success)  
-- [Attack the guardian](guardian-attack)  
-- [Try to reason with the guardian](guardian-reason)
+- [Place an offering on the Sword pedestal](#guardian-fail)  
+- [Place an offering on the Shield pedestal](#guardian-fail)  
+- [Place an offering on the Chains pedestal](#guardian-success)  
+- [Attack the guardian](#guardian-attack)  
+- [Try to reason with the guardian](#guardian-reason)
 
 # guardian_attack {"hidden": true}
 ⠀
@@ -474,7 +474,7 @@ Your blade strikes the living stone and **shatters**. The guardian's fist comes 
 ⠀
 *Perhaps violence wasn't the answer.*
 ⠀
-- [Try again?](guardian-chamber)
+- [Try again?](#guardian-chamber)
 
 # guardian_reason {"hidden": true}
 ⠀
@@ -486,7 +486,7 @@ The guardian tilts its massive head, considering. Then it speaks:
 ⠀
 *"Wisdom... rare among your kind. But words alone are insufficient. Show me you understand the truth of strength."*
 ⠀
-- [Place something on a pedestal](guardian-chamber)
+- [Place something on a pedestal](#guardian-chamber)
 
 # guardian_fail {"hidden": true}
 ⠀
@@ -496,8 +496,8 @@ You place your offering on the pedestal. The guardian's eyes flare **angry red**
 
 The chamber begins to shake violently.
 ⠀
-- [Run back](crystal-chamber)  
-- [Try a different pedestal](guardian-chamber)
+- [Run back](#crystal-chamber)  
+- [Try a different pedestal](#guardian-chamber)
 
 # guardian_success {"hidden": true}
 ⠀
@@ -509,14 +509,14 @@ The guardian's eyes shift from threatening red to a calm **golden glow**.
 ⠀
 The guardian steps aside, revealing a passage to the **Treasure Vault**.
 ⠀
-- [Enter the vault](treasure-vault)
+- [Enter the vault](#treasure-vault)
 
 ```nim on:enter
 if visitedLibrary:
   draw(0, h-1, 0, w, 1, "Your knowledge from the library helped you understand!", "AlignCenter", "AlignTop", "WrapNone")
 ```
 
-- [Enter the vault](treasure-vault)
+- [Enter the vault](#treasure-vault)
 
 # treasure_vault {"hidden": true}
 ⠀
@@ -529,9 +529,9 @@ The inscription on the altar reads:
 ⠀
 **Congratulations! You have completed the adventure!**
 ⠀
-- [Take the sword and leave](victory)  
-- [Explore the vault more](treasure-vault)  
-- [Return to the guardian](guardian-chamber)
+- [Take the sword and leave](#victory)  
+- [Explore the vault more](#treasure-vault)  
+- [Return to the guardian](#guardian-chamber)
 
 # victory {"hidden": true}
 ⠀
@@ -545,7 +545,7 @@ Emerging into the daylight, you shield your eyes against the sun. The ruins of K
 ⠀
 *The legend of Khel-Daran will be told for generations.*
 ⠀
-[Explore more endings?](hall-of-statues)
+[Explore more endings?](#hall-of-statues)
 
 # take_sconce {"hidden": true, "removeAfterVisit": "true"}
 ⠀
@@ -553,8 +553,8 @@ You remove the iron sconce from the wall. It's heavier than it looks and has a w
 ⠀
 *Might be useful in the dark.*
 ⠀
-- [Continue to the ruins](hall-of-statues)  
-- [Go back](entrance-examine)
+- [Continue to the ruins](#hall-of-statues)  
+- [Go back](#entrance-examine)
 
 ```nim on:enter
 hasWeapon = true

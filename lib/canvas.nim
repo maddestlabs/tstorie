@@ -2,19 +2,27 @@
 ## Provides spatial layout, smooth camera panning, and interactive navigation
 ## Compatible with Nimini code blocks
 ##
-## Note: This module expects storie_md and layout to be available from the importing context.
+## Usage:
+##   include lib/canvas  (current - shares namespace with tstorie.nim)
+##   import lib/canvas   (future - proper module, call initCanvasModule)
 
-# Import core types when used as a module
-when not declared(Style):
+# Import core types and functions when used as a module
+when not declared(TermBuffer):
+  # Imported as a module - need all dependencies
   import ../src/types
   import ../src/charwidth
+  import ../src/layers  # For writeText, clear, etc.
 else:
-  # When included in tstorie.nim, charwidth is imported via src/charwidth
+  # Included in tstorie.nim - charwidth imported via src/charwidth
   when not declared(getCharDisplayWidth):
     import src/charwidth
 
 import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
 import section_manager, ansi_parser
+
+# Import nimini for binding registration
+when not declared(exportNiminiProcs):
+  import ../nimini
 
 # Forward declare global for nimini environment (set during rendering)
 var gNiminiEnv {.global.}: pointer = nil
@@ -22,10 +30,19 @@ var gNiminiEnv {.global.}: pointer = nil
 # Global storage for parsed ANSI buffers (keyed by section ID + block index)
 var gAnsiBuffers {.global.} = initTable[string, TermBuffer]()
 
+# ================================================================
+# IMPORT COMPATIBILITY: Use globals directly when included
+# ================================================================
+# When included: gAppState, storieCtx, gSectionMgr are in scope
+# When imported: must call initCanvasModule() to set them up
+
 # Helper to get current section index from section manager (source of truth)
 proc getCurrentSectionIdx*(): int =
-  if not gSectionMgr.isNil:
-    return gSectionMgr[].currentIndex
+  ## Get current section index (works for both include and import)
+  when declared(gSectionMgr):
+    # Included mode - use global directly
+    if not gSectionMgr.isNil:
+      return gSectionMgr[].currentIndex
   return 0
 
 # ================================================================
@@ -135,6 +152,10 @@ type
     frontMatter*: FrontMatter  # Document front matter for global settings like hideHeadings
     currentContentBounds*: ContentBounds  # Current section's content rendering bounds (for mouse coords)
     currentContentBufferBounds*: ContentBounds  # Content buffer area bounds (for games/dynamic content)
+    # References needed by nimini wrappers (set by registerCanvasBindings)
+    buffer*: ptr TermBuffer
+    appState*: ptr AppState
+    styleSheet*: ptr StyleSheet
 
 # Global canvas state
 var canvasState*: CanvasState
@@ -144,10 +165,29 @@ var
   gViewportWidth: int
   gViewportHeight: int
 
-# Global references needed by nimini wrappers (set by registerCanvasBindings)
-var gCanvasBuffer: ptr TermBuffer
-var gCanvasAppState: ptr AppState
-var gCanvasStyleSheet: ptr StyleSheet
+# ================================================================
+# MODULE INITIALIZATION (for import mode)
+# ================================================================
+
+proc initCanvasModule*(appState: ptr AppState, 
+                      sectionMgr: ptr SectionManager,
+                      styleSheet: ptr StyleSheet) =
+  ## Initialize canvas when used as an imported module
+  ## Call this after creating AppState and SectionManager
+  ## Not needed when canvas is included in tstorie.nim
+  ##
+  ## Example:
+  ##   import lib/canvas
+  ##   var state = newAppState(80, 24)
+  ##   var mgr = newSectionManager(sections)
+  ##   initCanvasModule(addr state, addr mgr, addr stylesheet)
+  when not declared(gAppState):
+    # Store references in canvasState when imported (not included)
+    if not canvasState.isNil:
+      canvasState.appState = appState
+      canvasState.styleSheet = styleSheet
+    # Note: Section manager is accessed via global gSectionMgr when included
+    # When imported, would need additional handling (future work)
 
 # ================================================================
 # SECTION STATE MANAGEMENT
@@ -687,8 +727,17 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: 
   ## Initialize the canvas system (idempotent - only initializes if not already done)
   ## Set presentationMode=true for slide-style navigation where all sections are visible
   ## frontMatter: Document front matter containing global settings like hideHeadings
+  
+  # Preserve existing references if canvasState already exists
+  var existingBuffer: ptr TermBuffer = nil
+  var existingAppState: ptr AppState = nil
+  var existingStyleSheet: ptr StyleSheet = nil
+  
   if not canvasState.isNil:
-    return  # Already initialized
+    # Already initialized - preserve references and skip reinitialization
+    existingBuffer = canvasState.buffer
+    existingAppState = canvasState.appState
+    existingStyleSheet = canvasState.styleSheet
   
   # Set section width from minWidth if provided
   if frontMatter.hasKey("minWidth"):
@@ -713,7 +762,12 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: 
     lastViewportWidth: 0,
     lastViewportHeight: 0,
     contentBuffers: initTable[string, seq[string]](),
-    frontMatter: frontMatter
+    frontMatter: frontMatter,
+    currentContentBounds: ContentBounds(),
+    currentContentBufferBounds: ContentBounds(),
+    buffer: existingBuffer,
+    appState: existingAppState,
+    styleSheet: existingStyleSheet
   )
   
   # Initialize section visibility from metadata
@@ -1492,10 +1546,10 @@ proc canvasUpdate*(deltaTime: float) =
                                canvasState.frontMatter["mousefocus"].toLowerAscii() in ["false", "no", "0"])
   
   # Update hover focus for links when mousefocus is enabled and not in presentation mode
-  if mouseFocusEnabled and not canvasState.presentationMode and not gCanvasAppState.isNil:
+  if mouseFocusEnabled and not canvasState.presentationMode and not canvasState.appState.isNil:
     # Get current mouse position from app state (updated by mouse move events)
-    let mouseX = gCanvasAppState.lastMouseX
-    let mouseY = gCanvasAppState.lastMouseY
+    let mouseX = canvasState.appState.lastMouseX
+    let mouseY = canvasState.appState.lastMouseY
     
     # Check if mouse is hovering over any link
     for i, link in canvasState.links:
@@ -1722,12 +1776,12 @@ proc nimini_markVisited*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valNil()
 
 proc canvasRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Render the canvas system. No args needed (uses global buffers)
-  if not gCanvasAppState.isNil and not gCanvasBuffer.isNil:
+  ## Render the canvas system. No args needed (uses canvasState references)
+  if not canvasState.isNil and not canvasState.appState.isNil and not canvasState.buffer.isNil:
     gNiminiEnv = cast[pointer](env)  # Store env for variable expansion during rendering
-    let styleSheet = if not gCanvasStyleSheet.isNil: gCanvasStyleSheet[]
+    let styleSheet = if not canvasState.styleSheet.isNil: canvasState.styleSheet[]
                      else: initTable[string, StyleConfig]()
-    canvasRender(gCanvasBuffer[], gCanvasAppState.termWidth, gCanvasAppState.termHeight, styleSheet)
+    canvasRender(canvasState.buffer[], canvasState.appState.termWidth, canvasState.appState.termHeight, styleSheet)
   return valNil()
 
 proc canvasUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -1877,9 +1931,38 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
                             styleSheet: ptr StyleSheet) =
   ## Register canvas bindings with the nimini runtime
   ## Call this during initialization after creating the nimini context
-  gCanvasBuffer = buffer
-  gCanvasAppState = appState
-  gCanvasStyleSheet = styleSheet
+  ## 
+  ## This function works for both include and import modes
+  
+  # Create minimal canvasState if it doesn't exist yet
+  # This ensures we can store references even before initCanvas is called
+  if canvasState.isNil:
+    canvasState = CanvasState(
+      camera: Camera(x: 0.0, y: 0.0, targetX: 0.0, targetY: 0.0),
+      sections: @[],
+      links: @[],
+      focusedLinkIdx: 0,
+      visitedSections: initHashSet[string](),
+      hiddenSections: initHashSet[string](),
+      removedSections: initHashSet[string](),
+      mouseEnabled: false,
+      presentationMode: false,
+      lastRenderTime: 0.0,
+      lastViewportWidth: 0,
+      lastViewportHeight: 0,
+      contentBuffers: initTable[string, seq[string]](),
+      frontMatter: initTable[string, string](),
+      currentContentBounds: ContentBounds(),
+      currentContentBufferBounds: ContentBounds(),
+      buffer: nil,
+      appState: nil,
+      styleSheet: nil
+    )
+  
+  # Store references for nimini wrappers
+  canvasState.buffer = buffer
+  canvasState.appState = appState
+  canvasState.styleSheet = styleSheet
   
   # Export all nimini wrapper functions
   exportNiminiProcs(
@@ -1897,3 +1980,4 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
 # Export rendering functions
 export canvasRender, canvasUpdate, canvasHandleKey, canvasHandleMouse, getSectionCount
 export registerCanvasBindings, setExecuteCallback, ExecuteCodeBlockCallback
+export initCanvasModule  # For import mode initialization

@@ -18,6 +18,8 @@ import lib/ascii_art_bindings # ASCII art nimini bindings
 import lib/ansi_art_bindings  # ANSI art nimini bindings
 import lib/dungeon_bindings   # Dungeon generator nimini bindings
 import lib/particles_bindings # Particle system nimini bindings
+import lib/animation          # Animation helpers and easing (now pure math, can be imported)
+import lib/canvas             # Canvas navigation system (now proper module!)
 
 when not defined(emscripten):
   import src/platform/terminal
@@ -26,8 +28,6 @@ when not defined(emscripten):
 
 # These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
 # so they must be included to share the same namespace
-import lib/animation          # Animation helpers and easing (now pure math, can be imported)
-include lib/canvas            # Canvas navigation system
 include lib/audio             # Audio system
 
 const version = "0.1.0"
@@ -1079,8 +1079,9 @@ when defined(emscripten):
               elif newStyleSheet.hasKey("body"):
                 # Fallback: use "body" style background/foreground for default
                 setDefaultStyleConfig(newStyleSheet["body"])
-              # Re-register canvas bindings with new stylesheet (use default layer)
+              # Re-initialize canvas module with new stylesheet
               if globalState.layers.len > 0:
+                initCanvasModule(addr globalState, addr storieCtx.sectionMgr, addr storieCtx.styleSheet)
                 registerCanvasBindings(addr globalState.layers[0].buffer, addr globalState, addr storieCtx.styleSheet)
             except:
               discard

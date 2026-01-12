@@ -21,7 +21,7 @@ type
 #     fgPrimary:    (0x00'u8, 0xd9'u8, 0x8e'u8),   # Aquamarine
 # Theme definitions
 const
-  Futurism* = ThemeColors(
+  Neotopia* = ThemeColors(
     bgPrimary:    (0x00'u8, 0x11'u8, 0x11'u8),   # Deep teal (#001111)
     bgSecondary:  (0x09'u8, 0x34'u8, 0x3a'u8),   # Slightly lighter teal (#09343a)
     fgPrimary:    (0xe0'u8, 0xe0'u8, 0xe0'u8),   # Bright gray (body text)
@@ -29,6 +29,16 @@ const
     accent1:      (0x00'u8, 0xd9'u8, 0x8e'u8),   # Aquamarine (signature color)
     accent2:      (0xff'u8, 0xff'u8, 0x00'u8),   # Electric yellow (highlights)
     accent3:      (0xff'u8, 0x00'u8, 0x6e'u8),   # Neon pink (emphasis)
+  )
+
+  Neonopia* = ThemeColors(
+    bgPrimary:    (0x05'u8, 0x00'u8, 0x00'u8),   # Deep burgundy (#110000) - dark inverted teal
+    bgSecondary:  (0x34'u8, 0x09'u8, 0x05'u8),   # Dark coral (#340905) - dark inverted teal
+    fgPrimary:    (0xa0'u8, 0xa0'u8, 0xa0'u8),   # Dark gray (body text) - inverted bright
+    fgSecondary:  (0x6f'u8, 0x6f'u8, 0x6f'u8),   # Lighter gray (muted text) - adjusted for dark bg
+    accent1:      (0xff'u8, 0x26'u8, 0x71'u8),   # Hot pink (#ff2671) - inverted aquamarine
+    accent2:      (0x00'u8, 0x00'u8, 0xff'u8),   # Pure blue (#0000ff) - inverted yellow
+    accent3:      (0x00'u8, 0xff'u8, 0x91'u8),   # Bright mint (#00ff91) - inverted neon pink
   )
 
   CatppuccinMocha* = ThemeColors(
@@ -61,16 +71,6 @@ const
     accent3:      (0x50'u8, 0xfa'u8, 0x7b'u8)   # Green
   )
   
-  MiamiVice* = ThemeColors(
-    bgPrimary:    (0x0d'u8, 0x02'u8, 0x21'u8),
-    bgSecondary:  (0x1b'u8, 0x06'u8, 0x38'u8),
-    fgPrimary:    (0xff'u8, 0xfe'u8, 0xf7'u8),
-    fgSecondary:  (0xa6'u8, 0x63'u8, 0xcc'u8),
-    accent1:      (0xff'u8, 0x00'u8, 0x80'u8),  # Hot pink
-    accent2:      (0x00'u8, 0xff'u8, 0xff'u8),  # Cyan
-    accent3:      (0xff'u8, 0x6c'u8, 0x11'u8)   # Sunset orange
-  )
-  
   Outrun* = ThemeColors(
     bgPrimary:    (0x1a'u8, 0x00'u8, 0x33'u8),
     bgSecondary:  (0x2d'u8, 0x00'u8, 0x55'u8),
@@ -81,7 +81,7 @@ const
     accent3:      (0xff'u8, 0xbe'u8, 0x0b'u8)   # Golden yellow
   )
   
-  Cyberpunk* = ThemeColors(
+  Alleycat* = ThemeColors(
     bgPrimary:    (0x0a'u8, 0x0a'u8, 0x0f'u8),
     bgSecondary:  (0x1a'u8, 0x1a'u8, 0x2e'u8),
     fgPrimary:    (0xe0'u8, 0xe0'u8, 0xff'u8),
@@ -111,6 +111,16 @@ const
     accent3:      (0x85'u8, 0x99'u8, 0x00'u8)   # Green
   )
   
+  SolarizedLight* = ThemeColors(
+    bgPrimary:    (0xfd'u8, 0xf6'u8, 0xe3'u8),
+    bgSecondary:  (0xee'u8, 0xe8'u8, 0xd5'u8),
+    fgPrimary:    (0x65'u8, 0x7b'u8, 0x83'u8),
+    fgSecondary:  (0x93'u8, 0xa1'u8, 0xa1'u8),
+    accent1:      (0x26'u8, 0x8b'u8, 0xd2'u8),  # Blue
+    accent2:      (0x2a'u8, 0xa1'u8, 0x98'u8),  # Cyan
+    accent3:      (0x85'u8, 0x99'u8, 0x00'u8)   # Green
+  )
+  
   Coffee* = ThemeColors(
     bgPrimary:    (0xf2'u8, 0xd3'u8, 0xac'u8),  # Cream
     bgSecondary:  (0x73'u8, 0x14'u8, 0x25'u8),  # Dark burgundy
@@ -131,20 +141,32 @@ const
     accent3:      (0x5a'u8, 0x7a'u8, 0x8e'u8)   # Cool blue-gray stone (boxes)
   )
 
+  Wat* = ThemeColors(
+    bgPrimary:    (0xff'u8, 0x00'u8, 0xff'u8),  # Screaming magenta
+    bgSecondary:  (0x00'u8, 0xff'u8, 0x00'u8),  # Blinding lime green
+    fgPrimary:    (0xff'u8, 0xff'u8, 0x00'u8),  # Eye-searing yellow
+    fgSecondary:  (0xff'u8, 0x69'u8, 0x00'u8),  # Aggressive orange
+    accent1:      (0x00'u8, 0xff'u8, 0xff'u8),  # Electric cyan
+    accent2:      (0xff'u8, 0x14'u8, 0x93'u8),  # Hot pink
+    accent3:      (0x7f'u8, 0xff'u8, 0x00'u8)   # Chartreuse nightmare
+  )
+
 proc getAvailableThemes*(): seq[string] =
   ## Get list of all available theme names
   result = @[
     "catppuccin",
     "nord",
     "dracula",
-    "miami-vice",
     "outrun",
-    "cyberpunk",
+    "alleycat",
     "terminal",
     "solarized-dark",
-    "futurism",
+    "solarized-light",
+    "neotopia",
+    "neonopia",
     "coffee",
-    "stonegarden"
+    "stonegarden",
+    "wat"
   ]
 
 proc getTheme*(name: string): ThemeColors =
@@ -156,25 +178,29 @@ proc getTheme*(name: string): ThemeColors =
     return Nord
   of "dracula":
     return Dracula
-  of "miami-vice", "miami", "miamiVice":
-    return MiamiVice
-  of "outrun", "synthwave":
+  of "outrun", "ega":
     return Outrun
-  of "cyberpunk", "cyber":
-    return Cyberpunk
+  of "alleycat", "cga":
+    return Alleycat
   of "terminal", "green":
     return Terminal
-  of "solarized-dark", "solarized":
+  of "solarized-dark", "solarizeddark", "solardark":
     return SolarizedDark
-  of "futurism", "future", "retrowave":
-    return Futurism
+  of "solarized-light", "solarized", "solar":
+    return SolarizedLight
+  of "neotopia", "neo", "future":
+    return Neotopia
+  of "neonopia", "neon":
+    return Neonopia
   of "coffee", "chocolate":
     return Coffee
-  of "stonegarden", "stone-garden", "zen", "zen-garden":
+  of "stonegarden", "stone-garden", "zen":
     return StoneGarden
+  of "wat", "what":
+    return Wat
   else:
-    # Default to Catppuccin if theme not found
-    return CatppuccinMocha
+    # Default to Neotopia if theme not found
+    return Neotopia
 
 proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
   ## Convert a theme into a StyleSheet with standard style names
@@ -225,8 +251,8 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
   # Links (with theme-specific adjustments)
   var linkColor = theme.accent2
   
-  # Futurism theme: use darker gray for regular links to contrast with aquamarine focused links
-  if themeName.toLowerAscii() in ["futurism", "future", "retrowave"]:
+  # Neotopia theme: use darker gray for regular links to contrast with aquamarine focused links
+  if themeName.toLowerAscii() in ["neotopia", "neo", "future"]:
     linkColor = (0xFF'u8, 0xFF'u8, 0xFF'u8)  # Darker gray, subdued
   
   result["link"] = StyleConfig(

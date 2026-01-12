@@ -2,7 +2,7 @@
 title: "Drawing & Compositing Demo"
 minWidth: 100
 minHeight: 50
-theme: "futurism"
+theme: "neotopia"
 ---
 
 # Drawing API Showcase

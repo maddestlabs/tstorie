@@ -2,7 +2,7 @@
 title: "Layer Compositing Tutorial"
 minWidth: 90
 minHeight: 35
-theme: "futurism"
+theme: "neotopia"
 ---
 
 # Understanding Layers and Compositing

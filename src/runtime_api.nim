@@ -1675,6 +1675,11 @@ proc initStorieContext(state: AppState) =
   
   # Now register module bindings (must be after runtime init)
   registerSectionManagerBindings(addr storieCtx.sectionMgr)
+  
+  # Initialize canvas module (import mode - sets up references)
+  initCanvasModule(addr gAppState, addr storieCtx.sectionMgr, addr storieCtx.styleSheet)
+  
+  # Register canvas bindings (stores references in canvasState)
   registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   
   # Expose front matter to user scripts as global variables
@@ -1700,8 +1705,9 @@ proc initStorieContext(state: AppState) =
         if newStyleSheet.hasKey("body"):
           storieCtx.themeBackground = newStyleSheet["body"].bg
           state.themeBackground = storieCtx.themeBackground
+        # Re-initialize canvas module with new stylesheet
+        initCanvasModule(addr gAppState, addr storieCtx.sectionMgr, addr storieCtx.styleSheet)
         # Re-register canvas bindings with new stylesheet pointer
-        # (necessary because styleSheet is a value type, not ref)
         registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
         # Clear and redraw all layers with new theme background
         for layer in state.layers:

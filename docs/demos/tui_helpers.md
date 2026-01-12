@@ -1,7 +1,7 @@
 ---
 title: TUI Helpers Demo
 author: TStorie
-theme: "futurism"
+theme: "neotopia"
 ---
 
 # TUI Helpers Demo

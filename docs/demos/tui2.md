@@ -2,7 +2,7 @@
 title: "TUI Demo v2 - Using Built-in Helpers"
 minWidth: 60
 minHeight: 35
-theme: "futurism"
+theme: "neotopia"
 styles.highlight.fg: "#FFFF00"
 styles.highlight.bold: "true"
 ---

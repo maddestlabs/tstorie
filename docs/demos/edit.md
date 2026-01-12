@@ -2,7 +2,7 @@
 title: "t|Storie Editor"
 minWidth: 20
 minHeight: 10
-theme: "futurism"
+theme: "neotopia"
 editorX: 0
 editorY: 2
 ---
