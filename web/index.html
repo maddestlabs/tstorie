@@ -493,27 +493,11 @@
         const progress = document.getElementById('progress');
         const container = document.getElementById('container');
         
-        // Force canvas to match viewport dimensions exactly
-        function resizeCanvasToViewport() {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            
-            if (canvas.width !== width || canvas.height !== height) {
-                canvas.width = width;
-                canvas.height = height;
-                canvas.style.width = width + 'px';
-                canvas.style.height = height + 'px';
-            }
-        }
+        // Expose terminal canvas globally for PNG export (will be updated if shader system is used)
+        window.terminalCanvas = canvas;
         
-        // Initial resize
-        resizeCanvasToViewport();
-        
-        // Resize on window resize
-        window.addEventListener('resize', resizeCanvasToViewport);
-        
-        // Also check periodically in case WASM changes it
-        setInterval(resizeCanvasToViewport, 100);
+        // Note: Canvas resizing is handled by the WebGL renderer's resize() method
+        // which is called on window resize events and properly accounts for device pixel ratio
         
         // Compression/Decompression utilities for URL sharing
         async function compress(string) {
@@ -549,6 +533,189 @@
             writer.close();
             const buffer = await new Response(stream.readable).arrayBuffer();
             return new TextDecoder().decode(buffer);
+        }
+        
+        // ===== PNG CHUNK MANIPULATION (ComfyUI-style workflow sharing) =====
+        // Zero-dependency PNG metadata embedding for storing workflows in screenshots
+        
+        // CRC32 calculation for PNG chunks
+        function calculateCRC32(data) {
+            let crc = 0xFFFFFFFF;
+            const crcTable = new Uint32Array(256);
+            
+            // Build CRC table
+            for (let n = 0; n < 256; n++) {
+                let c = n;
+                for (let k = 0; k < 8; k++) {
+                    c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                }
+                crcTable[n] = c;
+            }
+            
+            // Calculate CRC
+            for (let i = 0; i < data.length; i++) {
+                crc = crcTable[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+            }
+            
+            return (crc ^ 0xFFFFFFFF) >>> 0;
+        }
+        
+        // Create a PNG tEXt chunk with keyword and text
+        function createPNGTextChunk(keyword, text) {
+            const keywordBytes = new TextEncoder().encode(keyword);
+            const textBytes = new TextEncoder().encode(text);
+            
+            // tEXt chunk: keyword + null byte + text
+            const dataLength = keywordBytes.length + 1 + textBytes.length;
+            const chunk = new Uint8Array(12 + dataLength); // length(4) + type(4) + data + crc(4)
+            const view = new DataView(chunk.buffer);
+            
+            // Length (4 bytes)
+            view.setUint32(0, dataLength, false); // big-endian
+            
+            // Type: "tEXt" (4 bytes)
+            chunk[4] = 116; // 't'
+            chunk[5] = 69;  // 'E'
+            chunk[6] = 88;  // 'X'
+            chunk[7] = 116; // 't'
+            
+            // Data: keyword + null + text
+            chunk.set(keywordBytes, 8);
+            chunk[8 + keywordBytes.length] = 0; // null separator
+            chunk.set(textBytes, 9 + keywordBytes.length);
+            
+            // CRC (4 bytes) - calculated over type + data
+            const crcData = chunk.subarray(4, 8 + dataLength);
+            const crc = calculateCRC32(crcData);
+            view.setUint32(8 + dataLength, crc, false);
+            
+            return chunk;
+        }
+        
+        // Inject a chunk before the IEND chunk in PNG data
+        function injectChunkBeforeIEND(pngData, newChunk) {
+            // Find IEND chunk (last 12 bytes: length=0, "IEND", CRC)
+            // Search backwards for IEND signature
+            let iendPos = -1;
+            for (let i = pngData.length - 12; i >= 8; i--) {
+                if (pngData[i] === 73 && pngData[i+1] === 69 && 
+                    pngData[i+2] === 78 && pngData[i+3] === 68) { // "IEND"
+                    iendPos = i - 4; // Start of IEND chunk (length field)
+                    break;
+                }
+            }
+            
+            if (iendPos === -1) {
+                throw new Error('Invalid PNG: IEND chunk not found');
+            }
+            
+            // Create new PNG with injected chunk
+            const result = new Uint8Array(pngData.length + newChunk.length);
+            result.set(pngData.subarray(0, iendPos), 0);
+            result.set(newChunk, iendPos);
+            result.set(pngData.subarray(iendPos), iendPos + newChunk.length);
+            
+            return result;
+        }
+        
+        // Extract tEXt chunks from PNG data
+        function extractPNGTextChunks(pngData) {
+            const chunks = {};
+            let pos = 8; // Skip PNG signature
+            
+            while (pos < pngData.length - 12) {
+                const view = new DataView(pngData.buffer, pngData.byteOffset + pos);
+                const length = view.getUint32(0, false); // big-endian
+                
+                // Read chunk type
+                const type = String.fromCharCode(
+                    pngData[pos + 4],
+                    pngData[pos + 5],
+                    pngData[pos + 6],
+                    pngData[pos + 7]
+                );
+                
+                // If it's a tEXt chunk, extract the data
+                if (type === 'tEXt') {
+                    const dataStart = pos + 8;
+                    const dataEnd = dataStart + length;
+                    const chunkData = pngData.subarray(dataStart, dataEnd);
+                    
+                    // Find null separator between keyword and text
+                    let nullPos = 0;
+                    while (nullPos < chunkData.length && chunkData[nullPos] !== 0) {
+                        nullPos++;
+                    }
+                    
+                    if (nullPos < chunkData.length) {
+                        const keyword = new TextDecoder().decode(chunkData.subarray(0, nullPos));
+                        const text = new TextDecoder().decode(chunkData.subarray(nullPos + 1));
+                        chunks[keyword] = text;
+                    }
+                }
+                
+                // Stop at IEND
+                if (type === 'IEND') break;
+                
+                // Move to next chunk: length(4) + type(4) + data(length) + crc(4)
+                pos += 12 + length;
+            }
+            
+            return chunks;
+        }
+        
+        // Capture terminal canvas and embed workflow data as PNG
+        async function captureTerminalToPNG(content) {
+            // Get the terminal canvas (or fallback to visible canvas)
+            const canvas = window.terminalCanvas || document.getElementById('terminal');
+            if (!canvas) {
+                throw new Error('Terminal canvas not found');
+            }
+            
+            console.log('Capturing terminal canvas:', canvas.width, 'x', canvas.height);
+            
+            // Convert canvas to PNG blob
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob((b) => {
+                    if (b) resolve(b);
+                    else reject(new Error('Failed to capture canvas'));
+                }, 'image/png');
+            });
+            
+            // Read as ArrayBuffer
+            const arrayBuffer = await blob.arrayBuffer();
+            const pngData = new Uint8Array(arrayBuffer);
+            
+            // Compress the content
+            const compressed = await compress(content);
+            
+            // Create tEXt chunk with workflow data
+            const workflowChunk = createPNGTextChunk('tStorie-workflow', compressed);
+            
+            // Inject chunk into PNG
+            const finalPNG = injectChunkBeforeIEND(pngData, workflowChunk);
+            
+            console.log('Created PNG with embedded workflow:', finalPNG.length, 'bytes');
+            
+            return new Blob([finalPNG], { type: 'image/png' });
+        }
+        
+        // Extract workflow from PNG file
+        async function extractWorkflowFromPNG(pngFile) {
+            const arrayBuffer = await pngFile.arrayBuffer();
+            const pngData = new Uint8Array(arrayBuffer);
+            
+            // Extract tEXt chunks
+            const chunks = extractPNGTextChunks(pngData);
+            
+            if (chunks['tStorie-workflow']) {
+                // Decompress the workflow
+                const content = await decompress(chunks['tStorie-workflow']);
+                console.log('Extracted workflow from PNG:', content.length, 'bytes');
+                return content;
+            }
+            
+            return null;
         }
         
         // ===== TSTORIE EDITOR HELPER FUNCTIONS =====
@@ -758,6 +925,88 @@
         // Check if URL was copied to clipboard
         window.tStorie_checkShareUrlCopied = function() {
             return window.tStorie_shareUrlCopied ? 'true' : 'false';
+        };
+        
+        // ===== PNG WORKFLOW EXPORT/IMPORT (ComfyUI-style) =====
+        
+        // Export current content as PNG with embedded workflow
+        window.tStorie_exportToPNG = function(content, filename) {
+            window.tStorie_pngExportReady = false;
+            window.tStorie_pngExportError = null;
+            
+            captureTerminalToPNG(content).then(function(blob) {
+                // Trigger download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (filename || 'tstorie-workflow') + '.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                console.log('✓ PNG workflow exported:', a.download);
+                window.tStorie_pngExportReady = true;
+            }).catch(function(e) {
+                console.error('PNG export error:', e);
+                window.tStorie_pngExportError = e.message;
+                window.tStorie_pngExportReady = true;
+            });
+            
+            return 'started';
+        };
+        
+        // Check if PNG export is complete
+        window.tStorie_checkPngExportReady = function() {
+            return window.tStorie_pngExportReady ? 'true' : 'false';
+        };
+        
+        // Get PNG export error if any
+        window.tStorie_getPngExportError = function() {
+            return window.tStorie_pngExportError || '';
+        };
+        
+        // Trigger file picker to load PNG workflow
+        window.tStorie_importFromPNG = function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/png';
+            
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (!file) {
+                    window.tStorie_pngImportContent = null;
+                    return;
+                }
+                
+                extractWorkflowFromPNG(file).then(function(content) {
+                    if (content) {
+                        console.log('✓ Workflow imported from PNG:', content.length, 'bytes');
+                        window.tStorie_pngImportContent = content;
+                    } else {
+                        console.warn('No workflow found in PNG');
+                        window.tStorie_pngImportContent = null;
+                    }
+                }).catch(function(e) {
+                    console.error('PNG import error:', e);
+                    window.tStorie_pngImportContent = null;
+                });
+            };
+            
+            input.click();
+            return 'started';
+        };
+        
+        // Get imported PNG workflow content (call after importFromPNG)
+        window.tStorie_getPngImportContent = function() {
+            const content = window.tStorie_pngImportContent;
+            window.tStorie_pngImportContent = null; // Clear after reading
+            return content || '';
+        };
+        
+        // Check if PNG import has content ready
+        window.tStorie_checkPngImportReady = function() {
+            return window.tStorie_pngImportContent !== undefined ? 'true' : 'false';
         };
         
         // Navigate to URL
@@ -1113,7 +1362,7 @@
                 if (typeof inittstorie === 'function') {
                     await inittstorie();
                 } else {
-                    console.error('inittstorie function not found. Make sure tstorie.js is loaded.');
+                    console.error('inittstorie function not found. Make sure tstorie-webgl.js is loaded.');
                 }
                 
                 // Initialize shader system if shaders are loaded
@@ -1292,6 +1541,9 @@
                 
                 // Store original terminal canvas reference
                 const terminalCanvas = canvas;
+                
+                // Expose globally for PNG export
+                window.terminalCanvas = terminalCanvas;
                 
                 // Get actual rendered dimensions
                 const width = terminalCanvas.width || 800;
@@ -1635,8 +1887,8 @@
         }
     </script>
     
-    <!-- Load our terminal interface first -->
-    <script src="tstorie.js"></script>
+    <!-- Load our WebGL terminal interface first -->
+    <script src="tstorie-webgl.js"></script>
     
     <!-- Then load the WASM module -->
     <script src="tstorie.wasm.js" onerror="document.getElementById('container').innerHTML = '<div class=\'error\'><h2>Failed to load WASM module</h2><p>Make sure tstorie.wasm.js exists in the same directory.</p></div>';"></script>

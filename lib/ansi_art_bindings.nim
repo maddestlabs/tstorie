@@ -1,8 +1,24 @@
 ## Nimini bindings for ANSI Art Parser
 ## Exposes ANSI parsing and rendering functions to nimini scripts
+##
+## BINDING PATTERNS:
+## Pattern 1 (Auto-exposed - 3 functions from ansi_parser.nim):
+## - stripAnsi: Remove ANSI escape sequences from text
+## - convertBracketNotationToAnsi: Convert [1;36m notation to \x1b[1;36m
+## - getAnsiTextDimensions: Get width/height of ANSI text
+##
+## Manual wrappers (5 functions):
+## - drawAnsi: Complex content loading + parsing + drawing pipeline
+## - parseAnsi: Returns buffer ID (registry pattern for TermBuffer objects)
+## - drawAnsiBuffer: Registry lookup for cached TermBuffer
+## - Custom wrapper for getAnsiDimensions that was renamed (now auto-exposed as getAnsiTextDimensions)
+##
+## Note: This module uses a buffer cache/registry pattern similar to particles.
+## Parsed ANSI buffers are stored by ID to avoid passing TermBuffer through Value system.
 
 import ../nimini
 import ../nimini/runtime
+import ../nimini/type_converters
 import ansi_parser
 import std/[tables, strutils]
 
@@ -169,15 +185,9 @@ proc nimini_drawAnsiBuffer*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   return valNil()
 
-proc nimini_stripAnsi*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Remove ANSI escape sequences from text. Args: text (string)
-  ## Returns: plain text (string)
-  if args.len < 1:
-    return valString("")
-  
-  let text = valueToString(args[0])
-  let stripped = stripAnsi(text)
-  return valString(stripped)
+# Note: stripAnsi is auto-exposed in ansi_parser.nim
+# Note: convertBracketNotationToAnsi is auto-exposed in ansi_parser.nim
+# Note: getAnsiTextDimensions is auto-exposed in ansi_parser.nim
 
 proc nimini_getAnsiDimensions*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get dimensions of ANSI text. Args: text (string)
@@ -203,12 +213,27 @@ proc registerAnsiArtBindings*(env: ref Env, drawProc: DrawProc) =
   ## Must be called before using any ANSI art functions
   gDrawProc = drawProc
   
-  # Core ANSI functions
-  env.setVar("drawAnsi", valNativeFunc(nimini_drawAnsi))
-  env.setVar("parseAnsi", valNativeFunc(nimini_parseAnsi))
-  env.setVar("drawAnsiBuffer", valNativeFunc(nimini_drawAnsiBuffer))
-  env.setVar("stripAnsi", valNativeFunc(nimini_stripAnsi))
-  env.setVar("getAnsiDimensions", valNativeFunc(nimini_getAnsiDimensions))
+  # Pattern 1: Auto-exposed functions from ansi_parser.nim
+  register_stripAnsi()
+  register_convertBracketNotationToAnsi()
+  register_getAnsiTextDimensions()
+  
+  # Manual wrappers: Complex rendering and buffer management
+  registerNative("drawAnsi", nimini_drawAnsi,
+    storieLibs = @["ansi_parser"],
+    description = "Draw ANSI art at position")
+  registerNative("parseAnsi", nimini_parseAnsi,
+    storieLibs = @["ansi_parser"],
+    description = "Parse ANSI escape sequences into buffer")
+  registerNative("drawAnsiBuffer", nimini_drawAnsiBuffer,
+    storieLibs = @["ansi_parser"],
+    description = "Draw pre-parsed ANSI buffer")
+  
+  # Legacy wrapper: getAnsiDimensions (returns map, while auto-exposed getAnsiTextDimensions returns tuple)
+  # Keep this for backward compatibility with existing scripts
+  registerNative("getAnsiDimensions", nimini_getAnsiDimensions,
+    storieLibs = @["ansi_parser"],
+    description = "Get dimensions of ANSI art (legacy map format)")
 
 proc clearAnsiBufferCache* =
   ## Clear the ANSI buffer cache (useful when reloading content)

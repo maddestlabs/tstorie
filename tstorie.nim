@@ -1,6 +1,7 @@
 import strutils, times, parseopt, os, tables, math, random, sequtils, strtabs, algorithm
 import macros
 import nimini
+import nimini/auto_pointer  # For initPlugins()
 import src/params
 import src/types  # Core runtime types
 import src/charwidth  # Character display width utilities
@@ -16,14 +17,23 @@ import lib/figlet_bindings    # FIGlet nimini bindings
 import lib/nimini_bridge      # Nimini API registration and bindings
 import lib/ascii_art_bindings # ASCII art nimini bindings
 import lib/ansi_art_bindings  # ANSI art nimini bindings
-import lib/dungeon_bindings   # Dungeon generator nimini bindings
+import lib/dungeon_gen        # Dungeon generator (auto-registers via pragmas)
 import lib/particles_bindings # Particle system nimini bindings
+import lib/primitives         # Procedural primitives (auto-registers via pragmas)
+import lib/graph              # Graph/node system (auto-registers via pragmas)
+# import lib/graph_compiler     # Graph compiler (utility, not runtime plugin)
 import lib/animation          # Animation helpers and easing (now pure math, can be imported)
 import lib/canvas             # Canvas navigation system (now proper module!)
 
+# Explicitly initialize plugin modules to ensure registration happens
+initDungeonGenModule()
+initPrimitivesModule()
+initGraphModule()
+
 when not defined(emscripten):
   import src/platform/terminal
-  import std/httpclient
+  when not defined(noGistLoading):
+    import std/httpclient
   import src/export_command  # Export command support
 
 # These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
@@ -118,6 +128,8 @@ proc fetchGistFile*(gistId: string, filename: string): string =
     # In WASM, this will be populated by JavaScript via emLoadGistCode
     # Return empty string to signal that async fetch is needed
     return ""
+  elif defined(noGistLoading):
+    raise newException(IOError, "Gist loading disabled (compiled with -d:noGistLoading)")
   else:
     let client = newHttpClient()
     # Use raw githubusercontent URL for direct file access
@@ -201,7 +213,11 @@ proc loadContentFromSource*(contentRef: string): string =
   case source
   of csGist:
     # Fetch gist and find first .md file
-    when not defined(emscripten):
+    when defined(emscripten):
+      raise newException(IOError, "Gist loading not supported in WASM CLI mode")
+    elif defined(noGistLoading):
+      raise newException(IOError, "Gist loading disabled (compiled with -d:noGistLoading)")
+    else:
       let client = newHttpClient()
       let apiUrl = "https://api.github.com/gists/" & id
       try:
@@ -236,8 +252,6 @@ proc loadContentFromSource*(contentRef: string): string =
         return content.multiReplace([("\\n", "\n"), ("\\t", "\t"), ("\\\"", "\""), ("\\\\", "\\")])
       except:
         raise newException(IOError, "Failed to fetch gist: " & id)
-    else:
-      raise newException(IOError, "Gist loading not supported in WASM CLI mode")
   
   of csDemo:
     # Load from demos/ directory

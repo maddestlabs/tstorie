@@ -7,16 +7,22 @@
 # This module provides TWO APIs:
 # 1. Simple procedural API (legacy): playTone(), playJump(), etc.
 # 2. Node-based API: Full Web Audio-style node graph (see audio_nodes.nim)
+#
+# NIMINI BINDINGS:
+# No functions are auto-exposed. Audio system uses global state and C FFI.
+# See miniaudio_bindings.nim for low-level C bindings.
+# Most audio functionality is accessed through runtime-specific wrappers.
 
 import audio_gen
 import tables
 
-# Export the node-based API
-import audio_nodes
-export audio_nodes
+# Note: audio_nodes is NOT exported by default to keep binaries small
+# It imports miniaudio_bindings directly, which would bloat the binary
+# If you need the node-based API, import it explicitly:
+#   import lib/audio_nodes
 
 when not defined(emscripten):
-  import miniaudio_bindings
+  import audio_plugin_loader  # ← Small loader instead of miniaudio_bindings
 else:
   # WASM build - use Web Audio API via JavaScript bridge
   proc emAudioInit*() {.importc.}
@@ -29,12 +35,8 @@ type
     initialized: bool
     sampleRate*: int
     when not defined(emscripten):
-      context: ma_context
-      device: ma_device
-      deviceConfig: ma_device_config
-      playbackQueue: seq[AudioSample]  # Simple queue for mixing
-      currentSample: AudioSample
-      currentPosition: int
+      pluginLoaded: bool
+      # Plugin maintains its own internal state
     sounds*: Table[string, AudioSample]  # Named sound cache
   
   PlaybackHandle* = object
@@ -42,43 +44,25 @@ type
     playing: bool
 
 # ================================================================
-# NATIVE AUDIO (MINIAUDIO)
+# NATIVE AUDIO (PLUGIN-BASED)
 # ================================================================
 
 when not defined(emscripten):
-  proc audioDataCallback(pDevice: ptr ma_device, pOutput: pointer, 
-                        pInput: pointer, frameCount: ma_uint32) {.cdecl.} =
-    ## Callback that miniaudio calls to fill audio buffer
-    ## This is called from the audio thread
-    
-    # Get our AudioSystem from the device's user data
-    let sys = cast[AudioSystem](ma_device_get_user_data(pDevice))
-    
-    # Cast output to float32 array
-    let output = cast[ptr UncheckedArray[float32]](pOutput)
-    
-    # Fill with silence by default
-    for i in 0 ..< int(frameCount):
-      output[i] = 0.0'f32
-    
-    # If we have a current sample, mix it in
-    if sys.currentSample.data.len > 0 and sys.currentPosition < sys.currentSample.data.len:
-      let samplesToWrite = min(int(frameCount), sys.currentSample.data.len - sys.currentPosition)
+  proc ensurePluginLoaded(sys: AudioSystem): bool =
+    ## Lazy-load plugin on first audio operation
+    if not sys.pluginLoaded:
+      if not loadAudioPlugin():
+        echo "Warning: Audio plugin not available. Build with ./build-audio-plugin.sh"
+        return false
       
-      for i in 0 ..< samplesToWrite:
-        output[i] = sys.currentSample.data[sys.currentPosition + i]
+      if not initAudioPlugin(sys.sampleRate, 2):  # Always use stereo for simplicity
+        echo "Warning: Failed to initialize audio plugin"
+        return false
       
-      sys.currentPosition += samplesToWrite
-      
-      # If we've finished this sample, move to next in queue
-      if sys.currentPosition >= sys.currentSample.data.len:
-        if sys.playbackQueue.len > 0:
-          sys.currentSample = sys.playbackQueue[0]
-          sys.playbackQueue.delete(0)
-          sys.currentPosition = 0
-        else:
-          sys.currentSample = AudioSample()
-          sys.currentPosition = 0
+      sys.pluginLoaded = true
+      echo "Audio plugin initialized (", sys.sampleRate, " Hz, stereo)"
+    
+    return sys.pluginLoaded
 
 # ================================================================
 # INITIALIZATION
@@ -96,49 +80,10 @@ proc initAudio*(sampleRate: int = 44100): AudioSystem =
     result.initialized = true
     echo "Audio system initialized with Web Audio API (", sampleRate, " Hz)"
   else:
-    # Native: Use miniaudio
-    result.playbackQueue = @[]
-    result.currentSample = AudioSample()
-    result.currentPosition = 0
-    
-    # Initialize miniaudio context (backend)
-    var contextResult = ma_context_init(nil, 0, nil, addr result.context)
-    if contextResult != MA_SUCCESS:
-      echo "Warning: Failed to initialize miniaudio context: ", contextResult
-      return result
-    
-    # Configure the device for playback
-    result.deviceConfig = ma_device_config_init(ma_device_type_playback)
-    
-    # Set callback and user data using helper function
-    ma_device_config_set_callback(addr result.deviceConfig, audioDataCallback, cast[pointer](result))
-    
-    # Set playback format using helper function  
-    ma_device_config_set_playback_format(addr result.deviceConfig, ma_format_f32, 2, ma_uint32(sampleRate))
-    
-    # Performance optimizations for low latency
-    ma_device_config_set_performance_profile(addr result.deviceConfig, ma_performance_profile_low_latency)
-    ma_device_config_set_no_pre_silenced_output_buffer(addr result.deviceConfig, 1)  # Skip silence init
-    ma_device_config_set_no_clip(addr result.deviceConfig, 1)  # We control our output, no clipping needed
-    ma_device_config_set_period_size(addr result.deviceConfig, 512)  # ~11.6ms at 44100Hz
-    
-    # Initialize the device
-    var deviceResult = ma_device_init(addr result.context, addr result.deviceConfig, addr result.device)
-    if deviceResult != MA_SUCCESS:
-      echo "Warning: Failed to initialize miniaudio device: ", deviceResult
-      ma_context_uninit(addr result.context)
-      return result
-    
-    # Start the device
-    var startResult = ma_device_start(addr result.device)
-    if startResult != MA_SUCCESS:
-      echo "Warning: Failed to start miniaudio device: ", startResult
-      ma_device_uninit(addr result.device)
-      ma_context_uninit(addr result.context)
-      return result
-    
-    result.initialized = true
-    echo "Audio system initialized with miniaudio (", sampleRate, " Hz)"
+    # Native: Plugin will be loaded on first use (lazy loading)
+    result.pluginLoaded = false
+    result.initialized = true  # System is "initialized", plugin loads on demand
+    echo "Audio system initialized (plugin will load on first use)"
 
 proc isReady*(sys: AudioSystem): bool =
   ## Check if audio system is ready
@@ -147,11 +92,10 @@ proc isReady*(sys: AudioSystem): bool =
 proc cleanup*(sys: AudioSystem) =
   ## Clean up audio system resources
   when not defined(emscripten):
-    if sys.initialized:
-      discard ma_device_stop(addr sys.device)
-      ma_device_uninit(addr sys.device)
-      ma_context_uninit(addr sys.context)
-      sys.initialized = false
+    if sys.pluginLoaded:
+      cleanupAudioPlugin()
+      sys.pluginLoaded = false
+    sys.initialized = false
 
 # ================================================================
 # SOUND REGISTRATION
@@ -192,7 +136,10 @@ proc playSample*(sys: AudioSystem, sample: AudioSample, volume: float = 1.0): Pl
                        cint(sample.sampleRate), cfloat(volume))
       return PlaybackHandle(id: 0, playing: true)
   else:
-    # Native: Use miniaudio with callback
+    # Native: Use plugin
+    if not sys.ensurePluginLoaded():
+      return PlaybackHandle(id: -1, playing: false)
+    
     # Apply volume to the sample (create a copy to avoid modifying original)
     var adjustedSample = AudioSample(
       data: newSeq[float32](sample.data.len),
@@ -218,14 +165,11 @@ proc playSample*(sys: AudioSystem, sample: AudioSample, volume: float = 1.0): Pl
       adjustedSample.data = stereoData
       adjustedSample.channels = 2
     
-    # Add to playback queue
-    if sys.currentSample.data.len == 0 or sys.currentPosition >= sys.currentSample.data.len:
-      sys.currentSample = adjustedSample
-      sys.currentPosition = 0
+    # Play through plugin
+    if playSamplePlugin(adjustedSample, 1.0):  # volume already applied
+      return PlaybackHandle(id: 0, playing: true)
     else:
-      sys.playbackQueue.add(adjustedSample)
-    
-    return PlaybackHandle(id: 0, playing: true)
+      return PlaybackHandle(id: -1, playing: false)
   
   return PlaybackHandle(id: -1, playing: false)
 
@@ -242,9 +186,8 @@ proc stopAll*(sys: AudioSystem) =
   when defined(emscripten):
     emAudioStopAll()
   else:
-    sys.currentSample = AudioSample()
-    sys.currentPosition = 0
-    sys.playbackQueue = @[]
+    if sys.pluginLoaded:
+      stopAllPlugin()
 
 # ================================================================
 # CONVENIENCE FUNCTIONS

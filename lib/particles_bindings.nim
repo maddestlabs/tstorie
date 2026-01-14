@@ -2,14 +2,35 @@
 ##
 ## Exposes the native particle system to nimini scripting with a simple API.
 ## The system handles all iteration natively for maximum performance.
+##
+## BINDING PATTERN:
+## This module uses the REGISTRY PATTERN - no auto-exposed functions.
+##
+## Why no auto-expose?
+## - Native functions: take ParticleSystem ref as first parameter
+## - Nimini API: takes string name as first parameter, does registry lookup
+## - These are fundamentally different signatures (string → lookup vs direct ref)
+##
+## Benefits of registry pattern:
+## - Avoids passing ref objects through nimini Value system
+## - Scripts use simple string names: "rain", "fire", "explosion"
+## - Multiple particle systems can coexist with different names
+## - Clean separation between native performance and script convenience
+##
+## All ~25 functions use manual wrappers with this pattern:
+##   proc particleXxx(env, args): Value =
+##     let name = args[0].s  # Get system name
+##     gParticleSystems[name].nativeMethod()  # Lookup + call
 
 import std/[tables, math]
 import particles
 import graph
 import primitives
 import ../nimini
+import ../nimini/type_converters
 import ../src/types
 import ../src/layers
+import nimini_helpers
 
 # Global particle systems registry (keyed by name for multiple systems)
 var gParticleSystems: Table[string, ParticleSystem]
@@ -127,55 +148,11 @@ proc particleGetCount*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # ================================================================
 # PARAMETER SETTERS
 # ================================================================
+# PARAMETER SETTERS
+# ================================================================
 
-proc particleSetGravity*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set gravity
-  ## Args: name (string), gravity (float)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].gravity = args[1].f
-  return valNil()
-
-proc particleSetWind*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set wind force
-  ## Args: name (string), windX (float), windY (float)
-  if args.len >= 3 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].windForce = (args[1].f, args[2].f)
-  return valNil()
-
-proc particleSetTurbulence*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set turbulence
-  ## Args: name (string), turbulence (float)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].turbulence = args[1].f
-  return valNil()
-
-proc particleSetDamping*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set damping (air resistance)
-  ## Args: name (string), damping (float, 0-1)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].damping = args[1].f
-  return valNil()
-
-proc particleSetEmitRate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set emission rate (particles per second)
-  ## Args: name (string), rate (float)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].emitRate = args[1].f
-  return valNil()
-
-proc particleSetEmitterPos*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set emitter position
-  ## Args: name (string), x (float), y (float)
-  if args.len >= 3 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].emitterPos = (args[1].f, args[2].f)
-  return valNil()
-
-proc particleSetEmitterSize*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set emitter size (for line/area shapes)
-  ## Args: name (string), width (float), height (float)
-  if args.len >= 3 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].emitterSize = (args[1].f, args[2].f)
-  return valNil()
+# Most simple setters are registered via templates in registerParticleBindings()
+# Only complex procs are defined here
 
 proc particleSetVelocityRange*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Set velocity range for spawned particles
@@ -205,12 +182,8 @@ proc particleSetCollision*(env: ref Env; args: seq[Value]): Value {.nimini.} =
       ps.collisionResponse = CollisionResponse(args[2].i)
   return valNil()
 
-proc particleSetStickChar*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set character to use when particles stick
-  ## Args: name (string), char (string)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].stickChar = args[1].s
-  return valNil()
+# Simple string/bool/int setters registered via templates in registerParticleBindings()
+
 
 proc particleSetChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Set custom character set for particles
@@ -249,34 +222,6 @@ proc particleSetColorRange*(env: ref Env; args: seq[Value]): Value {.nimini.} =
       g: uint8(args[5].i),
       b: uint8(args[6].i)
     )
-  return valNil()
-
-proc particleSetTrailEnabled*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Enable/disable particle trails
-  ## Args: name (string), enabled (bool)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].trailEnabled = args[1].b
-  return valNil()
-
-proc particleSetTrailLength*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set maximum trail length (number of segments)
-  ## Args: name (string), length (int)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].trailMaxLength = args[1].i
-  return valNil()
-
-proc particleSetTrailSpacing*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set spacing between trail segments
-  ## Args: name (string), spacing (float)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].trailSpacing = args[1].f
-  return valNil()
-
-proc particleSetTrailFade*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Enable/disable trail fading
-  ## Args: name (string), fade (bool)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].trailFade = args[1].b
   return valNil()
 
 proc particleSetTrailChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -336,30 +281,6 @@ proc particleSetEmitterShape*(env: ref Env; args: seq[Value]): Value {.nimini.} 
       gParticleSystems[args[0].s].emitterShape = EmitterShape(shape)
   return valNil()
 
-proc particleSetBounceElasticity*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set bounce elasticity (energy retained on bounce)
-  ## Args: name (string), elasticity (float, 0.0-1.0)
-  ##   0.0 = no bounce (all energy lost)
-  ##   1.0 = perfect bounce (no energy lost)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].bounceElasticity = args[1].f
-  return valNil()
-
-proc particleSetFadeOut*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Enable/disable particle fade out over lifetime
-  ## Args: name (string), fadeOut (bool)
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].fadeOut = args[1].b
-  return valNil()
-
-proc particleSetColorInterpolation*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Enable/disable color interpolation from colorMin to colorMax over lifetime
-  ## Args: name (string), interpolate (bool)
-  ## When enabled, particles transition from their spawn color to colorMax
-  ## Example: Fire particles going from red->orange->yellow
-  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    gParticleSystems[args[0].s].colorInterpolation = args[1].b
-  return valNil()
 
 proc particleSetDrawMode*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Set how particles affect cells they render to
@@ -664,6 +585,28 @@ proc particleConfigureCustomGraph*(env: ref Env; args: seq[Value]): Value {.nimi
 proc registerParticleBindings*(env: ref Env, appState: AppState) =
   ## Register all particle system functions with nimini runtime
   gAppStateRef = appState
+  
+  # Register simple setters via templates (executed at runtime, not module init)
+  defSetter1Float(gParticleSystems, ParticleSystem, "particleSetGravity", "particles", "Set gravity", gravity)
+  defSetter1Float(gParticleSystems, ParticleSystem, "particleSetTurbulence", "particles", "Set turbulence", turbulence)
+  defSetter1Float(gParticleSystems, ParticleSystem, "particleSetDamping", "particles", "Set damping (air resistance)", damping)
+  defSetter1Float(gParticleSystems, ParticleSystem, "particleSetEmitRate", "particles", "Set emission rate (particles per second)", emitRate)
+  
+  defSetter2Float(gParticleSystems, ParticleSystem, "particleSetWind", "particles", "Set wind force", windForce)
+  defSetter2Float(gParticleSystems, ParticleSystem, "particleSetEmitterPos", "particles", "Set emitter position", emitterPos)
+  defSetter2Float(gParticleSystems, ParticleSystem, "particleSetEmitterSize", "particles", "Set emitter size (for line/area shapes)", emitterSize)
+  
+  defSetter1String(gParticleSystems, ParticleSystem, "particleSetStickChar", "particles", "Set character to use when particles stick", stickChar)
+  defSetter1Bool(gParticleSystems, ParticleSystem, "particleSetTrailEnabled", "particles", "Enable/disable particle trails", trailEnabled)
+  defSetter1Int(gParticleSystems, ParticleSystem, "particleSetTrailLength", "particles", "Set maximum trail length (number of segments)", trailMaxLength)
+  defSetter1Float(gParticleSystems, ParticleSystem, "particleSetTrailSpacing", "particles", "Set spacing between trail segments", trailSpacing)
+  defSetter1Bool(gParticleSystems, ParticleSystem, "particleSetTrailFade", "particles", "Enable/disable trail fading", trailFade)
+  
+  defSetter1Float(gParticleSystems, ParticleSystem, "particleSetBounceElasticity", "particles", "Set bounce elasticity (0.0-1.0, energy retained on bounce)", bounceElasticity)
+  defSetter1Bool(gParticleSystems, ParticleSystem, "particleSetFadeOut", "particles", "Enable/disable particle fade out over lifetime", fadeOut)
+  defSetter1Bool(gParticleSystems, ParticleSystem, "particleSetColorInterpolation", "particles", "Enable/disable color interpolation from colorMin to colorMax over lifetime", colorInterpolation)
+  
+  # Register complex functions manually
   env.vars["particleInit"] = valNativeFunc(particleInit)
   env.vars["particleUpdate"] = valNativeFunc(particleUpdate)
   env.vars["particleRender"] = valNativeFunc(particleRender)
@@ -672,29 +615,13 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleGetCount"] = valNativeFunc(particleGetCount)
   env.vars["particleCheckHit"] = valNativeFunc(particleCheckHit)
   
-  # Parameter setters
-  env.vars["particleSetEmitterSize"] = valNativeFunc(particleSetEmitterSize)
   env.vars["particleSetEmitterShape"] = valNativeFunc(particleSetEmitterShape)
-  env.vars["particleSetGravity"] = valNativeFunc(particleSetGravity)
-  env.vars["particleSetWind"] = valNativeFunc(particleSetWind)
-  env.vars["particleSetTurbulence"] = valNativeFunc(particleSetTurbulence)
-  env.vars["particleSetDamping"] = valNativeFunc(particleSetDamping)
-  env.vars["particleSetEmitRate"] = valNativeFunc(particleSetEmitRate)
-  env.vars["particleSetEmitterPos"] = valNativeFunc(particleSetEmitterPos)
   env.vars["particleSetVelocityRange"] = valNativeFunc(particleSetVelocityRange)
   env.vars["particleSetLifeRange"] = valNativeFunc(particleSetLifeRange)
   env.vars["particleSetCollision"] = valNativeFunc(particleSetCollision)
-  env.vars["particleSetBounceElasticity"] = valNativeFunc(particleSetBounceElasticity)
-  env.vars["particleSetStickChar"] = valNativeFunc(particleSetStickChar)
   env.vars["particleSetChars"] = valNativeFunc(particleSetChars)
   env.vars["particleSetBackgroundColor"] = valNativeFunc(particleSetBackgroundColor)
   env.vars["particleSetColorRange"] = valNativeFunc(particleSetColorRange)
-  env.vars["particleSetColorInterpolation"] = valNativeFunc(particleSetColorInterpolation)
-  env.vars["particleSetFadeOut"] = valNativeFunc(particleSetFadeOut)
-  env.vars["particleSetTrailEnabled"] = valNativeFunc(particleSetTrailEnabled)
-  env.vars["particleSetTrailLength"] = valNativeFunc(particleSetTrailLength)
-  env.vars["particleSetTrailSpacing"] = valNativeFunc(particleSetTrailSpacing)
-  env.vars["particleSetTrailFade"] = valNativeFunc(particleSetTrailFade)
   env.vars["particleSetTrailChars"] = valNativeFunc(particleSetTrailChars)
   env.vars["particleSetDrawMode"] = valNativeFunc(particleSetDrawMode)
   env.vars["particleSetBackgroundFromStyle"] = valNativeFunc(particleSetBackgroundFromStyle)

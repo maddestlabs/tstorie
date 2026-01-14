@@ -101,7 +101,7 @@ const
     accent3:      (0x00'u8, 0xaa'u8, 0x00'u8)   # Dark green
   )
 
-  SolarizedDark* = ThemeColors(
+  SolarDark* = ThemeColors(
     bgPrimary:    (0x00'u8, 0x2b'u8, 0x36'u8),
     bgSecondary:  (0x07'u8, 0x36'u8, 0x42'u8),
     fgPrimary:    (0x83'u8, 0x94'u8, 0x96'u8),
@@ -111,7 +111,7 @@ const
     accent3:      (0x85'u8, 0x99'u8, 0x00'u8)   # Green
   )
   
-  SolarizedLight* = ThemeColors(
+  SolarLight* = ThemeColors(
     bgPrimary:    (0xfd'u8, 0xf6'u8, 0xe3'u8),
     bgSecondary:  (0xee'u8, 0xe8'u8, 0xd5'u8),
     fgPrimary:    (0x65'u8, 0x7b'u8, 0x83'u8),
@@ -151,53 +151,34 @@ const
     accent3:      (0x7f'u8, 0xff'u8, 0x00'u8)   # Chartreuse nightmare
   )
 
+# Theme registry - single source of truth for theme names
+const ThemeRegistry* = {
+  "catppuccin": CatppuccinMocha,
+  "nord": Nord,
+  "dracula": Dracula,
+  "outrun": Outrun,
+  "alleycat": Alleycat,
+  "terminal": Terminal,
+  "solardark": SolarDark,
+  "solarlight": SolarLight,
+  "neotopia": Neotopia,
+  "neonopia": Neonopia,
+  "coffee": Coffee,
+  "stonegarden": StoneGarden,
+  "wat": Wat
+}.toTable()
+
 proc getAvailableThemes*(): seq[string] =
-  ## Get list of all available theme names
-  result = @[
-    "catppuccin",
-    "nord",
-    "dracula",
-    "outrun",
-    "alleycat",
-    "terminal",
-    "solarized-dark",
-    "solarized-light",
-    "neotopia",
-    "neonopia",
-    "coffee",
-    "stonegarden",
-    "wat"
-  ]
+  ## Get list of all available theme names (derived from registry)
+  result = @[]
+  for name in ThemeRegistry.keys:
+    result.add(name)
 
 proc getTheme*(name: string): ThemeColors =
   ## Get theme colors by name (case-insensitive)
-  case name.toLowerAscii():
-  of "catppuccin", "catppuccin-mocha", "mocha":
-    return CatppuccinMocha
-  of "nord":
-    return Nord
-  of "dracula":
-    return Dracula
-  of "outrun", "ega":
-    return Outrun
-  of "alleycat", "cga":
-    return Alleycat
-  of "terminal", "green":
-    return Terminal
-  of "solarized-dark", "solarizeddark", "solardark":
-    return SolarizedDark
-  of "solarized-light", "solarized", "solar":
-    return SolarizedLight
-  of "neotopia", "neo", "future":
-    return Neotopia
-  of "neonopia", "neon":
-    return Neonopia
-  of "coffee", "chocolate":
-    return Coffee
-  of "stonegarden", "stone-garden", "zen":
-    return StoneGarden
-  of "wat", "what":
-    return Wat
+  let normalized = name.toLowerAscii()
+  if normalized in ThemeRegistry:
+    return ThemeRegistry[normalized]
   else:
     # Default to Neotopia if theme not found
     return Neotopia
@@ -252,7 +233,7 @@ proc applyTheme*(theme: ThemeColors, themeName: string = ""): StyleSheet =
   var linkColor = theme.accent2
   
   # Neotopia theme: use darker gray for regular links to contrast with aquamarine focused links
-  if themeName.toLowerAscii() in ["neotopia", "neo", "future"]:
+  if themeName.toLowerAscii() == "neotopia":
     linkColor = (0xFF'u8, 0xFF'u8, 0xFF'u8)  # Darker gray, subdued
   
   result["link"] = StyleConfig(

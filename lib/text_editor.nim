@@ -13,6 +13,13 @@
 ## - EditorState: Cursor, selection, scroll position
 ## - Rendering: Uses tui_helpers viewport and drawing
 ## - Input: Handlers for keyboard and mouse
+##
+## NIMINI BINDINGS:
+## No functions are auto-exposed due to registry pattern.
+## EditorState is a ref object that holds complex editor state (buffer, cursor,
+## selection, undo stack). The nimini API uses string IDs with registry lookup
+## to avoid passing ref objects through the Value system.
+## Pattern identical to particles. See text_editor_bindings.nim.
 
 import unicode
 import tables

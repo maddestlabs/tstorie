@@ -745,6 +745,61 @@ proc nimini_checkShareUrlCopied(env: ref Env; args: seq[Value]): Value {.nimini.
   else:
     return valString("true")
 
+proc nimini_exportToPNG(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Export content as PNG with embedded workflow (ComfyUI-style). Args: content, filename
+  ## Captures terminal canvas screenshot and embeds compressed content in PNG metadata.
+  ## Returns immediately. Check with checkPngExportReady() for completion.
+  if args.len >= 1:
+    let content = args[0].s
+    let filename = if args.len >= 2: args[1].s else: "tstorie-workflow"
+    when defined(emscripten):
+      discard js_callFunctionWith2Args("tStorie_exportToPNG".cstring, content.cstring, filename.cstring)
+    else:
+      echo "exportToPNG: ", content.len, " bytes -> ", filename, ".png"
+  return valNil()
+
+proc nimini_checkPngExportReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if PNG export is complete. Returns "true" or "false"
+  when defined(emscripten):
+    let ready = js_callFunction("tStorie_checkPngExportReady".cstring)
+    return valString($ready)
+  else:
+    return valString("true")
+
+proc nimini_getPngExportError(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get PNG export error message if export failed. Returns empty string if no error.
+  when defined(emscripten):
+    let error = js_callFunction("tStorie_getPngExportError".cstring)
+    return valString($error)
+  else:
+    return valString("")
+
+proc nimini_importFromPNG(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Trigger file picker to import workflow from PNG. Returns immediately.
+  ## Check with checkPngImportReady() and get content with getPngImportContent()
+  when defined(emscripten):
+    discard js_callFunction("tStorie_importFromPNG".cstring)
+  else:
+    echo "importFromPNG: file picker opened"
+  return valNil()
+
+proc nimini_checkPngImportReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if PNG import has content ready. Returns "true" or "false"
+  when defined(emscripten):
+    let ready = js_callFunction("tStorie_checkPngImportReady".cstring)
+    return valString($ready)
+  else:
+    return valString("false")
+
+proc nimini_getPngImportContent(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get imported workflow content from PNG. Returns empty string if none available.
+  ## This clears the imported content, so call only once per import.
+  when defined(emscripten):
+    let content = js_callFunction("tStorie_getPngImportContent".cstring)
+    return valString($content)
+  else:
+    return valString("")
+
 proc nimini_navigateTo(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Navigate to a URL (useful for loading saved documents)
   if args.len >= 1:
@@ -786,6 +841,12 @@ proc registerBrowserApiFuncs*(env: ref Env) =
   registerNative("checkShareUrlReady", nimini_checkShareUrlReady)
   registerNative("getShareUrl", nimini_getShareUrl)
   registerNative("checkShareUrlCopied", nimini_checkShareUrlCopied)
+  registerNative("exportToPNG", nimini_exportToPNG)
+  registerNative("checkPngExportReady", nimini_checkPngExportReady)
+  registerNative("getPngExportError", nimini_getPngExportError)
+  registerNative("importFromPNG", nimini_importFromPNG)
+  registerNative("checkPngImportReady", nimini_checkPngImportReady)
+  registerNative("getPngImportContent", nimini_getPngImportContent)
   registerNative("navigateTo", nimini_navigateTo)
 
 # ================================================================
@@ -1181,7 +1242,6 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Register ASCII art bindings and dungeon generator
   registerAsciiArtBindings(drawWrapper, addr state)
   registerAnsiArtBindings(runtimeEnv, drawWrapper)
-  registerDungeonBindings()
   registerTUIHelperBindings(runtimeEnv)
   registerTextEditorBindings(runtimeEnv)
   registerParticleBindings(runtimeEnv, state)
@@ -1189,6 +1249,15 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Register figlet bindings with font cache references and layer system
   registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
                         addr gDefaultLayer, addr gAppState)
+  
+  # Explicitly initialize plugin modules BEFORE calling initPlugins()
+  # This ensures registration functions are queued properly in WASM
+  initDungeonGenModule()
+  initPrimitivesModule()
+  initGraphModule()
+  
+  # Initialize all auto-registered plugins (from lib/ modules with pragmas)
+  initPlugins()
   
   # Register type conversion functions with custom names
   registerNative("int", nimini_int)

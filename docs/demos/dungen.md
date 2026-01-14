@@ -35,7 +35,7 @@ proc initDungeon() =
   dungeon = newDungeonGenerator(width, height, seedValue)
   
   # Generate complete dungeon instantly (native is FAST!)
-  dungeonGenerate(dungeon)
+  generate(dungeon)
 
 # Initialize on startup
 initDungeon()
@@ -48,12 +48,12 @@ clear()
 # Render the dungeon
 for y in 0..<height:
   for x in 0..<width:
-    var cellType = dungeonGetCell(dungeon, x, y)
+    var cellType = getCellAt(dungeon, x, y)
     var ch = dungeonGetCellChar(cellType)
     draw(0, x, y, ch)
 
 # Show status
-var steps = dungeonGetStep(dungeon)
+var steps = getStep(dungeon)
 draw(0, 0, height + 1, "Seed: " & str(seedValue) & "  Steps: " & str(steps) & "  (Native Nim - Instant!)")
 draw(0, 0, height + 2, "Press R or click/touch anywhere to regenerate")
 ```

@@ -33,6 +33,8 @@ Features inherited from Nim:
 
 Engine features:
 - **Input Handling** - Comprehensive keyboard, mouse, and special key support.
+- **WebGL Rendering** - Hardware-accelerated GPU rendering with dynamic Unicode glyph caching (10-100× faster than Canvas 2D).
+- **Full Unicode Support** - CJK characters (Japanese, Chinese, Korean) and all Unicode ranges.
 - **Optimized Rendering** - Double-buffered rendering of only recent changes for optimal FPS.
 - **Color Support** - True color (24-bit), 256-color, and 8-color terminal support.
 - **Layer System** - Z-ordered layers with transparency support.
@@ -108,7 +110,7 @@ cd tstorie
 
 **Terminal Cleanup:**
 
-If a tstorie app crashes or you press CTRL-C, the terminal state is automatically restored. The engine uses multiple cleanup mechanisms (exit handlers and signal handlers) to ensure your terminal remains usable. See [TERMINAL_CLEANUP.md](TERMINAL_CLEANUP.md) for technical details.
+If a t|Storie app crashes or you press CTRL-C, the terminal state is automatically restored. The engine uses multiple cleanup mechanisms (exit handlers and signal handlers) to ensure your terminal remains usable.
 
 ## Classroom Setup
 
@@ -119,3 +121,9 @@ For educators who want to provie GitHub token access for classroom Gist creation
 - Successor to [Storiel](https://github.com/maddestlabs/storiel), the Lua-based proof-of-concept.
 - Rebuilt from [Backstorie](https://github.com/maddestlabs/backstorie), a template that extends concepts from Storiel, providing a more robust foundation for further projects.
 - Forked from [Storie](https://github.com/maddestlabs/storie), which was originally just a terminal engine but this branch now continues with terminal functionality while the Storie fork is now a comprehensive game and media engine.
+
+## Development & AI Disclosure
+
+AI assistance has been used extensively throughout every part of this project's development, including the separate repositories that paved way to the engine's current state. However, the core concepts behind t|Storie have been in development for over 9 years, with foundational precedents established in prior projects such as [Treverse](https://github.com/R3V1Z3/treverse) from before the advent of modern AI tooling.
+
+This project represents a blend of long-term creative vision with modern AI-assisted development.

@@ -191,11 +191,16 @@ else
     fi
 fi
 
-# Check for required supporting files
-if [ ! -f "$OUTPUT_DIR/tstorie.js" ]; then
-    echo ""
-    echo "Warning: $OUTPUT_DIR/tstorie.js not found."
-    echo "         Copy web/tstorie.js to $OUTPUT_DIR/ or create the JavaScript interface."
+# Check for required supporting files and copy WebGL renderer
+if [ ! -f "$OUTPUT_DIR/tstorie-webgl.js" ]; then
+    if [ -f "web/tstorie-webgl.js" ]; then
+        cp web/tstorie-webgl.js "$OUTPUT_DIR/tstorie-webgl.js"
+        echo "  - $OUTPUT_DIR/tstorie-webgl.js (WebGL renderer - copied)"
+    else
+        echo ""
+        echo "Warning: web/tstorie-webgl.js not found."
+        echo "         The WebGL renderer is required for the WASM build."
+    fi
 fi
 
 if [ ! -f "$OUTPUT_DIR/index.html" ]; then

@@ -11,8 +11,21 @@
 ## - Basic cursor movement sequences
 ##
 ## Reference: https://en.wikipedia.org/wiki/ANSI_escape_code
+##
+## NIMINI BINDINGS:
+## Pattern 1 (Auto-exposed - 3 functions):
+## - stripAnsi: String manipulation (remove escape sequences)
+## - convertBracketNotationToAnsi: String conversion
+## - getAnsiTextDimensions: String analysis returning tuple
+##
+## Manual wrappers (7 functions):
+## - Color converters (ansi8ToRgb, ansi256ToRgb): return Color
+## - Parser functions: return custom types (AnsiParserState, TermBuffer)
+## - applySgrParams: takes var Style parameter
+## - Complex wrappers in ansi_art_bindings.nim handle buffer management
 
 import strutils, unicode
+import ../nimini/auto_bindings
 import ../src/types
 import ../src/layers
 
@@ -426,7 +439,7 @@ proc bufferToString*(buffer: TermBuffer, includeStyles: bool = false): string =
     if y < buffer.height - 1:
       result.add('\n')
 
-proc stripAnsi*(text: string): string =
+proc stripAnsi*(text: string): string {.autoExpose: "ansi".} =
   ## Remove all ANSI escape sequences from text
   ## Useful for getting plain text length/content
   result = ""
@@ -442,7 +455,7 @@ proc stripAnsi*(text: string): string =
     result.add(text[i])
     inc i
 
-proc convertBracketNotationToAnsi*(text: string): string =
+proc convertBracketNotationToAnsi*(text: string): string {.autoExpose: "ansi".} =
   ## Convert user-friendly bracket notation [1;36m to actual ANSI escape sequences \x1b[1;36m
   ## This allows users to write ANSI art in markdown without needing actual ESC bytes
   ## 
@@ -487,7 +500,7 @@ proc convertBracketNotationToAnsi*(text: string): string =
       result.add(text[i])
       inc i
 
-proc getAnsiTextDimensions*(text: string): tuple[width: int, height: int] =
+proc getAnsiTextDimensions*(text: string): tuple[width: int, height: int] {.autoExpose: "ansi".} =
   ## Get the dimensions of text containing ANSI sequences
   ## Returns (width, height) where width is the longest line
   result.width = 0

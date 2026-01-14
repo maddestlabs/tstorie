@@ -1,4 +1,5 @@
 import tables, streams, sequtils, strutils
+import ../nimini/auto_bindings
 
 when not defined(js) and not defined(emscripten):
   import os
@@ -375,6 +376,11 @@ proc renderText*(font: FIGfont, text: string, layout: LayoutMode = FullWidth): s
     result[i] = renderLine(chars, i, actualLayout, font.horizontalSmushRules, font.hardblank)
 
 # --- figlet_fonts ---
+# NIMINI BINDINGS:
+# Pattern 1 (Auto-exposed): isFontLoaded, clearCache
+# Pattern 3 (Auto-exposed): listAvailableFonts (seq return)
+# Manual wrappers: loadFont, parseFontFromString, render (use FIGfont custom type)
+
 when defined(js) or defined(emscripten):
   # Web builds: fonts would need async loading
   type InternalCallback* = proc(content: string, error: string)
@@ -389,7 +395,7 @@ else:
     if not fileExists(result):
       result = "figlets/" & name & ".flf"
 
-proc listAvailableFonts*(): seq[string] =
+proc listAvailableFonts*(): seq[string] {.autoExpose: "figlet".} =
   when defined(js) or defined(emscripten):
     # Common figlet fonts available
     result = @["standard", "small", "big", "banner", "block", "bubble", 
@@ -437,7 +443,7 @@ proc parseFontFromString*(name: string, content: string): FIGfont =
   result = loadFIGfont(stream)
   fontCache[name] = result
 
-proc isFontLoaded*(name: string): bool =
+proc isFontLoaded*(name: string): bool {.autoExpose: "figlet".} =
   ## Check if a font is already loaded in cache
   when defined(js) or defined(emscripten):
     fontCache.hasKey(name)
@@ -448,5 +454,6 @@ proc render*(font: FIGfont, text: string, layout: LayoutMode = FullWidth): seq[s
   ## Render text with a loaded font
   renderText(font, text, layout)
 
-proc clearCache*() =
+proc clearCache*() {.autoExpose: "figlet".} =
+  ## Clear the font cache
   fontCache.clear()

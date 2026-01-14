@@ -9,8 +9,14 @@
 ## - Seeded randomization: Reproducible results with specific seeds
 ## - Composability: Combine patterns, layer effects, mix styles
 ## - Export-friendly: Patterns designed for easy compilation
+##
+## NIMINI BINDINGS:
+## - Most functions require manual wrappers due to closure types (PatternFunc)
+## - Only 1 function is auto-exposed (setSeedIfNeeded)
+## - See ascii_art_bindings.nim for pattern storage and conversion logic
 
 import std/[tables, random, strutils, math, sequtils]
+import ../nimini/auto_bindings
 
 when not declared(Style):
   import ../src/types
@@ -84,7 +90,15 @@ const
 # PATTERN GENERATION FUNCTIONS
 # ==============================================================================
 
-proc setSeedIfNeeded*(seed: int) =
+# Pattern 1 (Simple): Auto-exposed via {.autoExpose.}
+# - setSeedIfNeeded: Simple int parameter, no return value
+#
+# All other functions require manual wrappers due to:
+# - PatternFunc closure type (not auto-convertible)
+# - Custom types (ModuloRule, PatternConfig, DetailPoint)
+# - Proc parameters (drawProc callbacks)
+
+proc setSeedIfNeeded*(seed: int) {.autoExpose: "ascii".} =
   ## Set random seed if non-zero
   if seed != 0:
     randomize(seed)

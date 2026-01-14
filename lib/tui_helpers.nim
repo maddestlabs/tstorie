@@ -14,6 +14,7 @@ import ../src/layers  # TermBuffer, writeText, Layer
 import storie_types   # StyleConfig, StyleSheet
 import ascii_art
 import layout
+import ../nimini/auto_bindings  # Auto-binding system
 
 # Import AppState and related types from src
 import ../src/types
@@ -87,35 +88,41 @@ proc drawBox*(layer: int, x, y, w, h: int, style: Style,
     tuiDraw(layer, x, y + dy, left, style)
     tuiDraw(layer, x + w - 1, y + dy, right, style)
 
-proc drawBoxSimple*(layer: int, x, y, w, h: int, style: Style) =
+# ==============================================================================
+# PATTERN: Simple Style functions → Auto-expose
+# These functions have straightforward parameters (int + Style) and delegate
+# to internal helpers. Perfect candidates for auto-bindings.
+# ==============================================================================
+
+proc drawBoxSimple*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a simple ASCII box (compatible with all terminals)
   drawBox(layer, x, y, w, h, style,
           "+", "-", "+",
           "|", "|",
           "+", "-", "+")
 
-proc drawBoxSingle*(layer: int, x, y, w, h: int, style: Style) =
+proc drawBoxSingle*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a box with single-line Unicode borders
   drawBox(layer, x, y, w, h, style,
           "┌", "─", "┐",
           "│", "│",
           "└", "─", "┘")
 
-proc drawBoxDouble*(layer: int, x, y, w, h: int, style: Style) =
+proc drawBoxDouble*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a box with double-line Unicode borders
   drawBox(layer, x, y, w, h, style,
           "╔", "═", "╗",
           "║", "║",
           "╚", "═", "╝")
 
-proc drawBoxRounded*(layer: int, x, y, w, h: int, style: Style) =
+proc drawBoxRounded*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a box with rounded Unicode corners
   drawBox(layer, x, y, w, h, style,
           "╭", "─", "╮",
           "│", "│",
           "╰", "─", "╯")
 
-proc fillBox*(layer: int, x, y, w, h: int, ch: string, style: Style) =
+proc fillBox*(layer: int, x, y, w, h: int, ch: string, style: Style) {.autoExpose: "tui".} =
   ## Fill a rectangular area with a character
   for dy in 0 ..< h:
     for dx in 0 ..< w:
@@ -124,23 +131,26 @@ proc fillBox*(layer: int, x, y, w, h: int, ch: string, style: Style) =
 # ==============================================================================
 # TEXT HELPERS
 # ==============================================================================
+# PATTERN: Simple utility functions → Auto-expose
+# Pure calculation functions with basic types are ideal for auto-bindings.
+# ==============================================================================
 
-proc centerTextX*(text: string, boxX, boxWidth: int): int =
+proc centerTextX*(text: string, boxX, boxWidth: int): int {.autoExpose: "tui".} =
   ## Calculate X position to center text in a box
   let textWidth = text.len  # Simple length for now
   result = boxX + (boxWidth - textWidth) div 2
 
-proc centerTextY*(boxY, boxHeight: int): int =
+proc centerTextY*(boxY, boxHeight: int): int {.autoExpose: "tui".} =
   ## Calculate Y position to center vertically
   result = boxY + boxHeight div 2
 
-proc drawCenteredText*(layer: int, x, y, w, h: int, text: string, style: Style) =
+proc drawCenteredText*(layer: int, x, y, w, h: int, text: string, style: Style) {.autoExpose: "tui".} =
   ## Draw text centered in a box
   let tx = centerTextX(text, x, w)
   let ty = centerTextY(y, h)
   tuiDraw(layer, tx, ty, text, style)
 
-proc truncateText*(text: string, maxWidth: int): string =
+proc truncateText*(text: string, maxWidth: int): string {.autoExpose: "tui".} =
   ## Truncate text to fit maxWidth, adding "..." if needed
   if text.len <= maxWidth:
     return text
@@ -154,7 +164,7 @@ proc truncateText*(text: string, maxWidth: int): string =
 # HIT TESTING
 # ==============================================================================
 
-proc pointInRect*(px, py, rx, ry, rw, rh: int): bool =
+proc pointInRect*(px, py, rx, ry, rw, rh: int): bool {.autoExpose: "tui".} =
   ## Check if point is inside rectangle
   px >= rx and px < rx + rw and py >= ry and py < ry + rh
 
@@ -196,7 +206,7 @@ proc drawButton*(layer: int, x, y, w, h: int, label: string,
     
     drawCenteredText(layer, x, y, w, h, label, baseStyle)
 
-proc drawLabel*(layer: int, x, y: int, text: string, style: Style) =
+proc drawLabel*(layer: int, x, y: int, text: string, style: Style) {.autoExpose: "tui".} =
   ## Draw a simple text label
   tuiDraw(layer, x, y, text, style)
 
@@ -314,7 +324,7 @@ proc drawProgressBar*(layer: int, x, y, w: int, progress: float,
     let textX = centerTextX(percentText, x, w)
     tuiDraw(layer, textX, y, percentText, tuiGetStyle("warning"))
 
-proc drawSeparator*(layer: int, x, y, w: int, style: Style, ch: string = "─") =
+proc drawSeparator*(layer: int, x, y, w: int, style: Style, ch: string = "─") {.autoExpose: "tui".} =
   ## Draw a horizontal separator line
   for dx in 0 ..< w:
     tuiDraw(layer, x + dx, y, ch, style)
@@ -322,8 +332,11 @@ proc drawSeparator*(layer: int, x, y, w: int, style: Style, ch: string = "─") 
 # ==============================================================================
 # LAYOUT HELPERS
 # ==============================================================================
+# PATTERN: Functions with seq/tuple returns → Auto-expose
+# type_converters.nim handles seq[int] and tuple conversions automatically.
+# ==============================================================================
 
-proc layoutVertical*(startY, spacing, count: int): seq[int] =
+proc layoutVertical*(startY, spacing, count: int): seq[int] {.autoExpose: "tui".} =
   ## Calculate Y positions for vertical layout
   result = newSeq[int](count)
   var y = startY
@@ -331,7 +344,7 @@ proc layoutVertical*(startY, spacing, count: int): seq[int] =
     result[i] = y
     y += spacing
 
-proc layoutHorizontal*(startX, spacing, count: int): seq[int] =
+proc layoutHorizontal*(startX, spacing, count: int): seq[int] {.autoExpose: "tui".} =
   ## Calculate X positions for horizontal layout
   result = newSeq[int](count)
   var x = startX
@@ -341,7 +354,7 @@ proc layoutHorizontal*(startX, spacing, count: int): seq[int] =
 
 proc layoutGrid*(startX, startY, cols, rows, 
                 cellWidth, cellHeight, 
-                spacingX, spacingY: int): seq[tuple[x, y: int]] =
+                spacingX, spacingY: int): seq[tuple[x, y: int]] {.autoExpose: "tui".} =
   ## Calculate positions for grid layout
   result = @[]
   for row in 0..<rows:
@@ -351,7 +364,7 @@ proc layoutGrid*(startX, startY, cols, rows,
       result.add((x, y))
 
 proc layoutCentered*(containerX, containerY, containerW, containerH,
-                    itemW, itemH: int): tuple[x, y: int] =
+                    itemW, itemH: int): tuple[x, y: int] {.autoExpose: "tui".} =
   ## Center an item within a container
   result.x = containerX + (containerW - itemW) div 2
   result.y = containerY + (containerH - itemH) div 2

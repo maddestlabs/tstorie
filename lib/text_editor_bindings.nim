@@ -2,9 +2,30 @@
 ##
 ## Exposes text editor functions to nimini scripts for building
 ## rich text editing experiences.
+##
+## BINDING PATTERN:
+## This module uses the REGISTRY PATTERN - no auto-exposed functions.
+##
+## Why no auto-expose?
+## - EditorState is a ref object with complex state (buffer, cursor, selection, undo stack)
+## - Native functions: take EditorState ref as parameter
+## - Nimini API: takes string ID as first parameter, does registry lookup
+## - These are fundamentally different signatures (string → lookup vs direct ref)
+##
+## Benefits of registry pattern:
+## - Avoids passing ref objects through nimini Value system
+## - Scripts use simple string IDs: "editor_1", "editor_2"
+## - Multiple editors can coexist with different IDs
+## - Complex state management stays in native code
+##
+## All ~30 functions use manual wrappers with this pattern:
+##   proc nimini_editorXxx(env, args): Value =
+##     let editorId = valueToString(args[0])  # Get editor ID
+##     gEditorStates[editorId].nativeMethod()  # Lookup + call
 
 import ../nimini
 import ../nimini/runtime
+import ../nimini/type_converters
 import text_editor
 import std/[tables, strutils]
 

@@ -1,8 +1,26 @@
 ## Nimini bindings for ASCII Art library
 ## Exposes procedural ASCII art functions to nimini scripts
+##
+## BINDING PATTERNS:
+## This module primarily uses manual wrappers due to:
+## - PatternFunc: Closure type that requires runtime storage and ID-based references
+## - Custom types: ModuloRule, PatternConfig, DetailPoint cannot be auto-converted
+## - Proc parameters: drawBorder/drawBorderLine take callback procs
+##
+## Pattern 1 (Auto-exposed - 1 function):
+## - setSeedIfNeeded: Uses {.autoExpose: "ascii".} in ascii_art.nim
+##
+## Manual wrappers (15 functions):
+## - Pattern creation: moduloPattern, moduloPatternV, randomPattern, solidPattern, 
+##   combinePatterns, layerPattern (all return PatternFunc)
+## - Drawing: drawBorder, drawBorderLine, addDetail (take proc parameters)
+## - Generators: crackedBorderPattern, simpleBorderPattern (return tuple of PatternFunc)
+## - Utilities: generateCrackDetails, generateVariations (return seq of custom types)
+## - Metadata: describePattern, getPatternExportMetadata (use custom types)
 
 import ../nimini
 import ../nimini/runtime
+import ../nimini/type_converters
 import ascii_art
 import std/[tables, random, strutils]
 
@@ -41,17 +59,7 @@ proc valueToString(v: Value): string =
     return v.s
   return ""
 
-proc valueToStyle(v: Value): Style =
-  ## Convert nimini value to Style
-  ## For now, returns default style - proper implementation would extract from Value
-  return Style(
-    fg: rgb(255, 255, 255),
-    bg: rgb(0, 0, 0),
-    bold: false,
-    italic: false,
-    underline: false,
-    dim: false
-  )
+# Note: valueToStyle is imported from type_converters
 
 # ==============================================================================
 # PATTERN FUNCTION STORAGE
@@ -79,12 +87,7 @@ proc getPattern(id: string): PatternFunc =
 # NIMINI BINDINGS - PATTERN CREATION
 # ==============================================================================
 
-proc nimini_setSeed*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set random seed for reproducible patterns. Args: seed (int)
-  if args.len > 0:
-    let seed = valueToInt(args[0])
-    setSeedIfNeeded(seed)
-  return valNil()
+# Note: setSeedIfNeeded is auto-exposed in ascii_art.nim, no manual wrapper needed
 
 proc nimini_moduloPattern*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Create a modulo-based pattern. Args: rules (array of [modBase, modValue, char]), default (string)
@@ -407,12 +410,10 @@ proc registerAsciiArtBindings*(drawProc: DrawProc, appState: ptr AppState = nil)
   gDrawProc = drawProc
   gAppStateRef = appState
   
-  # Register all pattern creation functions
-  registerNative("setSeed", nimini_setSeed,
-    imports = @["random"],
-    storieLibs = @["ascii_art"],
-    description = "Set random seed for reproducible pattern generation")
+  # Pattern 1: Auto-exposed functions
+  register_setSeedIfNeeded()
   
+  # Manual wrappers: Pattern creation (return PatternFunc closures)
   registerNative("moduloPattern", nimini_moduloPattern,
     storieLibs = @["ascii_art"],
     description = "Create horizontal modulo-based pattern from rules")
@@ -433,7 +434,7 @@ proc registerAsciiArtBindings*(drawProc: DrawProc, appState: ptr AppState = nil)
     storieLibs = @["ascii_art"],
     description = "Create simple solid border pattern (returns table of patterns)")
   
-  # Register border drawing functions
+  # Manual wrappers: Drawing functions (take proc parameters)
   registerNative("drawBorder", nimini_drawBorder,
     storieLibs = @["ascii_art"],
     description = "Draw a border with custom patterns at specified position")
@@ -442,7 +443,7 @@ proc registerAsciiArtBindings*(drawProc: DrawProc, appState: ptr AppState = nil)
     storieLibs = @["ascii_art"],
     description = "Draw a border that fills the entire terminal")
   
-  # Register detail/crack functions
+  # Manual wrappers: Generators (return custom types)
   registerNative("generateCracks", nimini_generateCracks,
     imports = @["random"],
     storieLibs = @["ascii_art"],
@@ -452,7 +453,7 @@ proc registerAsciiArtBindings*(drawProc: DrawProc, appState: ptr AppState = nil)
     storieLibs = @["ascii_art"],
     description = "Add a decorative detail at specified position")
   
-  # Register character set accessors
+  # Manual wrappers: Utilities (custom types)
   registerNative("getBoxChars", nimini_getBoxChars,
     storieLibs = @["ascii_art"],
     description = "Get box drawing characters by category")

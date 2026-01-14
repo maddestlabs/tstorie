@@ -13,6 +13,19 @@
 # - Audio encoding/decoding
 #
 # For high-level usage, see audio.nim which wraps these bindings
+#
+# BINDING PATTERN:
+# This module uses C FFI BINDINGS - no auto-exposed functions.
+#
+# Why no auto-expose?
+# - Direct C FFI: {.importc.} pragmas bind to C functions
+# - Complex C types: ma_device, ma_engine, ma_sound (opaque pointers)
+# - Memory management: manual allocation/deallocation of C structures
+# - Callbacks: C function pointers for audio processing
+#
+# This is raw FFI - not suitable for auto-binding system which works
+# with native Nim functions. Audio functionality is exposed through
+# higher-level wrappers in audio.nim and runtime-specific bindings.
 
 import std/os
 

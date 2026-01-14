@@ -16,7 +16,7 @@ shaders: "grid2x1+sand+gradualblur"
 #######
 #     ####
 #        #
-# @>>$>>.#
+# @  $ . #
 #        #
 ##########
 ;
@@ -481,14 +481,12 @@ var boxes = []  # Each box is [x, y]
 var goals = []  # Each goal is [x, y]
 var walls = []  # Each wall is [x, y]
 var reachableArea = []  # Cells reachable from player start [x, y]
-var arrows = []  # Tutorial arrows: [x, y, direction] where direction is "^", "v", ">", "<"
 var levelWidth = 0
 var levelHeight = 0
 var moveCount = 0
 var gameWon = false
 var currentLevelData = ""
 var frameCount = 0  # Animation frame counter
-var arrowAnimTick = 0  # Arrow animation tick (increments every N frames)
 
 # Level pack state
 var levelPack = []  # Array of level strings
@@ -508,22 +506,12 @@ proc isReachable(x: int, y: int): bool =
     i = i + 1
   return false
 
-# Get arrow at position (returns direction char or empty string)
-proc getArrow(x: int, y: int): string =
-  var i = 0
-  while i < len(arrows):
-    if arrows[i][0] == x and arrows[i][1] == y:
-      return arrows[i][2]
-    i = i + 1
-  return ""
-
 # Parse level from string (standard Sokoban format)
 proc parseLevel(levelData: string) =
   boxes = []
   goals = []
   walls = []
   reachableArea = []
-  arrows = []
   playerX = 0
   playerY = 0
   moveCount = 0
@@ -566,11 +554,6 @@ proc parseLevel(levelData: string) =
         goals = goals + [[x, y]]
       elif ch == "#" or ch == wallChar:
         walls = walls + [[x, y]]
-      # Tutorial arrows (walkable floor with visual hints)
-      elif ch == "^" or ch == "v" or ch == ">" or ch == "<":
-        ch = ch & "・"
-        arrows = arrows + [[x, y, ch]]
-      # Spaces and other characters are empty cells - no action needed
       
       x = x + 1
     y = y + 1
@@ -1100,24 +1083,6 @@ while y < levelHeight:
     elif hasWall(x, y):
       ch = wallChar
       style = styleWall
-    # Check for tutorial arrow (acts like floor tile)
-    elif len(getArrow(x, y)) > 0:
-      var arrowDir = getArrow(x, y)
-      ch = arrowDir
-      # Randomly pick color for each arrow based on position and frame count
-      var colorSeed = (x * 7 + y * 13 + frameCount div 15) mod 6
-      if colorSeed == 0:
-        style = getStyle("accent1")
-      elif colorSeed == 1:
-        style = getStyle("accent2")
-      elif colorSeed == 2:
-        style = getStyle("accent3")
-      elif colorSeed == 3:
-        style = getStyle("info")
-      elif colorSeed == 4:
-        style = getStyle("bright")
-      else:
-        style = getStyle("border")
     # Check if unreachable area (outside)
     elif not isReachable(x, y):
       ch = getRandomOutsideChar(x, y, animOffset)

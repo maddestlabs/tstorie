@@ -1,7 +1,55 @@
 ## Nimini bindings for TUI Helpers
 ##
-## Exposes TUI helper functions to nimini scripts, enabling rapid
-## prototyping of terminal user interfaces.
+## This file demonstrates the BASELINE PATTERN for tstorie module bindings.
+## Use this as a reference when creating or updating other binding files.
+##
+## BINDING PATTERNS:
+##
+## 1. SIMPLE FUNCTIONS → Auto-expose in native file
+##    - Functions with only int/float/string/bool parameters
+##    - Example: centerTextX, truncateText, pointInRect
+##    - In tui_helpers.nim: Add {.autoExpose: "tui".} pragma
+##    - In this file: Call register_functionName()
+##    - Result: ~90% code reduction, automatic type conversion
+##
+## 2. STYLE/COLOR FUNCTIONS → Auto-expose in native file  
+##    - Functions using Style or Color types
+##    - Example: drawBoxSimple, fillBox, drawLabel
+##    - type_converters.nim handles Style ↔ Value conversion automatically
+##    - In tui_helpers.nim: Add {.autoExpose: "tui".} pragma
+##    - In this file: Call register_functionName()
+##    - Result: Eliminates duplicate valueToStyle conversions
+##
+## 3. SEQ/TUPLE RETURNS → Auto-expose in native file
+##    - Functions returning seq[int], tuple[x, y: int], etc.
+##    - Example: layoutVertical, layoutCentered, layoutGrid
+##    - type_converters.nim handles automatic conversion to nimini arrays/maps
+##    - In tui_helpers.nim: Add {.autoExpose: "tui".} pragma
+##    - In this file: Call register_functionName()
+##    - Result: No manual array/map construction needed
+##
+## 4. COMPLEX MULTI-STEP LOGIC → Manual wrapper (keep here)
+##    - Functions with complex parameter validation
+##    - Functions with multiple internal function calls
+##    - Functions with conditional logic paths
+##    - Example: drawButton (checks borderStyle, calls multiple draw funcs)
+##    - Keep manual wrapper here with explanatory comment
+##    - Result: Full control over complex behavior
+##
+## 5. VAR PARAMETERS → Manual wrapper (keep here)
+##    - Functions that modify parameters (var params)
+##    - Example: handleTextInput, handleBackspace
+##    - Nimini doesn't support var params directly
+##    - Manual wrapper returns tuple of modified values
+##    - Result: Proper state management for mutable operations
+##
+## 6. SEQ INPUTS → Manual wrapper (keep here)
+##    - Functions taking seq[int] or seq[string] as parameters  
+##    - Example: findClickedWidget(widgetX, widgetY, widgetW, widgetH: seq[int])
+##    - Auto-binding could handle this but manual gives more control
+##    - Keep manual for now, could auto-expose later if desired
+##
+## SEE tui_helpers.nim for examples of each pattern in the native file.
 
 import ../nimini
 import ../nimini/runtime
@@ -130,135 +178,26 @@ proc nimini_drawBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   return valNil()
 
-proc nimini_drawBoxSimple*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawBoxSimple(layer, x, y, w, h, style)
-  if args.len < 6:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let style = valueToStyle(args[5])
-  
-  drawBoxSimple(layer, x, y, w, h, style)
-  return valNil()
-
-proc nimini_drawBoxDouble*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawBoxDouble(layer, x, y, w, h, style)
-  if args.len < 6:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let style = valueToStyle(args[5])
-  
-  drawBoxDouble(layer, x, y, w, h, style)
-  return valNil()
-
-proc nimini_drawBoxRounded*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawBoxRounded(layer, x, y, w, h, style)
-  if args.len < 6:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let style = valueToStyle(args[5])
-  
-  drawBoxRounded(layer, x, y, w, h, style)
-  return valNil()
-
-proc nimini_fillBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## fillBox(layer, x, y, w, h, ch, style)
-  if args.len < 7:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let ch = valueToString(args[5])
-  let style = valueToStyle(args[6])
-  
-  fillBox(layer, x, y, w, h, ch, style)
-  return valNil()
-
 # ==============================================================================
-# TEXT HELPER BINDINGS
+# PATTERN 2 & 3: Functions auto-exposed with Style/seq/tuple types
 # ==============================================================================
-
-proc nimini_centerTextX*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## centerTextX(text, boxX, boxWidth) -> int
-  if args.len < 3:
-    return valInt(0)
-  
-  let text = valueToString(args[0])
-  let boxX = valueToInt(args[1])
-  let boxWidth = valueToInt(args[2])
-  
-  return valInt(centerTextX(text, boxX, boxWidth))
-
-proc nimini_centerTextY*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## centerTextY(boxY, boxHeight) -> int
-  if args.len < 2:
-    return valInt(0)
-  
-  let boxY = valueToInt(args[0])
-  let boxHeight = valueToInt(args[1])
-  
-  return valInt(centerTextY(boxY, boxHeight))
-
-proc nimini_drawCenteredText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawCenteredText(layer, x, y, w, h, text, style)
-  if args.len < 7:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let text = valueToString(args[5])
-  let style = valueToStyle(args[6])
-  
-  drawCenteredText(layer, x, y, w, h, text, style)
-  return valNil()
-
-proc nimini_truncateText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## truncateText(text, maxWidth) -> string
-  if args.len < 2:
-    return valString("")
-  
-  let text = valueToString(args[0])
-  let maxWidth = valueToInt(args[1])
-  
-  return valString(truncateText(text, maxWidth))
+# The following functions are now auto-exposed in tui_helpers.nim:
+# - drawBoxSingle, drawBoxDouble, drawBoxRounded (Style params)
+# - fillBox (Style param)
+# - drawCenteredText (Style param)
+# - drawLabel (Style param)
+# - drawSeparator (Style param + default string param)
+# - layoutVertical, layoutHorizontal (seq[int] returns)
+# - layoutCentered (tuple[x, y: int] return)
+# - layoutGrid (seq[tuple[x, y: int]] return)
+#
+# No manual wrappers needed - type_converters.nim handles all conversions!
+# ==============================================================================
 
 # ==============================================================================
 # HIT TESTING BINDINGS
 # ==============================================================================
-
-proc nimini_pointInRect*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## pointInRect(px, py, rx, ry, rw, rh) -> bool
-  if args.len < 6:
-    return valBool(false)
-  
-  let px = valueToInt(args[0])
-  let py = valueToInt(args[1])
-  let rx = valueToInt(args[2])
-  let ry = valueToInt(args[3])
-  let rw = valueToInt(args[4])
-  let rh = valueToInt(args[5])
-  
-  return valBool(pointInRect(px, py, rx, ry, rw, rh))
+# PATTERN 6: Seq inputs → Manual wrapper for control
 
 proc nimini_findClickedWidget*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## findClickedWidget(mouseX, mouseY, widgetX[], widgetY[], widgetW[], widgetH[]) -> int
@@ -296,6 +235,7 @@ proc nimini_findClickedWidget*(env: ref Env; args: seq[Value]): Value {.nimini.}
 # ==============================================================================
 # WIDGET RENDERING BINDINGS
 # ==============================================================================
+# PATTERN 4: Complex multi-step widgets → Manual wrappers
 
 proc nimini_drawButton*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## drawButton(layer, x, y, w, h, label, isFocused, [isPressed], [borderStyle])
@@ -766,111 +706,90 @@ proc nimini_drawTextBoxWithScroll*(env: ref Env; args: seq[Value]): Value {.nimi
 proc registerTUIHelperBindings*(env: ref Env) =
   ## Register all TUI helper functions with nimini
   
-  # Box drawing
+  # ==============================================================================
+  # PATTERN 1 & 2 & 3: Auto-exposed functions (see tui_helpers.nim)
+  # ==============================================================================
+  # Simple utilities (int/string/bool)
+  register_centerTextX()
+  register_centerTextY()
+  register_truncateText()
+  register_pointInRect()
+  
+  # Style functions (Style type auto-converted)
+  register_drawBoxSimple()
+  register_drawBoxSingle()
+  register_drawBoxDouble()
+  register_drawBoxRounded()
+  register_fillBox()
+  register_drawCenteredText()
+  register_drawLabel()
+  register_drawSeparator()
+  
+  # Layout functions (seq/tuple returns auto-converted)
+  register_layoutVertical()
+  register_layoutHorizontal()
+  register_layoutCentered()
+  register_layoutGrid()
+  
+  # ==============================================================================
+  # PATTERN 4: Complex widgets with multi-step logic (manual wrappers)
+  # ==============================================================================
+  # ==============================================================================
+  # PATTERN 4: Complex widgets with multi-step logic (manual wrappers)
+  # ==============================================================================
+  
+  # drawBox: Takes 11 string parameters for custom box characters - keep manual
   registerNative("drawBox", nimini_drawBox,
     storieLibs = @["tui_helpers"],
-    description = "Draw a box with specified style (single, double, rounded)")
+    description = "Draw a box with custom characters for each part")
   
-  registerNative("drawBoxSimple", nimini_drawBoxSimple,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a box with classic corners")
-  
-  registerNative("drawBoxDouble", nimini_drawBoxDouble,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a box with double-line borders")
-  
-  registerNative("drawBoxRounded", nimini_drawBoxRounded,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a box with rounded corners")
-  
-  registerNative("fillBox", nimini_fillBox,
-    storieLibs = @["tui_helpers"],
-    description = "Fill a rectangular area with a character")
-  
-  # Text helpers
-  registerNative("centerTextX", nimini_centerTextX,
-    storieLibs = @["tui_helpers"],
-    description = "Calculate X position to center text")
-  
-  registerNative("centerTextY", nimini_centerTextY,
-    storieLibs = @["tui_helpers"],
-    description = "Calculate Y position to center text vertically")
-  
-  registerNative("drawCenteredText", nimini_drawCenteredText,
-    storieLibs = @["tui_helpers"],
-    description = "Draw text centered in a box")
-  
-  registerNative("truncateText", nimini_truncateText,
-    storieLibs = @["tui_helpers"],
-    description = "Truncate text to fit width with ellipsis")
-  
-  # Hit testing
-  registerNative("pointInRect", nimini_pointInRect,
-    storieLibs = @["tui_helpers"],
-    description = "Check if point is inside rectangle")
-  
-  registerNative("findClickedWidget", nimini_findClickedWidget,
-    storieLibs = @["tui_helpers"],
-    description = "Find which widget was clicked")
-  
-  # Widgets
   registerNative("drawButton", nimini_drawButton,
     storieLibs = @["tui_helpers"],
-    description = "Draw a button widget")
-  
-  registerNative("drawLabel", nimini_drawLabel,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a text label")
+    description = "Draw a button widget with border style logic")
   
   registerNative("drawTextBox", nimini_drawTextBox,
     storieLibs = @["tui_helpers"],
-    description = "Draw a text input box with cursor")
+    description = "Draw a text input box with cursor positioning")
   
   registerNative("drawSlider", nimini_drawSlider,
     storieLibs = @["tui_helpers"],
-    description = "Draw a horizontal slider")
+    description = "Draw a horizontal slider with value normalization")
   
   registerNative("drawCheckBox", nimini_drawCheckBox,
     storieLibs = @["tui_helpers"],
-    description = "Draw a checkbox with label")
+    description = "Draw a checkbox with conditional rendering")
   
   registerNative("drawPanel", nimini_drawPanel,
     storieLibs = @["tui_helpers"],
-    description = "Draw a titled panel/frame")
+    description = "Draw a titled panel with fill and border logic")
   
   registerNative("drawProgressBar", nimini_drawProgressBar,
     storieLibs = @["tui_helpers"],
-    description = "Draw a progress bar")
+    description = "Draw a progress bar with fill calculation")
   
-  registerNative("drawSeparator", nimini_drawSeparator,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a horizontal separator line")
+  # ==============================================================================
+  # PATTERN 5: Var parameters (manual wrappers return modified values)
+  # ==============================================================================
   
-  # Layout
-  registerNative("layoutVertical", nimini_layoutVertical,
-    storieLibs = @["tui_helpers"],
-    description = "Calculate Y positions for vertical layout")
-  
-  registerNative("layoutHorizontal", nimini_layoutHorizontal,
-    storieLibs = @["tui_helpers"],
-    description = "Calculate X positions for horizontal layout")
-  
-  registerNative("layoutCentered", nimini_layoutCentered,
-    storieLibs = @["tui_helpers"],
-    description = "Center an item within a container")
-  
-  # Input handling
   registerNative("handleTextInput", nimini_handleTextInput,
     storieLibs = @["tui_helpers"],
-    description = "Handle text input for text fields")
+    description = "Handle text input - returns [cursorPos, content, handled]")
   
   registerNative("handleBackspace", nimini_handleBackspace,
     storieLibs = @["tui_helpers"],
-    description = "Handle backspace for text fields")
+    description = "Handle backspace - returns [cursorPos, content, handled]")
   
   registerNative("handleArrowKeys", nimini_handleArrowKeys,
     storieLibs = @["tui_helpers"],
-    description = "Handle arrow keys for sliders/numeric inputs")
+    description = "Handle arrow keys - returns [value, handled]")
+  
+  # ==============================================================================
+  # PATTERN 6: Seq inputs (manual wrapper for array conversion control)
+  # ==============================================================================
+  
+  registerNative("findClickedWidget", nimini_findClickedWidget,
+    storieLibs = @["tui_helpers"],
+    description = "Find clicked widget from arrays - returns index or -1")
   
   # Radio buttons
   registerNative("drawRadioButton", nimini_drawRadioButton,

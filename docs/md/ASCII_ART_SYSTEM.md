@@ -65,7 +65,6 @@ border.renderFull(0, termWidth, termHeight, borderStyle, draw)
 lib/
 ├── ascii_art.nim              # Core primitives and types
 ├── ascii_art_bindings.nim     # Nimini script bindings
-├── pattern_export.nim         # Export system
 └── ascii_art/
     ├── borders/               # Exported border patterns
     ├── fills/                 # Exported fill patterns

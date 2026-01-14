@@ -20,6 +20,13 @@
 ##   sys.collisionResponse = crStick
 ##   sys.update(dt)
 ##   sys.render(layer)
+##
+## NIMINI BINDINGS:
+## No functions are auto-exposed due to registry pattern.
+## The native API takes ParticleSystem objects directly, but the nimini API
+## uses string names with registry lookup (e.g., "rain", "fire").
+## This avoids passing ref objects through the Value system.
+## See particles_bindings.nim for the registry-based API.
 
 import std/[math, random, tables]
 
