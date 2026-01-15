@@ -308,8 +308,45 @@ chmod +x tStauri*.AppImage  # If Linux
 
 Your workflow is production-ready! 🚀
 
+## WebGL Renderer Integration
+
+tStauri now uses the **WebGL renderer** from tstorie core, providing:
+- **10-100× faster rendering** through GPU instanced drawing
+- **Full Unicode support** including CJK characters (Japanese, Chinese, Korean)
+- **Dynamic glyph caching** for on-demand character atlas generation
+- **Native shader support** for terminal effects
+
+### Loading Sequence
+
+The initialization order is critical for WebGL:
+
+1. **Load WASM runtime** (`tstorie.wasm.js`)
+2. **Wait for `onRuntimeInitialized` callback**
+3. **Load WebGL renderer** (`tstorie-webgl.js`) - provides `TStorieTerminal` class
+4. **Load terminal wrapper** (`tstorie.js`) - provides `inittstorie()` function
+5. **Call `inittstorie()`** to create the terminal
+
+### Bundled Files
+
+The following files are bundled in `tauri.conf.json`:
+- `tstorie.wasm.wasm` - Compiled WASM binary
+- `tstorie.wasm.js` - Emscripten runtime
+- `tstorie-webgl.js` - **WebGL renderer (NEW)**
+- `tstorie.js` - Terminal wrapper API
+
+### Browser Compatibility
+
+WebGL2 is supported in 99%+ of browsers as of 2026:
+- Chrome/Edge 56+ (March 2017+)
+- Firefox 51+ (January 2017+)
+- Safari 15+ (September 2021+)
+- Opera 43+ (March 2017+)
+
+Tauri's webview on all platforms supports WebGL2.
+
 ## See Also
 
 - **[WINDOWS_CROSS_COMPILE.md](WINDOWS_CROSS_COMPILE.md)** - Build Windows .exe on Linux
 - **[RELEASE.md](RELEASE.md)** - Complete release guide
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Local development setup
+- **[../../WEBGL_MIGRATION.md](../../WEBGL_MIGRATION.md)** - WebGL renderer details

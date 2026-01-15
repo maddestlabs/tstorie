@@ -1,0 +1,115 @@
+name: Build tStauri Windows Portable
+
+on:
+  workflow_dispatch:
+    inputs:
+      nim_version:
+        description: 'Nim version to use'
+        required: false
+        default: '2.0.2'
+        type: string
+
+jobs:
+  build-windows-portable:
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: ${{ github.event.inputs.nim_version }}
+
+      - name: Install Emscripten (for WASM build)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '3.1.50'
+
+      - name: Build tStorie WASM with WebGL
+        run: |
+          chmod +x build-web.sh
+          ./build-web.sh -o docs
+          
+      - name: Verify WASM files
+        run: |
+          echo "Checking for required WASM files..."
+          ls -lh docs/tstorie*.js docs/tstorie.wasm.wasm
+          if [ ! -f "docs/tstorie-webgl.js" ]; then
+            echo "ERROR: tstorie-webgl.js not found!"
+            exit 1
+          fi
+          echo "✓ All WASM files present"
+
+      - name: Install Rust stable with Windows target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install cross-compilation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-mingw-w64-x86-64 \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate App Icons
+        run: |
+          cd tstauri
+          bash generate-icons.sh
+
+      - name: Install frontend dependencies
+        run: |
+          cd tstauri
+          npm install
+
+      - name: Build Vite frontend
+        run: |
+          cd tstauri
+          npm run vite:build
+
+      - name: Build Windows executable (cross-compile from Linux)
+        run: |
+          cd tstauri
+          npm run tauri build -- --target x86_64-pc-windows-gnu
+
+      - name: Package portable Windows build
+        run: |
+          cd tstauri
+          bash package-windows.sh
+
+      - name: Verify package contents
+        run: |
+          echo "Checking package contents..."
+          cd tstauri/dist/tstauri-windows-portable
+          ls -lh
+          echo ""
+          echo "Verifying critical files..."
+          [ -f "tstauri.exe" ] && echo "✓ tstauri.exe" || echo "✗ tstauri.exe MISSING"
+          [ -f "tstorie-webgl.js" ] && echo "✓ tstorie-webgl.js" || echo "✗ tstorie-webgl.js MISSING"
+          [ -f "tstorie.wasm.js" ] && echo "✓ tstorie.wasm.js" || echo "✗ tstorie.wasm.js MISSING"
+          [ -f "tstorie.wasm.wasm" ] && echo "✓ tstorie.wasm.wasm" || echo "✗ tstorie.wasm.wasm MISSING"
+          [ -f "WebView2Loader.dll" ] && echo "✓ WebView2Loader.dll" || echo "✗ WebView2Loader.dll MISSING"
+
+      - name: Upload portable package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tstauri-windows-portable
+          path: tstauri/dist/tstauri-windows-portable.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Get package size
+        run: |
+          SIZE=$(du -h tstauri/dist/tstauri-windows-portable.zip | cut -f1)
+          echo "📦 Package size: $SIZE"
+          echo "✅ Build complete! Download the artifact from the Actions tab."

@@ -51,6 +51,7 @@ echo "📄 Copying WASM engine..."
 cp ../docs/tstorie.js "$PACKAGE_DIR/"
 cp ../docs/tstorie.wasm.js "$PACKAGE_DIR/"
 cp ../docs/tstorie.wasm.wasm "$PACKAGE_DIR/"
+cp ../docs/tstorie-webgl.js "$PACKAGE_DIR/"
 echo "✓ WASM files copied"
 
 # Create a README for Windows users

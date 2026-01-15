@@ -20,7 +20,8 @@
     "resources": [
       "../../docs/tstorie.js",
       "../../docs/tstorie.wasm.js",
-      "../../docs/tstorie.wasm.wasm"
+      "../../docs/tstorie.wasm.wasm",
+      "../../docs/tstorie-webgl.js"
     ],
     "externalBin": [],
     "copyright": "",

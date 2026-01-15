@@ -38,6 +38,13 @@ async function loadTStorieEngine() {
         const wasmJsUrl = URL.createObjectURL(wasmJsBlob);
         console.log('✓ Created blob URL for tstorie.wasm.js');
         
+        // Load tstorie-webgl.js (WebGL renderer - must be loaded before tstorie.js)
+        console.log('Loading tstorie-webgl.js (WebGL renderer)...');
+        const webglBytes = await invoke('get_bundled_wasm_file', { filename: 'tstorie-webgl.js' });
+        const webglBlob = new Blob([new Uint8Array(webglBytes)], { type: 'application/javascript' });
+        const webglUrl = URL.createObjectURL(webglBlob);
+        console.log('✓ Created blob URL for tstorie-webgl.js');
+        
         // Load tstorie.js (terminal wrapper - we'll load this after WASM initializes)
         console.log('Loading tstorie.js (terminal wrapper)...');
         const tsJsBytes = await invoke('get_bundled_wasm_file', { filename: 'tstorie.js' });
@@ -87,64 +94,77 @@ async function loadTStorieEngine() {
                         clearTimeout(initTimeout);
                     }
                     
-                    // Now load tstorie.js which contains the inittstorie() function
-                    console.log('Loading tstorie.js wrapper...');
-                    const tsScript = document.createElement('script');
-                    tsScript.src = tsJsUrl;
-                    tsScript.onload = () => {
-                        console.log('✓ tstorie.js loaded');
+                    // Load WebGL renderer FIRST (required for TStorieTerminal class)
+                    console.log('Loading tstorie-webgl.js renderer...');
+                    const webglScript = document.createElement('script');
+                    webglScript.src = webglUrl;
+                    webglScript.onload = () => {
+                        console.log('✓ tstorie-webgl.js loaded (WebGL renderer ready)');
                         
-                        // Now wait for inittstorie to be defined
-                        let attempts = 0;
-                        const checkInit = setInterval(() => {
-                            attempts++;
-                            console.log(`Checking for inittstorie... attempt ${attempts}`);
+                        // Now load tstorie.js which contains the inittstorie() function
+                        console.log('Loading tstorie.js wrapper...');
+                        const tsScript = document.createElement('script');
+                        tsScript.src = tsJsUrl;
+                        tsScript.onload = () => {
+                            console.log('✓ tstorie.js loaded');
                             
-                            if (window.inittstorie && typeof window.inittstorie === 'function') {
+                            // Now wait for inittstorie to be defined
+                            let attempts = 0;
+                            const checkInit = setInterval(() => {
+                                attempts++;
+                                console.log(`Checking for inittstorie... attempt ${attempts}`);
+                                
+                                if (window.inittstorie && typeof window.inittstorie === 'function') {
+                                    clearInterval(checkInit);
+                                    console.log('✓ inittstorie function ready');
+                                    
+                                    // Verify canvas is still accessible
+                                    const canvasCheck = document.getElementById('terminal');
+                                    console.log('Pre-init terminal canvas check:', {
+                                        'getElementById': !!canvasCheck,
+                                        'Module.canvas': !!window.Module.canvas,
+                                        'canvasCheck === Module.canvas': canvasCheck === window.Module.canvas
+                                    });
+                                    
+                                    showStatus('⚡ Starting tStorie engine...', false);
+                                    
+                                    // Call inittstorie to set up the terminal
+                                    window.inittstorie().then(() => {
+                                        console.log('✓ tStorie engine initialized successfully');
+                                        console.log('Module ready:', !!window.Module);
+                                        console.log('emLoadMarkdownFromJS:', !!window.Module?._emLoadMarkdownFromJS);
+                                        showStatus('✓ Ready to load files', false);
+                                        resolve();
+                                    }).catch(err => {
+                                        console.error('❌ Failed to initialize tStorie:', err);
+                                        showStatus('❌ Init failed: ' + err.message, true);
+                                        reject(err);
+                                    });
+                                }
+                            }, 100);
+                            
+                            // Timeout after 5 seconds waiting for inittstorie
+                            setTimeout(() => {
                                 clearInterval(checkInit);
-                                console.log('✓ inittstorie function ready');
-                                
-                                // Verify canvas is still accessible
-                                const canvasCheck = document.getElementById('terminal');
-                                console.log('Pre-init terminal canvas check:', {
-                                    'getElementById': !!canvasCheck,
-                                    'Module.canvas': !!window.Module.canvas,
-                                    'canvasCheck === Module.canvas': canvasCheck === window.Module.canvas
-                                });
-                                
-                                showStatus('⚡ Starting tStorie engine...', false);
-                                
-                                // Call inittstorie to set up the terminal
-                                window.inittstorie().then(() => {
-                                    console.log('✓ tStorie engine initialized successfully');
-                                    console.log('Module ready:', !!window.Module);
-                                    console.log('emLoadMarkdownFromJS:', !!window.Module?._emLoadMarkdownFromJS);
-                                    showStatus('✓ Ready to load files', false);
-                                    resolve();
-                                }).catch(err => {
-                                    console.error('❌ Failed to initialize tStorie:', err);
-                                    showStatus('❌ Init failed: ' + err.message, true);
-                                    reject(err);
-                                });
-                            }
-                        }, 100);
-                        
-                        // Timeout after 5 seconds waiting for inittstorie
-                        setTimeout(() => {
-                            clearInterval(checkInit);
-                            if (!window.inittstorie) {
-                                const msg = 'Timeout waiting for inittstorie after ' + attempts + ' attempts';
-                                console.error('❌ ' + msg);
-                                showStatus('❌ ' + msg, true);
-                                reject(new Error(msg));
-                            }
-                        }, 5000);
+                                if (!window.inittstorie) {
+                                    const msg = 'Timeout waiting for inittstorie after ' + attempts + ' attempts';
+                                    console.error('❌ ' + msg);
+                                    showStatus('❌ ' + msg, true);
+                                    reject(new Error(msg));
+                                }
+                            }, 5000);
+                        };
+                        tsScript.onerror = (err) => {
+                            console.error('❌ Failed to load tstorie.js:', err);
+                            reject(err);
+                        };
+                        document.head.appendChild(tsScript);
                     };
-                    tsScript.onerror = (err) => {
-                        console.error('❌ Failed to load tstorie.js:', err);
+                    webglScript.onerror = (err) => {
+                        console.error('❌ Failed to load tstorie-webgl.js:', err);
                         reject(err);
                     };
-                    document.head.appendChild(tsScript);
+                    document.head.appendChild(webglScript);
                 },
                 // Override getElementById to ensure canvas is found
                 locateCanvas: function() {

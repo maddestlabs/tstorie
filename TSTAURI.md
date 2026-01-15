@@ -10,7 +10,8 @@ A Tauri-based desktop application for running tStorie markdown documents with dr
 - **Tauri 2.9.5** - Desktop framework (Rust backend + webview frontend)
 - **Rust 1.92.0** - Backend with MinGW-w64 cross-compilation for Windows
 - **Vite 7.3.1** - Frontend bundler (root: `src/`, output: `dist-frontend/`)
-- **tStorie WASM** - Terminal engine (`tstorie.js`, `tstorie.wasm.js`, `tstorie.wasm.wasm`)
+- **tStorie WASM** - Terminal engine (`tstorie.js`, `tstorie.wasm.js`, `tstorie.wasm.wasm`, **`tstorie-webgl.js`**)
+- **WebGL2 Renderer** - GPU-accelerated terminal rendering (10-100× faster)
 - **WebView2** - Windows webview runtime
 
 ## Project Structure
@@ -48,10 +49,20 @@ Creates: `dist/tstauri-windows-portable.zip` (7.9 MB) containing:
 - `tstauri.exe` (20 MB, includes bundled frontend)
 - `WebView2Loader.dll` (157 KB)
 - `MicrosoftEdgeWebview2Setup.exe` (1.7 MB, optional bootstrapper)
-- WASM files: `tstorie.js`, `tstorie.wasm.js`, `tstorie.wasm.wasm`
+- WASM files: `tstorie.js`, `tstorie.wasm.js`, `tstorie.wasm.wasm`, **`tstorie-webgl.js`**
 - `run-tstauri.bat`, `README.txt`
 
 ## Critical Architecture Notes
+
+### WebGL Renderer
+
+tStauri now uses the **WebGL renderer** for GPU-accelerated terminal rendering:
+- **10-100× faster** than Canvas 2D through instanced drawing
+- **Full Unicode support** including CJK characters (Japanese, Chinese, Korean)
+- **Dynamic glyph caching** for on-demand character atlas generation
+- **WebGL2 requirement**: Supported in all modern browsers (99%+ as of 2026)
+
+All Tauri webviews (Windows WebView2, macOS WKWebView, Linux WebKitGTK) support WebGL2.
 
 ### WASM Loading Sequence (IMPORTANT!)
 
@@ -77,13 +88,20 @@ The initialization order is **critical**:
    script.src = wasmJsUrl;  // tstorie.wasm.js
    ```
 
-4. **In `onRuntimeInitialized`, load `tstorie.js`** (terminal wrapper with `inittstorie()`)
+4. **In `onRuntimeInitialized`, load WebGL renderer** (`tstorie-webgl.js`)
+   ```javascript
+   const webglScript = document.createElement('script');
+   webglScript.src = webglUrl;  // tstorie-webgl.js
+   ```
 
-5. **Call `inittstorie()`** to create the terminal
+5. **After WebGL loads, load `tstorie.js`** (terminal wrapper with `inittstorie()`)
+
+6. **Call `inittstorie()`** to create the terminal
 
 **Why this order matters:**
 - `tstorie.wasm.js` is the Emscripten runtime that initializes the WASM binary
-- `tstorie.js` is the terminal wrapper that depends on the WASM being ready
+- `tstorie-webgl.js` provides the `TStorieTerminal` class (WebGL renderer)
+- `tstorie.js` is the terminal wrapper that depends on both WASM and WebGL being ready
 - `locateFile` MUST be synchronous - async breaks Emscripten initialization
 - `Module` object must exist before script loads
 
