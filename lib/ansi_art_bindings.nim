@@ -39,21 +39,6 @@ type DrawProc* = proc(layer, x, y: int, char: string, style: Style)
 var gDrawProc: DrawProc
 
 # ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  else: return 0
-
-proc valueToString(v: Value): string =
-  if v.kind == vkString:
-    return v.s
-  return ""
-
-# ==============================================================================
 # NIMINI BINDINGS - ANSI ART RENDERING
 # ==============================================================================
 
@@ -69,10 +54,10 @@ proc nimini_drawAnsi*(env: ref Env; args: seq[Value]): Value {.nimini.} =
       echo "[drawAnsi] Not enough args"
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let artName = valueToString(args[3])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let artName = $(args[3])
   let skipConversion = if args.len > 4 and args[4].kind == vkBool: args[4].b else: false
   
   # Build the block type identifier
@@ -99,7 +84,7 @@ proc nimini_drawAnsi*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     # Join lines back into single string with newlines
     var ansiContent = ""
     for i, lineVal in artLines.arr:
-      ansiContent.add(valueToString(lineVal))
+      ansiContent.add($(lineVal))
       if i < artLines.arr.len - 1:
         ansiContent.add("\n")
     
@@ -143,8 +128,8 @@ proc nimini_parseAnsi*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let ansiText = valueToString(args[0])
-  let maxWidth = if args.len > 1: valueToInt(args[1]) else: 120
+  let ansiText = $(args[0])
+  let maxWidth = if args.len > 1: toInt(args[1]) else: 120
   
   # Parse the ANSI content
   let buffer = parseAnsiToBuffer(ansiText, maxWidth)
@@ -160,10 +145,10 @@ proc nimini_drawAnsiBuffer*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 4:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let bufferId = valueToString(args[3])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let bufferId = $(args[3])
   
   if not gAnsiBuffers.hasKey(bufferId):
     return valNil()
@@ -195,7 +180,7 @@ proc nimini_getAnsiDimensions*(env: ref Env; args: seq[Value]): Value {.nimini.}
   if args.len < 1:
     return valNil()
   
-  let text = valueToString(args[0])
+  let text = $(args[0])
   let (width, height) = getAnsiTextDimensions(text)
   
   # Return as a map

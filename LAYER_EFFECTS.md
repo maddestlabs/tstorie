@@ -1,5 +1,7 @@
 # Layer Effects and Transformations
 
+> **🎯 Implementation Guide**: See [LAYER_EFFECTS_IMPLEMENTATION.md](LAYER_EFFECTS_IMPLEMENTATION.md) for the complete, plugin-aware implementation strategy.
+
 ## Overview
 
 Enhanced layer system with transform, visual effects, and shader integration capabilities. These features make layers powerful compositing units that enable parallax scrolling, visual effects, and procedural transformations without modifying rendering code.
@@ -11,6 +13,20 @@ Enhanced layer system with transform, visual effects, and shader integration cap
 - ✅ Direct `draw*()` calls also get effects
 - ✅ Separation of concerns: layers handle compositing, canvas handles layout
 - ✅ Effects are applied once per frame, maximizing performance
+
+## Plugin-Aware Design
+
+**Core effects** (always available):
+- Parallax offsets (offsetX, offsetY)
+- Darkness/brightness multiplier
+- Simple desaturation
+
+**Plugin-enhanced effects** (graceful fallback):
+- Displacement/wave effects (requires terminal_shaders)
+- Advanced color palettes (optional)
+- Procedural patterns (optional)
+
+This design ensures layer effects work in both full builds (with all plugins) and minimal builds (core only).
 
 ## Layer Type Enhancements
 
@@ -74,7 +90,22 @@ mgLayer.offsetY = int(-cameraY * 0.6)
 # Foreground (z=0) moves at full camera speed
 ```
 
-### 2. Depth Cueing (Atmospheric Perspective)
+### 2. Auto-Depth Cueing (⭐ Killer Feature!)
+```nim
+# ONE line gives you automatic atmospheric perspective!
+enableAutoDepthing(0.4, 1.0)  # Back layers at 40%, front at 100%
+
+# All layers automatically darken based on z-depth:
+# - Layer z=-3 → darkest (40% brightness)
+# - Layer z=-2 → darker (55% brightness)
+# - Layer z=-1 → medium (70% brightness)
+# - Layer z=0  → normal (85% brightness)
+# - Layer z=1  → brightest (100% brightness)
+
+# This creates instant depth perception in your scenes!
+```
+
+### 3. Depth Cueing (Manual)
 ```nim
 # Make distant layers darker and desaturated
 let bgLayer = state.getLayer("canvas_z-2")
@@ -86,7 +117,7 @@ mgLayer.brightness = 0.7      # 70% brightness
 mgLayer.saturation = 0.6      # 60% saturation
 ```
 
-### 3. Dynamic Visual Effects
+### 4. Dynamic Visual Effects (Plugin-Enhanced)
 ```nim
 # Wavy underwater effect on background
 let bgLayer = state.getLayer("canvas_z-1")
@@ -100,7 +131,32 @@ bgLayer.displacementFunc = waveDisplacement(
 bgLayer.colorMultiply = rgb(100, 150, 255)  # Blueish underwater tint
 ```
 
-### 5. Canvas with Layer Effects
+### 5. Plugin-Aware Usage
+```nim
+```​nim on:init
+# Check what effects are available in this build
+let effects = getLayerEffectsAvailable()
+
+if effects.displacement:
+  echo "Full build - all effects enabled!"
+else:
+  echo "Minimal build - core effects only"
+
+# Enable auto-depthing (always available)
+enableAutoDepthing(0.4, 1.0)
+```​
+
+```​nim on:update
+# These ALWAYS work (core features)
+setLayerOffset("background", -int(time * 20), 0)
+setLayerDarkness("background", 0.6)
+
+# This gracefully degrades if shader plugin unavailable
+setLayerDisplacement("water", "wave", 0.5)  # Ignored if no shader plugin
+```​
+```
+
+This approach ensures your documents work in any build configuration!
 ```markdown
 # Background Mountains {"z": -2, "x": 0, "y": 0}
 Static background section content here
@@ -122,25 +178,29 @@ This is the primary gameplay/content area
 
 ## Implementation Strategy
 
-### Phase 1: Transform Properties (Priority)
-- Add `offsetX`, `offsetY` to Layer type
-- Modify `compositeBufferOnto()` to respect offsets
-- Enable parallax scrolling immediately
+See [LAYER_EFFECTS_IMPLEMENTATION.md](LAYER_EFFECTS_IMPLEMENTATION.md) for complete implementation details.
 
-### Phase 2: Visual Effects
-- Add saturation, brightness, contrast fields
-- Create `applyColorEffects()` function
-- Integrate into `compositeLayers()`
+### Quick Summary
 
-### Phase 3: Shader Integration
-- Add `displacementFunc` field to Layer
-- Create wrapper to apply displacement during composite
-- Leverage existing `terminal_shaders.nim` functions
+**Phase 1: Core Effects** (No plugins required)
+- Add `LayerEffects` type with offsetX, offsetY, darkenFactor
+- Modify `compositeBufferOnto()` to apply effects
+- Add nimini bindings: `setLayerOffset()`, `setLayerDarkness()`
 
-### Phase 4: Advanced Transforms (Future)
-- Scale and rotation (requires interpolation/resampling)
-- More complex compositing modes (multiply, screen, overlay)
-- Layer groups/hierarchies
+**Phase 2: Auto-Depthing** (Killer feature!)
+- Automatically darken layers based on z-depth
+- Provides instant atmospheric perspective
+- `enableAutoDepthing(minBrightness, maxBrightness)`
+
+**Phase 3: Plugin Integration** (Optional enhancement)
+- Conditional shader effects when terminal_shaders available
+- Displacement effects (wave, ripple, noise)
+- Graceful fallback when plugins missing
+
+**Phase 4: Polish**
+- Effect introspection API
+- Demo documents
+- Performance optimization
 
 ## API Design
 

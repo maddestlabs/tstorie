@@ -180,6 +180,9 @@ proc valueToStyle(v: Value): Style =
   if v.map.hasKey("dim"):
     result.dim = v.map["dim"].b
 
+# Note: valueToStyle is available for use in binding files since runtime_api.nim
+# is included by tstorie.nim and shares the same scope
+
 # ================================================================
 # UNIFIED DRAWING API
 # ================================================================
@@ -210,8 +213,8 @@ proc draw(env: ref Env; args: seq[Value]): Value {.nimini.} =
               else:
                 return valNil()
   
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
   let text = args[3].s
   
   # Use theme's default style if no style is provided
@@ -253,7 +256,7 @@ proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
               else:
                 return valNil()
   
-  let transparent = if args.len >= 2: valueToBool(args[1]) else: false
+  let transparent = if args.len >= 2: toBool(args[1]) else: false
   
   if transparent:
     layer.buffer.clearTransparent()
@@ -285,10 +288,10 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
               else:
                 return valNil()
   
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
   let ch = args[5].s
   
   # Use theme's default style if no style is provided
@@ -314,7 +317,7 @@ proc nimini_addLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   
   let id = args[0].s
-  let z = valueToInt(args[1])
+  let z = toInt(args[1])
   
   let layer = gAppState.addLayer(id, z)
   if not layer.isNil:
@@ -340,7 +343,7 @@ proc nimini_setLayerVisible(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   
   let id = args[0].s
-  let visible = valueToBool(args[1])
+  let visible = toBool(args[1])
   
   let layer = getLayer(gAppState, id)
   if not layer.isNil:
@@ -360,11 +363,11 @@ proc randInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len == 0:
     return valInt(0)
   elif args.len == 1:
-    let max = valueToInt(args[0])
+    let max = toInt(args[0])
     return valInt(rand(globalRng, max - 1))
   else:
-    let min = valueToInt(args[0])
-    let max = valueToInt(args[1])
+    let min = toInt(args[0])
+    let max = toInt(args[1])
     return valInt(rand(globalRng, max - min - 1) + min)
 
 proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -557,6 +560,7 @@ proc nimini_switchTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if not canvasState.isNil:
     # Re-register canvas bindings to update the stylesheet pointer
     registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+    registerCanvasEditorBindings()
   
   return valBool(true)
 
@@ -858,8 +862,8 @@ proc initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Args: currentIdx (int, optional, default 0), presentationMode (bool, optional, default false)
   if storieCtx.isNil:
     return valBool(false)
-  var currentIdx = if args.len > 0: valueToInt(args[0]) else: 0
-  let presentationMode = if args.len > 1: valueToBool(args[1]) else: false
+  var currentIdx = if args.len > 0: toInt(args[0]) else: 0
+  let presentationMode = if args.len > 1: toBool(args[1]) else: false
   let sections = storieCtx.sectionMgr.getAllSections()
   
   # Auto-skip Section 0 if it has no title (just lifecycle hooks/init code)
@@ -1052,10 +1056,10 @@ proc writeTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
               else:
                 return valNil()
   
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let width = valueToInt(args[3])
-  let height = valueToInt(args[4])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let width = toInt(args[3])
+  let height = toInt(args[4])
   let text = args[5].s
   
   # Default alignment and wrap mode
@@ -1117,8 +1121,8 @@ proc nimini_lerpInt(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Integer interpolation: lerpInt(a, b, t)
   if args.len < 3:
     return valInt(0)
-  let a = valueToInt(args[0])
-  let b = valueToInt(args[1])
+  let a = toInt(args[0])
+  let b = toInt(args[1])
   let t = if args[2].kind == vkFloat: args[2].f else: float(args[2].i)
   return valInt(lerpInt(a, b, t))
 
@@ -1255,6 +1259,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
   initDungeonGenModule()
   initPrimitivesModule()
   initGraphModule()
+  initTUIHelpersModule()
   
   # Initialize all auto-registered plugins (from lib/ modules with pragmas)
   initPlugins()
@@ -1750,6 +1755,10 @@ proc initStorieContext(state: AppState) =
   
   # Register canvas bindings (stores references in canvasState)
   registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+  registerCanvasEditorBindings()
+  
+  # Register layer effects bindings
+  registerLayerFxBindings(storieCtx.niminiContext.env)
   
   # Expose front matter to user scripts as global variables
   exposeFrontMatterVariables()
@@ -1778,6 +1787,9 @@ proc initStorieContext(state: AppState) =
         initCanvasModule(addr gAppState, addr storieCtx.sectionMgr, addr storieCtx.styleSheet)
         # Re-register canvas bindings with new stylesheet pointer
         registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
+        registerCanvasEditorBindings()
+        # Re-register layer effects bindings
+        registerLayerFxBindings(storieCtx.niminiContext.env)
         # Clear and redraw all layers with new theme background
         for layer in state.layers:
           layer.buffer.clear(state.themeBackground)

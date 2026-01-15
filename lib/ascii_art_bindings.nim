@@ -39,29 +39,6 @@ var gDrawProc: DrawProc
 var gAppStateRef: ptr AppState = nil
 
 # ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  else: return 0
-
-proc valueToFloat(v: Value): float =
-  case v.kind
-  of vkFloat: return v.f
-  of vkInt: return float(v.i)
-  else: return 0.0
-
-proc valueToString(v: Value): string =
-  if v.kind == vkString:
-    return v.s
-  return ""
-
-# Note: valueToStyle is imported from type_converters
-
-# ==============================================================================
 # PATTERN FUNCTION STORAGE
 # ==============================================================================
 # Store created pattern functions so they can be reused
@@ -97,12 +74,12 @@ proc nimini_moduloPattern*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len > 0 and args[0].kind == vkArray:
     for ruleVal in args[0].arr:
       if ruleVal.kind == vkArray and ruleVal.arr.len >= 3:
-        let modBase = valueToInt(ruleVal.arr[0])
-        let modValue = valueToInt(ruleVal.arr[1])
-        let char = valueToString(ruleVal.arr[2])
+        let modBase = toInt(ruleVal.arr[0])
+        let modValue = toInt(ruleVal.arr[1])
+        let char = $(ruleVal.arr[2])
         rules.add((modBase, modValue, char))
   
-  let default = if args.len > 1: valueToString(args[1]) else: "─"
+  let default = if args.len > 1: $(args[1]) else: "─"
   let pattern = moduloPattern(rules, default)
   let id = storePattern(pattern)
   
@@ -116,12 +93,12 @@ proc nimini_moduloPatternV*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len > 0 and args[0].kind == vkArray:
     for ruleVal in args[0].arr:
       if ruleVal.kind == vkArray and ruleVal.arr.len >= 3:
-        let modBase = valueToInt(ruleVal.arr[0])
-        let modValue = valueToInt(ruleVal.arr[1])
-        let char = valueToString(ruleVal.arr[2])
+        let modBase = toInt(ruleVal.arr[0])
+        let modValue = toInt(ruleVal.arr[1])
+        let char = $(ruleVal.arr[2])
         rules.add((modBase, modValue, char))
   
-  let default = if args.len > 1: valueToString(args[1]) else: "│"
+  let default = if args.len > 1: $(args[1]) else: "│"
   let pattern = moduloPatternV(rules, default)
   let id = storePattern(pattern)
   
@@ -130,7 +107,7 @@ proc nimini_moduloPatternV*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_solidPattern*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Create a solid pattern (single character). Args: char (string)
   ## Returns: pattern ID (string)
-  let char = if args.len > 0: valueToString(args[0]) else: "─"
+  let char = if args.len > 0: $(args[0]) else: "─"
   let pattern = solidPattern(char)
   let id = storePattern(pattern)
   return valString(id)
@@ -138,7 +115,7 @@ proc nimini_solidPattern*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_crackedBorderPattern*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Create the cracked/weathered border pattern. Args: seed (int)
   ## Returns: table with keys "top", "bottom", "left", "right" (pattern IDs)
-  let seed = if args.len > 0: valueToInt(args[0]) else: 42
+  let seed = if args.len > 0: toInt(args[0]) else: 42
   let patterns = crackedBorderPattern(seed)
   
   # Store each pattern and return IDs
@@ -187,21 +164,21 @@ proc nimini_drawBorder*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 11 or gDrawProc.isNil:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let width = valueToInt(args[3])
-  let height = valueToInt(args[4])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let width = toInt(args[3])
+  let height = toInt(args[4])
   
-  let topPattern = getPattern(valueToString(args[5]))
-  let bottomPattern = getPattern(valueToString(args[6]))
-  let leftPattern = getPattern(valueToString(args[7]))
-  let rightPattern = getPattern(valueToString(args[8]))
+  let topPattern = getPattern($(args[5]))
+  let bottomPattern = getPattern($(args[6]))
+  let leftPattern = getPattern($(args[7]))
+  let rightPattern = getPattern($(args[8]))
   
   var corners: array[4, string]
   if args[9].kind == vkArray and args[9].arr.len >= 4:
     for i in 0..3:
-      corners[i] = valueToString(args[9].arr[i])
+      corners[i] = $(args[9].arr[i])
   else:
     corners = ["┌", "┐", "└", "┘"]
   
@@ -225,16 +202,16 @@ proc nimini_drawBorderFull*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let termWidth = if not gAppStateRef.isNil: gAppStateRef.termWidth else: 80
   let termHeight = if not gAppStateRef.isNil: gAppStateRef.termHeight else: 24
   
-  let layer = valueToInt(args[0])
-  let topPattern = getPattern(valueToString(args[1]))
-  let bottomPattern = getPattern(valueToString(args[2]))
-  let leftPattern = getPattern(valueToString(args[3]))
-  let rightPattern = getPattern(valueToString(args[4]))
+  let layer = toInt(args[0])
+  let topPattern = getPattern($(args[1]))
+  let bottomPattern = getPattern($(args[2]))
+  let leftPattern = getPattern($(args[3]))
+  let rightPattern = getPattern($(args[4]))
   
   var corners: array[4, string]
   if args[5].kind == vkArray and args[5].arr.len >= 4:
     for i in 0..3:
-      corners[i] = valueToString(args[5].arr[i])
+      corners[i] = $(args[5].arr[i])
   else:
     corners = ["┌", "┐", "└", "┘"]
   
@@ -256,10 +233,10 @@ proc nimini_drawAscii*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 4:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let artName = valueToString(args[3])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let artName = $(args[3])
   
   # Build the block type identifier
   let blockType = if artName.contains(":"): artName else: "ascii:" & artName
@@ -288,7 +265,7 @@ proc nimini_drawAscii*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   # Draw each line
   var currentY = y
   for lineVal in artLines.arr:
-    let line = valueToString(lineVal)
+    let line = $(lineVal)
     if hasStyle:
       # Draw with style
       var drawArgs = @[valInt(layer), valInt(x), valInt(currentY), valString(line), style]
@@ -311,10 +288,10 @@ proc nimini_generateCracks*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 3:
     return valArray(@[])
   
-  let seed = valueToInt(args[0])
-  let width = valueToInt(args[1])
-  let height = valueToInt(args[2])
-  let density = if args.len > 3: valueToFloat(args[3]) else: 0.05
+  let seed = toInt(args[0])
+  let width = toInt(args[1])
+  let height = toInt(args[2])
+  let density = if args.len > 3: toFloat(args[3]) else: 0.05
   
   let cracks = generateCrackDetails(seed, width, height, density)
   
@@ -333,14 +310,14 @@ proc nimini_addDetail*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 5 or gDrawProc.isNil:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
   
   var chars: seq[string] = @[]
   if args[3].kind == vkArray:
     for charVal in args[3].arr:
-      chars.add(valueToString(charVal))
+      chars.add($(charVal))
   
   let style = valueToStyle(args[4])
   
@@ -361,7 +338,7 @@ proc nimini_addDetail*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_getBoxChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get a box character set by name. Args: category (string)
   ## Returns: array of characters
-  let category = if args.len > 0: valueToString(args[0]) else: "solid"
+  let category = if args.len > 0: $(args[0]) else: "solid"
   
   var chars: seq[string]
   case category
@@ -383,7 +360,7 @@ proc nimini_getBoxChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 proc nimini_getBorderCorners*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get border corner characters by style. Args: style (string)
   ## Returns: array of 4 corner characters [TL, TR, BL, BR]
-  let style = if args.len > 0: valueToString(args[0]) else: "classic"
+  let style = if args.len > 0: $(args[0]) else: "classic"
   
   var corners: array[4, string]
   case style

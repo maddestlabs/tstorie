@@ -47,69 +47,7 @@ when not declared(StorieContext):
 var gDefaultLayerRef*: ptr Layer = nil
 var gAppStateRef*: ptr AppState = nil
 var gStorieCtxRef*: ptr StorieContext = nil
-
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  else: return 0
-
-proc valueToString(v: Value): string =
-  if v.kind == vkString:
-    return v.s
-  return ""
-
-proc valueToStyle(v: Value): Style =
-  ## Convert nimini value to Style
-  if v.kind == vkMap:
-    var style = defaultStyle()  # Start with default style from theme
-    
-    # Foreground color
-    if v.map.hasKey("fg"):
-      let fgVal = v.map["fg"]
-      if fgVal.kind == vkMap:
-        # Parse RGB map (from getStyle())
-        if fgVal.map.hasKey("r") and fgVal.map.hasKey("g") and fgVal.map.hasKey("b"):
-          style.fg = Color(
-            r: uint8(valueToInt(fgVal.map["r"])),
-            g: uint8(valueToInt(fgVal.map["g"])),
-            b: uint8(valueToInt(fgVal.map["b"]))
-          )
-    
-    # Background color
-    if v.map.hasKey("bg"):
-      let bgVal = v.map["bg"]
-      if bgVal.kind == vkMap:
-        # Parse RGB map (from getStyle())
-        if bgVal.map.hasKey("r") and bgVal.map.hasKey("g") and bgVal.map.hasKey("b"):
-          style.bg = Color(
-            r: uint8(valueToInt(bgVal.map["r"])),
-            g: uint8(valueToInt(bgVal.map["g"])),
-            b: uint8(valueToInt(bgVal.map["b"]))
-          )
-    
-    # Style attributes
-    if v.map.hasKey("bold"):
-      let bVal = v.map["bold"]
-      style.bold = if bVal.kind == vkBool: bVal.b else: false
-    if v.map.hasKey("italic"):
-      let iVal = v.map["italic"]
-      style.italic = if iVal.kind == vkBool: iVal.b else: false
-    if v.map.hasKey("underline"):
-      let uVal = v.map["underline"]
-      style.underline = if uVal.kind == vkBool: uVal.b else: false
-    if v.map.hasKey("dim"):
-      let dVal = v.map["dim"]
-      style.dim = if dVal.kind == vkBool: dVal.b else: false
-    
-    return style
-  
-  # Fallback to default style
-  return defaultStyle()
+import ../src/binding_utils  # For valueToStyle, toInt, toBool, toFloat
 
 # ==============================================================================
 # NIMINI BINDINGS - FIGLET FUNCTIONS
@@ -121,7 +59,7 @@ proc figletLoadFont*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valBool(false)
   
-  let fontName = valueToString(args[0])
+  let fontName = $(args[0])
   
   # Check if font caches are initialized
   if gFigletFontsRef.isNil or gEmbeddedFigletFontsRef.isNil:
@@ -158,14 +96,14 @@ proc figletRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if gFigletFontsRef.isNil:
     return valArray(@[])
   
-  let fontName = valueToString(args[0])
+  let fontName = $(args[0])
   if not gFigletFontsRef[].hasKey(fontName):
     echo "[figletRender] Font not loaded: ", fontName
     return valArray(@[])
   
-  let text = valueToString(args[1])
+  let text = $(args[1])
   let layout = if args.len >= 3: 
-    case valueToInt(args[2])
+    case toInt(args[2])
     of 1: HorizontalFitting
     of 2: HorizontalSmushing
     else: FullWidth
@@ -219,12 +157,12 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
               else:
                 return valNil()
   
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let fontName = valueToString(args[3])
-  let text = valueToString(args[4])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let fontName = $(args[3])
+  let text = $(args[4])
   let layout = if args.len >= 6: 
-    case valueToInt(args[5])
+    case toInt(args[5])
     of 1: HorizontalFitting
     of 2: HorizontalSmushing
     else: FullWidth
@@ -237,10 +175,10 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     defaultStyle()
   
   # Get vertical direction flag (default: false/0 for horizontal)
-  let vertical = if args.len >= 8: valueToInt(args[7]) != 0 else: false
+  let vertical = if args.len >= 8: toInt(args[7]) != 0 else: false
   
   # Get letter spacing (default: 0)
-  let letterSpacing = if args.len >= 9: valueToInt(args[8]) else: 0
+  let letterSpacing = if args.len >= 9: toInt(args[8]) else: 0
   
   # Check if font is loaded
   if not gFigletFontsRef[].hasKey(fontName):

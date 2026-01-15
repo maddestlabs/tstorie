@@ -14,20 +14,15 @@
 import std/[macros, strutils]
 import runtime
 import type_converters
+import auto_pointer  # Get plugin registration from auto_pointer
 
 # Re-export types needed by generated code
 export runtime.Env, runtime.Value, runtime.valInt, runtime.valFloat, 
        runtime.valString, runtime.valBool, runtime.valNil, runtime.registerNative
 # Re-export type converters for use by modules
 export type_converters
-
-# Import plugin registration queue (defined once in auto_pointer)
-type PluginRegistration* = proc() {.nimcall.}
-when not declared(gPluginRegistrations):
-  var gPluginRegistrations* {.global.}: seq[PluginRegistration] = @[]
-when not declared(queuePluginRegistration):
-  proc queuePluginRegistration*(callback: PluginRegistration) =
-    gPluginRegistrations.add(callback)
+# Re-export plugin registration
+export auto_pointer.queuePluginRegistration, auto_pointer.PluginRegistration
 
 # ==============================================================================
 # HELPER PROCS FOR VALUE CONVERSION

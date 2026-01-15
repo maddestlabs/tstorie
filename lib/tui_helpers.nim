@@ -184,7 +184,7 @@ proc findClickedWidget*(mouseX, mouseY: int,
 
 proc drawButton*(layer: int, x, y, w, h: int, label: string,
                 isFocused: bool, isPressed: bool = false,
-                borderStyle: string = "single") =
+                borderStyle: string = "single") {.autoExpose: "tui".} =
   ## Draw a complete button widget
   let baseStyle = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
@@ -212,7 +212,7 @@ proc drawLabel*(layer: int, x, y: int, text: string, style: Style) {.autoExpose:
 
 proc drawTextBox*(layer: int, x, y, w, h: int, 
                  content: string, cursorPos: int,
-                 isFocused: bool, borderStyle: string = "single") =
+                 isFocused: bool, borderStyle: string = "single") {.autoExpose: "tui".} =
   ## Draw a text input box with cursor
   let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
@@ -242,7 +242,7 @@ proc drawTextBox*(layer: int, x, y, w, h: int,
     tuiDraw(layer, cursorX, contentY, "_", tuiGetStyle("warning"))
 
 proc drawSlider*(layer: int, x, y, w: int, value: float,
-                minVal, maxVal: float, isFocused: bool) =
+                minVal, maxVal: float, isFocused: bool) {.autoExpose: "tui".} =
   ## Draw a slider widget (horizontal)
   let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
@@ -260,7 +260,7 @@ proc drawSlider*(layer: int, x, y, w: int, value: float,
   tuiDraw(layer, x + w - valueText.len, y + 1, valueText, style)
 
 proc drawCheckBox*(layer: int, x, y: int, label: string,
-                  isChecked: bool, isFocused: bool) =
+                  isChecked: bool, isFocused: bool) {.autoExpose: "tui".} =
   ## Draw a checkbox with label
   let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
@@ -274,7 +274,7 @@ proc drawCheckBox*(layer: int, x, y: int, label: string,
   tuiDraw(layer, x + 4, y, label, tuiGetStyle("default"))
 
 proc drawPanel*(layer: int, x, y, w, h: int, title: string,
-               borderStyle: string = "single") =
+               borderStyle: string = "single") {.autoExpose: "tui".} =
   ## Draw a titled panel/frame with filled interior
   let style = tuiGetStyle("border")
   let bgStyle = tuiGetStyle("default")
@@ -300,7 +300,7 @@ proc drawPanel*(layer: int, x, y, w, h: int, title: string,
     tuiDraw(layer, titleX, y, titleText, tuiGetStyle("info"))
 
 proc drawProgressBar*(layer: int, x, y, w: int, progress: float,
-                     showPercent: bool = true) =
+                     showPercent: bool = true) {.autoExpose: "tui".} =
   ## Draw a progress bar (0.0 to 1.0)
   let style = tuiGetStyle("border")
   let fillStyle = tuiGetStyle("info")
@@ -410,7 +410,7 @@ proc handleArrowKeys*(keyCode: int, value: var float, minVal, maxVal, step: floa
 # ==============================================================================
 
 proc drawRadioButton*(layer: int, x, y: int, label: string,
-                     isSelected: bool, isFocused: bool) =
+                     isSelected: bool, isFocused: bool) {.autoExpose: "tui".} =
   ## Draw a single radio button with label
   let style = if isFocused: tuiGetStyle("info") else: tuiGetStyle("border")
   
@@ -821,8 +821,42 @@ proc calculateMaxScroll*(contentLines: int, viewportHeight: int): int =
   result = max(0, contentLines - contentHeight)
 
 # ==============================================================================
+# PLUGIN REGISTRATION
+# ==============================================================================
+
+proc initTUIHelpersModule*() {.used.} =
+  ## Initialize TUI helpers module - registers all auto-exposed functions
+  ## This is called from runtime_api.nim to ensure WASM compatibility
+  queuePluginRegistration(register_centerTextX)
+  queuePluginRegistration(register_centerTextY)
+  queuePluginRegistration(register_truncateText)
+  queuePluginRegistration(register_pointInRect)
+  queuePluginRegistration(register_drawBoxSimple)
+  queuePluginRegistration(register_drawBoxSingle)
+  queuePluginRegistration(register_drawBoxDouble)
+  queuePluginRegistration(register_drawBoxRounded)
+  queuePluginRegistration(register_fillBox)
+  queuePluginRegistration(register_drawCenteredText)
+  queuePluginRegistration(register_drawLabel)
+  queuePluginRegistration(register_drawSeparator)
+  queuePluginRegistration(register_layoutVertical)
+  queuePluginRegistration(register_layoutHorizontal)
+  queuePluginRegistration(register_layoutCentered)
+  queuePluginRegistration(register_layoutGrid)
+  queuePluginRegistration(register_drawButton)
+  queuePluginRegistration(register_drawTextBox)
+  queuePluginRegistration(register_drawSlider)
+  queuePluginRegistration(register_drawCheckBox)
+  queuePluginRegistration(register_drawPanel)
+  queuePluginRegistration(register_drawProgressBar)
+  queuePluginRegistration(register_drawRadioButton)
+
+# ==============================================================================
 # EXPORTS
 # ==============================================================================
+
+# Plugin initialization (called from tstorie.nim and runtime_api.nim)
+export initTUIHelpersModule
 
 # Export everything for use in other modules
 export drawBox, drawBoxSimple, drawBoxSingle, drawBoxDouble, drawBoxRounded, fillBox

@@ -54,101 +54,9 @@
 import ../nimini
 import ../nimini/runtime
 import ../src/types
+import ../src/binding_utils  # For valueToStyle, toInt, toBool, toFloat
 import std/[tables, strutils]
 import tui_helpers  # Import the TUI helper functions
-
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  else: return 0
-
-proc valueToFloat(v: Value): float =
-  case v.kind
-  of vkFloat: return v.f
-  of vkInt: return float(v.i)
-  else: return 0.0
-
-proc valueToString(v: Value): string =
-  if v.kind == vkString:
-    return v.s
-  return ""
-
-proc valueToBool(v: Value): bool =
-  case v.kind
-  of vkBool: return v.b
-  of vkInt: return v.i != 0
-  else: return false
-
-proc valueToStyle(v: Value): Style =
-  ## Convert nimini value to Style
-  if v.kind == vkMap:
-    var style = Style()
-    
-    # Foreground color
-    if v.map.hasKey("fg"):
-      let fgVal = v.map["fg"]
-      if fgVal.kind == vkString:
-        # Parse hex color string
-        let hexStr = fgVal.s
-        if hexStr.len >= 7 and hexStr[0] == '#':
-          let r = parseHexInt(hexStr[1..2])
-          let g = parseHexInt(hexStr[3..4])
-          let b = parseHexInt(hexStr[5..6])
-          style.fg = Color(r: uint8(r), g: uint8(g), b: uint8(b))
-      elif fgVal.kind == vkMap:
-        # Parse RGB map (from getStyle())
-        if fgVal.map.hasKey("r") and fgVal.map.hasKey("g") and fgVal.map.hasKey("b"):
-          style.fg = Color(
-            r: uint8(valueToInt(fgVal.map["r"])),
-            g: uint8(valueToInt(fgVal.map["g"])),
-            b: uint8(valueToInt(fgVal.map["b"]))
-          )
-    
-    # Background color
-    if v.map.hasKey("bg"):
-      let bgVal = v.map["bg"]
-      if bgVal.kind == vkString:
-        let hexStr = bgVal.s
-        if hexStr.len >= 7 and hexStr[0] == '#':
-          let r = parseHexInt(hexStr[1..2])
-          let g = parseHexInt(hexStr[3..4])
-          let b = parseHexInt(hexStr[5..6])
-          style.bg = Color(r: uint8(r), g: uint8(g), b: uint8(b))
-      elif bgVal.kind == vkMap:
-        # Parse RGB map (from getStyle())
-        if bgVal.map.hasKey("r") and bgVal.map.hasKey("g") and bgVal.map.hasKey("b"):
-          style.bg = Color(
-            r: uint8(valueToInt(bgVal.map["r"])),
-            g: uint8(valueToInt(bgVal.map["g"])),
-            b: uint8(valueToInt(bgVal.map["b"]))
-          )
-    
-    # Style attributes
-    if v.map.hasKey("bold"):
-      style.bold = valueToBool(v.map["bold"])
-    if v.map.hasKey("italic"):
-      style.italic = valueToBool(v.map["italic"])
-    if v.map.hasKey("underline"):
-      style.underline = valueToBool(v.map["underline"])
-    if v.map.hasKey("dim"):
-      style.dim = valueToBool(v.map["dim"])
-    
-    return style
-  
-  # Fallback
-  return Style(
-    fg: Color(r: 255'u8, g: 255'u8, b: 255'u8),
-    bg: Color(r: 0'u8, g: 0'u8, b: 0'u8),
-    bold: false,
-    italic: false,
-    underline: false,
-    dim: false
-  )
 
 # ==============================================================================
 # BOX DRAWING BINDINGS
@@ -160,13 +68,13 @@ proc nimini_drawBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 7:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
   let style = valueToStyle(args[5])
-  let boxType = valueToString(args[6])
+  let boxType = $args[6]
   
   case boxType
   of "double":
@@ -204,8 +112,8 @@ proc nimini_findClickedWidget*(env: ref Env; args: seq[Value]): Value {.nimini.}
   if args.len < 6:
     return valInt(-1)
   
-  let mouseX = valueToInt(args[0])
-  let mouseY = valueToInt(args[1])
+  let mouseX = toInt(args[0])
+  let mouseY = toInt(args[1])
   
   # Convert arrays
   var widgetX: seq[int] = @[]
@@ -215,212 +123,22 @@ proc nimini_findClickedWidget*(env: ref Env; args: seq[Value]): Value {.nimini.}
   
   if args[2].kind == vkArray:
     for v in args[2].arr:
-      widgetX.add(valueToInt(v))
+      widgetX.add(toInt(v))
   
   if args[3].kind == vkArray:
     for v in args[3].arr:
-      widgetY.add(valueToInt(v))
+      widgetY.add(toInt(v))
   
   if args[4].kind == vkArray:
     for v in args[4].arr:
-      widgetW.add(valueToInt(v))
+      widgetW.add(toInt(v))
   
   if args[5].kind == vkArray:
     for v in args[5].arr:
-      widgetH.add(valueToInt(v))
+      widgetH.add(toInt(v))
   
   let result = findClickedWidget(mouseX, mouseY, widgetX, widgetY, widgetW, widgetH)
   return valInt(result)
-
-# ==============================================================================
-# WIDGET RENDERING BINDINGS
-# ==============================================================================
-# PATTERN 4: Complex multi-step widgets → Manual wrappers
-
-proc nimini_drawButton*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawButton(layer, x, y, w, h, label, isFocused, [isPressed], [borderStyle])
-  if args.len < 7:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let label = valueToString(args[5])
-  let isFocused = valueToBool(args[6])
-  let isPressed = if args.len >= 8: valueToBool(args[7]) else: false
-  let borderStyle = if args.len >= 9: valueToString(args[8]) else: "classic"
-  
-  drawButton(layer, x, y, w, h, label, isFocused, isPressed, borderStyle)
-  return valNil()
-
-proc nimini_drawLabel*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawLabel(layer, x, y, text, style)
-  if args.len < 5:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let text = valueToString(args[3])
-  let style = valueToStyle(args[4])
-  
-  drawLabel(layer, x, y, text, style)
-  return valNil()
-
-proc nimini_drawTextBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawTextBox(layer, x, y, w, h, content, cursorPos, isFocused, [borderStyle])
-  if args.len < 8:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let content = valueToString(args[5])
-  let cursorPos = valueToInt(args[6])
-  let isFocused = valueToBool(args[7])
-  let borderStyle = if args.len >= 9: valueToString(args[8]) else: "classic"
-  
-  drawTextBox(layer, x, y, w, h, content, cursorPos, isFocused, borderStyle)
-  return valNil()
-
-proc nimini_drawSlider*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawSlider(layer, x, y, w, value, minVal, maxVal, isFocused)
-  if args.len < 8:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let value = valueToFloat(args[4])
-  let minVal = valueToFloat(args[5])
-  let maxVal = valueToFloat(args[6])
-  let isFocused = valueToBool(args[7])
-  
-  drawSlider(layer, x, y, w, value, minVal, maxVal, isFocused)
-  return valNil()
-
-proc nimini_drawCheckBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawCheckBox(layer, x, y, label, isChecked, isFocused)
-  if args.len < 6:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let label = valueToString(args[3])
-  let isChecked = valueToBool(args[4])
-  let isFocused = valueToBool(args[5])
-  
-  drawCheckBox(layer, x, y, label, isChecked, isFocused)
-  return valNil()
-
-proc nimini_drawPanel*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawPanel(layer, x, y, w, h, title, [borderStyle])
-  if args.len < 6:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let title = valueToString(args[5])
-  let borderStyle = if args.len >= 7: valueToString(args[6]) else: "classic"
-  
-  drawPanel(layer, x, y, w, h, title, borderStyle)
-  return valNil()
-
-proc nimini_drawProgressBar*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawProgressBar(layer, x, y, w, progress, [showPercent])
-  if args.len < 5:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let progress = valueToFloat(args[4])
-  let showPercent = if args.len >= 6: valueToBool(args[5]) else: true
-  
-  drawProgressBar(layer, x, y, w, progress, showPercent)
-  return valNil()
-
-proc nimini_drawSeparator*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawSeparator(layer, x, y, w, style, [ch])
-  if args.len < 5:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let style = valueToStyle(args[4])
-  let ch = if args.len >= 6: valueToString(args[5]) else: "─"
-  
-  drawSeparator(layer, x, y, w, style, ch)
-  return valNil()
-
-# ==============================================================================
-# LAYOUT HELPER BINDINGS
-# ==============================================================================
-
-proc nimini_layoutVertical*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## layoutVertical(startY, spacing, count) -> array of int
-  if args.len < 3:
-    return valArray(@[])
-  
-  let startY = valueToInt(args[0])
-  let spacing = valueToInt(args[1])
-  let count = valueToInt(args[2])
-  
-  let positions = layoutVertical(startY, spacing, count)
-  var result: seq[Value] = @[]
-  for pos in positions:
-    result.add(valInt(pos))
-  
-  return valArray(result)
-
-proc nimini_layoutHorizontal*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## layoutHorizontal(startX, spacing, count) -> array of int
-  if args.len < 3:
-    return valArray(@[])
-  
-  let startX = valueToInt(args[0])
-  let spacing = valueToInt(args[1])
-  let count = valueToInt(args[2])
-  
-  let positions = layoutHorizontal(startX, spacing, count)
-  var result: seq[Value] = @[]
-  for pos in positions:
-    result.add(valInt(pos))
-  
-  return valArray(result)
-
-proc nimini_layoutCentered*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## layoutCentered(containerX, containerY, containerW, containerH, itemW, itemH) -> {x, y}
-  if args.len < 6:
-    var emptyMap = initTable[string, Value]()
-    return valMap(emptyMap)
-  
-  let containerX = valueToInt(args[0])
-  let containerY = valueToInt(args[1])
-  let containerW = valueToInt(args[2])
-  let containerH = valueToInt(args[3])
-  let itemW = valueToInt(args[4])
-  let itemH = valueToInt(args[5])
-  
-  let pos = layoutCentered(containerX, containerY, containerW, containerH, itemW, itemH)
-  
-  var result = initTable[string, Value]()
-  result["x"] = valInt(pos.x)
-  result["y"] = valInt(pos.y)
-  
-  return valMap(result)
 
 # ==============================================================================
 # INPUT HANDLING BINDINGS
@@ -431,9 +149,9 @@ proc nimini_handleTextInput*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 3:
     return valArray(@[valInt(0), valString(""), valBool(false)])
   
-  let text = valueToString(args[0])
-  var cursorPos = valueToInt(args[1])
-  var content = valueToString(args[2])
+  let text = $args[0]
+  var cursorPos = toInt(args[1])
+  var content = $args[2]
   
   let handled = handleTextInput(text, cursorPos, content)
   
@@ -444,8 +162,8 @@ proc nimini_handleBackspace*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 2:
     return valArray(@[valInt(0), valString(""), valBool(false)])
   
-  var cursorPos = valueToInt(args[0])
-  var content = valueToString(args[1])
+  var cursorPos = toInt(args[0])
+  var content = $args[1]
   
   let handled = handleBackspace(cursorPos, content)
   
@@ -456,11 +174,11 @@ proc nimini_handleArrowKeys*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 5:
     return valArray(@[valFloat(0.0), valBool(false)])
   
-  let keyCode = valueToInt(args[0])
-  var value = valueToFloat(args[1])
-  let minVal = valueToFloat(args[2])
-  let maxVal = valueToFloat(args[3])
-  let step = valueToFloat(args[4])
+  let keyCode = toInt(args[0])
+  var value = toFloat(args[1])
+  let minVal = toFloat(args[2])
+  let maxVal = toFloat(args[3])
+  let step = toFloat(args[4])
   
   let handled = handleArrowKeys(keyCode, value, minVal, maxVal, step)
   
@@ -470,37 +188,22 @@ proc nimini_handleArrowKeys*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # RADIO BUTTON BINDINGS
 # ==============================================================================
 
-proc nimini_drawRadioButton*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## drawRadioButton(layer, x, y, label, isSelected, isFocused)
-  if args.len < 6:
-    return valNil()
-  
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let label = valueToString(args[3])
-  let isSelected = valueToBool(args[4])
-  let isFocused = valueToBool(args[5])
-  
-  drawRadioButton(layer, x, y, label, isSelected, isFocused)
-  return valNil()
-
 proc nimini_drawRadioGroup*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## drawRadioGroup(layer, x, y, options, selected, focusIndex)
   if args.len < 6:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
   
   var options: seq[string] = @[]
   if args[3].kind == vkArray:
     for v in args[3].arr:
-      options.add(valueToString(v))
+      options.add($v)
   
-  let selected = valueToInt(args[4])
-  let focusIndex = valueToInt(args[5])
+  let selected = toInt(args[4])
+  let focusIndex = toInt(args[5])
   
   drawRadioGroup(layer, x, y, options, selected, focusIndex)
   return valNil()
@@ -514,19 +217,19 @@ proc nimini_drawDropdown*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 8:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
   
   var options: seq[string] = @[]
   if args[4].kind == vkArray:
     for v in args[4].arr:
-      options.add(valueToString(v))
+      options.add($v)
   
-  let selected = valueToInt(args[5])
-  let isOpen = valueToBool(args[6])
-  let isFocused = valueToBool(args[7])
+  let selected = toInt(args[5])
+  let isOpen = toBool(args[6])
+  let isFocused = toBool(args[7])
   
   drawDropdown(layer, x, y, w, options, selected, isOpen, isFocused)
   return valNil()
@@ -540,20 +243,20 @@ proc nimini_drawList*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 9:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
   
   var items: seq[string] = @[]
   if args[5].kind == vkArray:
     for v in args[5].arr:
-      items.add(valueToString(v))
+      items.add($v)
   
-  let selected = valueToInt(args[6])
-  let scrollOffset = valueToInt(args[7])
-  let isFocused = valueToBool(args[8])
+  let selected = toInt(args[6])
+  let scrollOffset = toInt(args[7])
+  let isFocused = toBool(args[8])
   
   drawList(layer, x, y, w, h, items, selected, scrollOffset, isFocused)
   return valNil()
@@ -567,21 +270,21 @@ proc nimini_drawTextArea*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 10:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
   
   var lines: seq[string] = @[]
   if args[5].kind == vkArray:
     for v in args[5].arr:
-      lines.add(valueToString(v))
+      lines.add($v)
   
-  let cursorLine = valueToInt(args[6])
-  let cursorCol = valueToInt(args[7])
-  let scrollY = valueToInt(args[8])
-  let isFocused = valueToBool(args[9])
+  let cursorLine = toInt(args[6])
+  let cursorCol = toInt(args[7])
+  let scrollY = toInt(args[8])
+  let isFocused = toBool(args[9])
   
   drawTextArea(layer, x, y, w, h, lines, cursorLine, cursorCol, scrollY, isFocused)
   return valNil()
@@ -595,10 +298,10 @@ proc nimini_drawTooltip*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 4:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let text = valueToString(args[3])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let text = $args[3]
   
   drawTooltip(layer, x, y, text)
   return valNil()
@@ -612,17 +315,17 @@ proc nimini_drawTabBar*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 6:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
   
   var tabs: seq[string] = @[]
   if args[4].kind == vkArray:
     for v in args[4].arr:
-      tabs.add(valueToString(v))
+      tabs.add($v)
   
-  let activeTab = valueToInt(args[5])
+  let activeTab = toInt(args[5])
   
   drawTabBar(layer, x, y, w, tabs, activeTab)
   return valNil()
@@ -632,12 +335,12 @@ proc nimini_drawTabContent*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 5:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let borderStyle = if args.len >= 6: valueToString(args[5]) else: "single"
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let borderStyle = if args.len >= 6: $args[5] else: "single"
   
   drawTabContent(layer, x, y, w, h, borderStyle)
   return valNil()
@@ -652,13 +355,13 @@ proc nimini_layoutForm*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 7:
     return valArray(@[])
   
-  let startX = valueToInt(args[0])
-  let startY = valueToInt(args[1])
-  let labelWidth = valueToInt(args[2])
-  let fieldWidth = valueToInt(args[3])
-  let fieldHeight = valueToInt(args[4])
-  let spacing = valueToInt(args[5])
-  let fieldCount = valueToInt(args[6])
+  let startX = toInt(args[0])
+  let startY = toInt(args[1])
+  let labelWidth = toInt(args[2])
+  let fieldWidth = toInt(args[3])
+  let fieldHeight = toInt(args[4])
+  let spacing = toInt(args[5])
+  let fieldCount = toInt(args[6])
   
   let positions = layoutForm(startX, startY, labelWidth, fieldWidth, fieldHeight, spacing, fieldCount)
   
@@ -683,16 +386,16 @@ proc nimini_drawTextBoxWithScroll*(env: ref Env; args: seq[Value]): Value {.nimi
   if args.len < 9:
     return valInt(0)
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let content = valueToString(args[5])
-  let cursorPos = valueToInt(args[6])
-  let scrollOffset = valueToInt(args[7])
-  let isFocused = valueToBool(args[8])
-  let borderStyle = if args.len >= 10: valueToString(args[9]) else: "single"
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let content = $args[5]
+  let cursorPos = toInt(args[6])
+  let scrollOffset = toInt(args[7])
+  let isFocused = toBool(args[8])
+  let borderStyle = if args.len >= 10: $args[9] else: "single"
   
   let newScrollOffset = drawTextBoxWithScroll(layer, x, y, w, h, content, cursorPos, 
                                               scrollOffset, isFocused, borderStyle)
@@ -707,68 +410,29 @@ proc registerTUIHelperBindings*(env: ref Env) =
   ## Register all TUI helper functions with nimini
   
   # ==============================================================================
-  # PATTERN 1 & 2 & 3: Auto-exposed functions (see tui_helpers.nim)
+  # AUTO-EXPOSED FUNCTIONS (see tui_helpers.nim with {.autoExpose: "tui".})
   # ==============================================================================
-  # Simple utilities (int/string/bool)
-  register_centerTextX()
-  register_centerTextY()
-  register_truncateText()
-  register_pointInRect()
-  
-  # Style functions (Style type auto-converted)
-  register_drawBoxSimple()
-  register_drawBoxSingle()
-  register_drawBoxDouble()
-  register_drawBoxRounded()
-  register_fillBox()
-  register_drawCenteredText()
-  register_drawLabel()
-  register_drawSeparator()
-  
-  # Layout functions (seq/tuple returns auto-converted)
-  register_layoutVertical()
-  register_layoutHorizontal()
-  register_layoutCentered()
-  register_layoutGrid()
+  # These are automatically handled by auto_bindings:
+  # - Simple utilities: centerTextX, centerTextY, truncateText, pointInRect
+  # - Box drawing: drawBoxSimple, drawBoxSingle, drawBoxDouble, drawBoxRounded, fillBox
+  # - Labels: drawLabel, drawCenteredText, drawSeparator
+  # - Layout helpers: layoutVertical, layoutHorizontal, layoutCentered, layoutGrid
+  # - Simple widgets: drawButton, drawTextBox, drawSlider, drawCheckBox, 
+  #                   drawPanel, drawProgressBar, drawRadioButton
+  # 
+  # These functions are registered by initTUIHelpersModule() in tui_helpers.nim
   
   # ==============================================================================
-  # PATTERN 4: Complex widgets with multi-step logic (manual wrappers)
-  # ==============================================================================
-  # ==============================================================================
-  # PATTERN 4: Complex widgets with multi-step logic (manual wrappers)
+  # COMPLEX MANUAL WRAPPERS (kept here - not auto-exposeable)
   # ==============================================================================
   
-  # drawBox: Takes 11 string parameters for custom box characters - keep manual
+  # drawBox: Takes 11 string parameters for custom box characters
   registerNative("drawBox", nimini_drawBox,
     storieLibs = @["tui_helpers"],
     description = "Draw a box with custom characters for each part")
   
-  registerNative("drawButton", nimini_drawButton,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a button widget with border style logic")
-  
-  registerNative("drawTextBox", nimini_drawTextBox,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a text input box with cursor positioning")
-  
-  registerNative("drawSlider", nimini_drawSlider,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a horizontal slider with value normalization")
-  
-  registerNative("drawCheckBox", nimini_drawCheckBox,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a checkbox with conditional rendering")
-  
-  registerNative("drawPanel", nimini_drawPanel,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a titled panel with fill and border logic")
-  
-  registerNative("drawProgressBar", nimini_drawProgressBar,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a progress bar with fill calculation")
-  
   # ==============================================================================
-  # PATTERN 5: Var parameters (manual wrappers return modified values)
+  # VAR PARAMETERS (manual wrappers return modified values)
   # ==============================================================================
   
   registerNative("handleTextInput", nimini_handleTextInput,
@@ -784,17 +448,12 @@ proc registerTUIHelperBindings*(env: ref Env) =
     description = "Handle arrow keys - returns [value, handled]")
   
   # ==============================================================================
-  # PATTERN 6: Seq inputs (manual wrapper for array conversion control)
+  # SEQ/ARRAY INPUTS (manual wrappers for complex array handling)
   # ==============================================================================
   
   registerNative("findClickedWidget", nimini_findClickedWidget,
     storieLibs = @["tui_helpers"],
     description = "Find clicked widget from arrays - returns index or -1")
-  
-  # Radio buttons
-  registerNative("drawRadioButton", nimini_drawRadioButton,
-    storieLibs = @["tui_helpers"],
-    description = "Draw a single radio button with label")
   
   registerNative("drawRadioGroup", nimini_drawRadioGroup,
     storieLibs = @["tui_helpers"],

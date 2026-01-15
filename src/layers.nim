@@ -5,7 +5,7 @@
 ## including buffer operations, layer management, compositing, and terminal display.
 
 import types
-import std/strutils
+import std/[strutils, algorithm]
 import charwidth
 
 # ================================================================
@@ -178,17 +178,30 @@ proc resizeLayers*(state: AppState, newWidth, newHeight: int) =
     layer.buffer = newTermBuffer(newWidth, newHeight)
     layer.buffer.clearTransparent()
 
+# Hook for plugins to replace compositing logic
+type
+  CompositeHook* = proc(state: AppState)
+
+var gCompositeHook*: CompositeHook = nil
+
 proc compositeLayers*(state: AppState) =
+  # Check if a plugin has registered an enhanced compositor
+  if not gCompositeHook.isNil:
+    gCompositeHook(state)
+    return
+  
+  # Standard compositing (no plugin enhancements)
   if state.layers.len == 0:
     return
   
   # Fill buffer with theme background color first
   state.currentBuffer.clear(state.themeBackground)
   
-  for i in 0 ..< state.layers.len:
-    for j in i + 1 ..< state.layers.len:
-      if state.layers[j].z < state.layers[i].z:
-        swap(state.layers[i], state.layers[j])
+  # Sort layers by z-index (stable sort maintains insertion order for equal z values)
+  # This matches behavior of game engines like Unity, Godot, and Phaser
+  state.layers.sort(proc(a, b: Layer): int =
+    cmp(a.z, b.z)
+  )
   
   for layer in state.layers:
     if layer.visible:

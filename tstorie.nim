@@ -24,6 +24,8 @@ import lib/graph              # Graph/node system (auto-registers via pragmas)
 # import lib/graph_compiler     # Graph compiler (utility, not runtime plugin)
 import lib/animation          # Animation helpers and easing (now pure math, can be imported)
 import lib/canvas             # Canvas navigation system (now proper module!)
+import lib/canvased           # Canvas editor - visual node graph editor
+import lib/layerfx            # Layer effects plugin (parallax, depth cueing, etc.)
 
 # Explicitly initialize plugin modules to ensure registration happens
 initDungeonGenModule()
@@ -505,27 +507,7 @@ var gShowingDimensionWarning*: bool = false  # Flag to skip layer compositing
 # ================================================================
 # HELPER FUNCTIONS FOR RUNTIME API (used by both native and WASM)
 # ================================================================
-
-# Helper to convert Value to int (handles both int and float values)
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  of vkString:
-    try:
-      return parseInt(v.s)
-    except:
-      return 0
-  of vkBool: return if v.b: 1 else: 0
-  else: return 0
-
-# Helper to convert Value to bool
-proc valueToBool(v: Value): bool =
-  case v.kind
-  of vkBool: return v.b
-  of vkInt: return v.i != 0
-  of vkFloat: return v.f != 0.0
-  else: return false
+# Note: toInt, toBool, toFloat are available from nimini/runtime
 
 # ================================================================
 # PLATFORM-SPECIFIC INCLUDES
@@ -661,6 +643,9 @@ when defined(emscripten):
   
   proc emInit(width, height: int) {.exportc.} =
     globalState = newAppState(width, height)
+    
+    # Initialize layer effects plugin
+    initLayerFxPlugin()
     
     # URL parameters are parsed in JavaScript (parseAndStoreUrlParams in index.html)
     # and stored before this function is called
@@ -1097,6 +1082,9 @@ when defined(emscripten):
               if globalState.layers.len > 0:
                 initCanvasModule(addr globalState, addr storieCtx.sectionMgr, addr storieCtx.styleSheet)
                 registerCanvasBindings(addr globalState.layers[0].buffer, addr globalState, addr storieCtx.styleSheet)
+                registerCanvasEditorBindings()
+                # Register layer effects bindings
+                registerLayerFxBindings(storieCtx.niminiContext.env)
             except:
               discard
         
@@ -1313,6 +1301,9 @@ proc main() =
     enableKeyboardProtocol()
     
     setupSignalHandlers(proc(sig: cint) {.noconv.} = globalRunning = false)
+    
+    # Initialize plugins before calling setup
+    initLayerFxPlugin()
     
     callOnSetup(state)
     

@@ -20,7 +20,7 @@
 ##
 ## All ~30 functions use manual wrappers with this pattern:
 ##   proc nimini_editorXxx(env, args): Value =
-##     let editorId = valueToString(args[0])  # Get editor ID
+##     let editorId = $(args[0])  # Get editor ID
 ##     gEditorStates[editorId].nativeMethod()  # Lookup + call
 
 import ../nimini
@@ -36,28 +36,11 @@ when not declared(Style):
 # HELPER FUNCTIONS
 # ==============================================================================
 
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  else: return 0
-
-proc valueToBool(v: Value): bool =
-  case v.kind
-  of vkBool: return v.b
-  of vkInt: return v.i != 0
-  else: return false
-
-proc valueToString(v: Value): string =
-  if v.kind == vkString:
-    return v.s
-  return ""
-
 proc valueToStringSeq(v: Value): seq[string] =
   if v.kind == vkArray:
     result = @[]
     for item in v.arr:
-      result.add(valueToString(item))
+      result.add($item)
   else:
     result = @[""]
 
@@ -94,7 +77,7 @@ proc nimini_newEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len > 0:
     if args[0].kind == vkString:
       # Single string - create from text
-      state = newEditorState(valueToString(args[0]))
+      state = newEditorState($(args[0]))
     elif args[0].kind == vkArray:
       # Array of strings - create from lines
       state = newEditorState(valueToStringSeq(args[0]))
@@ -116,7 +99,7 @@ proc nimini_editorGetText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valString("")
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if state.isNil:
     return valString("")
@@ -128,7 +111,7 @@ proc nimini_editorGetLines*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valArray(@[])
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if state.isNil:
     return valArray(@[])
@@ -145,8 +128,8 @@ proc nimini_editorGetLine*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 2:
     return valString("")
   
-  let editorId = valueToString(args[0])
-  let lineIdx = valueToInt(args[1])
+  let editorId = $(args[0])
+  let lineIdx = toInt(args[1])
   let state = getEditorState(editorId)
   if state.isNil:
     return valString("")
@@ -158,7 +141,7 @@ proc nimini_editorLineCount*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valInt(0)
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if state.isNil:
     return valInt(0)
@@ -170,7 +153,7 @@ proc nimini_editorIsModified*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   if args.len < 1:
     return valBool(false)
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if state.isNil:
     return valBool(false)
@@ -187,7 +170,7 @@ proc nimini_editorGetCursor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if state.isNil:
     return valNil()
@@ -202,9 +185,9 @@ proc nimini_editorSetCursor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 3:
     return valNil()
   
-  let editorId = valueToString(args[0])
-  let line = valueToInt(args[1])
-  let col = valueToInt(args[2])
+  let editorId = $(args[0])
+  let line = toInt(args[1])
+  let col = toInt(args[2])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursor(line, col)
@@ -217,7 +200,7 @@ proc nimini_editorGetScroll*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if state.isNil:
     return valNil()
@@ -236,8 +219,8 @@ proc nimini_editorInsertText*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   if args.len < 2:
     return valNil()
   
-  let editorId = valueToString(args[0])
-  let text = valueToString(args[1])
+  let editorId = $(args[0])
+  let text = $(args[1])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.insertTextAtCursor(text)
@@ -249,8 +232,8 @@ proc nimini_editorInsertChar*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   if args.len < 2:
     return valNil()
   
-  let editorId = valueToString(args[0])
-  let text = valueToString(args[1])
+  let editorId = $(args[0])
+  let text = $(args[1])
   let state = getEditorState(editorId)
   if not state.isNil and text.len > 0:
     state.insertCharAtCursor(text[0])
@@ -262,7 +245,7 @@ proc nimini_editorBackspace*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.backspaceAtCursor()
@@ -274,7 +257,7 @@ proc nimini_editorDelete*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.deleteAtCursor()
@@ -286,7 +269,7 @@ proc nimini_editorInsertNewline*(env: ref Env; args: seq[Value]): Value {.nimini
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.insertNewlineAtCursor()
@@ -298,8 +281,8 @@ proc nimini_editorInsertTab*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
-  let useSoftTabs = if args.len > 1: valueToBool(args[1]) else: true
+  let editorId = $(args[0])
+  let useSoftTabs = if args.len > 1: toBool(args[1]) else: true
   let state = getEditorState(editorId)
   if not state.isNil:
     state.insertTabAtCursor(useSoftTabs)
@@ -315,9 +298,9 @@ proc nimini_editorMoveCursor*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   if args.len < 3:
     return valNil()
   
-  let editorId = valueToString(args[0])
-  let deltaLine = valueToInt(args[1])
-  let deltaCol = valueToInt(args[2])
+  let editorId = $(args[0])
+  let deltaLine = toInt(args[1])
+  let deltaCol = toInt(args[2])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorRelative(deltaLine, deltaCol)
@@ -329,7 +312,7 @@ proc nimini_editorMoveUp*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorUp()
@@ -341,7 +324,7 @@ proc nimini_editorMoveDown*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorDown()
@@ -353,7 +336,7 @@ proc nimini_editorMoveLeft*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorLeft()
@@ -365,7 +348,7 @@ proc nimini_editorMoveRight*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorRight()
@@ -377,7 +360,7 @@ proc nimini_editorMoveHome*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorToLineStart()
@@ -389,7 +372,7 @@ proc nimini_editorMoveEnd*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorToLineEnd()
@@ -401,7 +384,7 @@ proc nimini_editorMoveBufferStart*(env: ref Env; args: seq[Value]): Value {.nimi
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorToBufferStart()
@@ -413,7 +396,7 @@ proc nimini_editorMoveBufferEnd*(env: ref Env; args: seq[Value]): Value {.nimini
   if args.len < 1:
     return valNil()
   
-  let editorId = valueToString(args[0])
+  let editorId = $(args[0])
   let state = getEditorState(editorId)
   if not state.isNil:
     state.moveCursorToBufferEnd()
@@ -430,12 +413,12 @@ proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 6:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let editorId = valueToString(args[5])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let editorId = $(args[5])
   
   let state = getEditorState(editorId)
   if state.isNil:
@@ -443,20 +426,20 @@ proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   # Parse optional selection parameters (args 7-11)
   if args.len >= 12:
-    let hasSelection = valueToBool(args[7])
+    let hasSelection = toBool(args[7])
     if hasSelection:
       state.selection.active = true
-      state.selection.start.line = valueToInt(args[8])
-      state.selection.start.col = valueToInt(args[9])
-      state.selection.`end`.line = valueToInt(args[10])
-      state.selection.`end`.col = valueToInt(args[11])
+      state.selection.start.line = toInt(args[8])
+      state.selection.start.col = toInt(args[9])
+      state.selection.`end`.line = toInt(args[10])
+      state.selection.`end`.col = toInt(args[11])
     else:
       state.selection.active = false
   else:
     state.selection.active = false
   
   # Create config
-  let showLineNumbers = if args.len > 6: valueToBool(args[6]) else: true
+  let showLineNumbers = if args.len > 6: toBool(args[6]) else: true
   let config = EditorConfig(
     showLineNumbers: showLineNumbers,
     lineNumberWidth: 5,
@@ -479,13 +462,13 @@ proc nimini_drawMinimap*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 7:
     return valNil()
   
-  let layer = valueToInt(args[0])
-  let x = valueToInt(args[1])
-  let y = valueToInt(args[2])
-  let w = valueToInt(args[3])
-  let h = valueToInt(args[4])
-  let editorId = valueToString(args[5])
-  let viewportHeight = valueToInt(args[6])
+  let layer = toInt(args[0])
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let editorId = $(args[5])
+  let viewportHeight = toInt(args[6])
   
   let state = getEditorState(editorId)
   if state.isNil:
@@ -505,15 +488,15 @@ proc nimini_editorHandleKey*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len < 4:
     return valBool(false)
   
-  let editorId = valueToString(args[0])
-  let keyCode = valueToInt(args[1])
-  let key = valueToString(args[2])
+  let editorId = $(args[0])
+  let keyCode = toInt(args[1])
+  let key = $(args[2])
   
   # Parse mods array
   var mods: seq[string] = @[]
   if args[3].kind == vkArray:
     for modVal in args[3].arr:
-      mods.add(valueToString(modVal))
+      mods.add($(modVal))
   
   let state = getEditorState(editorId)
   if state.isNil:
@@ -533,14 +516,14 @@ proc nimini_editorHandleClick*(env: ref Env; args: seq[Value]): Value {.nimini.}
   if args.len < 8:
     return valBool(false)
   
-  let editorId = valueToString(args[0])
-  let mouseX = valueToInt(args[1])
-  let mouseY = valueToInt(args[2])
-  let editorX = valueToInt(args[3])
-  let editorY = valueToInt(args[4])
-  let editorW = valueToInt(args[5])
-  let editorH = valueToInt(args[6])
-  let showLineNumbers = valueToBool(args[7])
+  let editorId = $(args[0])
+  let mouseX = toInt(args[1])
+  let mouseY = toInt(args[2])
+  let editorX = toInt(args[3])
+  let editorY = toInt(args[4])
+  let editorW = toInt(args[5])
+  let editorH = toInt(args[6])
+  let showLineNumbers = toBool(args[7])
   
   let state = getEditorState(editorId)
   if state.isNil:
@@ -566,14 +549,14 @@ proc nimini_editorHandleMinimapClick*(env: ref Env; args: seq[Value]): Value {.n
   if args.len < 8:
     return valBool(false)
   
-  let editorId = valueToString(args[0])
-  let mouseX = valueToInt(args[1])
-  let mouseY = valueToInt(args[2])
-  let editorX = valueToInt(args[3])
-  let editorY = valueToInt(args[4])
-  let editorW = valueToInt(args[5])
-  let editorH = valueToInt(args[6])
-  let showLineNumbers = valueToBool(args[7])
+  let editorId = $(args[0])
+  let mouseX = toInt(args[1])
+  let mouseY = toInt(args[2])
+  let editorX = toInt(args[3])
+  let editorY = toInt(args[4])
+  let editorW = toInt(args[5])
+  let editorH = toInt(args[6])
+  let showLineNumbers = toBool(args[7])
   
   let state = getEditorState(editorId)
   if state.isNil:

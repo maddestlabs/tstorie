@@ -194,13 +194,6 @@ proc getCurrentSectionCodeBlocks*(sm: SectionManager, language: string = ""): se
 import ../nimini
 import tables
 
-# Helper to convert Value to int (handles both int and float values)
-proc valueToInt(v: Value): int =
-  case v.kind
-  of vkInt: return v.i
-  of vkFloat: return int(v.f)
-  else: return 0
-
 # Global reference to the section manager (set by registerSectionManagerBindings)
 var gSectionMgr*: ptr SectionManager
 
@@ -307,7 +300,7 @@ proc nimini_createSection*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   let id = args[0].s
   let title = args[1].s
-  let level = if args.len > 2: valueToInt(args[2]) else: 1
+  let level = if args.len > 2: toInt(args[2]) else: 1
   
   return valBool(gSectionMgr[].createSection(id, title, level))
 
@@ -348,7 +341,7 @@ proc nimini_setScrollY*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if gSectionMgr.isNil or args.len == 0:
     return valNil()
   
-  gSectionMgr[].setScrollY(valueToInt(args[0]))
+  gSectionMgr[].setScrollY(toInt(args[0]))
   return valNil()
 
 proc nimini_getScrollY*(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -375,7 +368,7 @@ proc nimini_getSectionCodeBlocks*(env: ref Env; args: seq[Value]): Value {.nimin
   if gSectionMgr.isNil or args.len == 0:
     return valArray(@[])
   
-  let sectionIndex = valueToInt(args[0])
+  let sectionIndex = toInt(args[0])
   let language = if args.len > 1 and args[1].kind == vkString: args[1].s else: ""
   
   let codeBlocks = gSectionMgr[].getSectionCodeBlocks(sectionIndex, language)
@@ -396,9 +389,9 @@ proc nimini_getCodeBlock*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if gSectionMgr.isNil or args.len < 2:
     return valNil()
   
-  let sectionIndex = valueToInt(args[0])
+  let sectionIndex = toInt(args[0])
   let language = args[1].s
-  let blockIndex = if args.len > 2: valueToInt(args[2]) else: 0
+  let blockIndex = if args.len > 2: toInt(args[2]) else: 0
   
   let codeBlocks = gSectionMgr[].getSectionCodeBlocks(sectionIndex, language)
   
@@ -439,9 +432,9 @@ proc nimini_getCodeBlockText*(env: ref Env; args: seq[Value]): Value {.nimini.} 
   if gSectionMgr.isNil or args.len < 2:
     return valString("")
   
-  let sectionIndex = valueToInt(args[0])
+  let sectionIndex = toInt(args[0])
   let language = args[1].s
-  let blockIndex = if args.len > 2: valueToInt(args[2]) else: 0
+  let blockIndex = if args.len > 2: toInt(args[2]) else: 0
   
   let codeBlocks = gSectionMgr[].getSectionCodeBlocks(sectionIndex, language)
   

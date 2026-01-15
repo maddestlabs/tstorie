@@ -25,7 +25,7 @@ function getShaderConfig() {
             uniform float focusRadius;
             uniform float blurRadius;
             uniform float falloffPower;
-            uniform int sampleCount;
+            uniform float sampleCount;
             
             varying vec2 vUv;
             
@@ -54,12 +54,12 @@ function getShaderConfig() {
                 float totalWeight = 0.0;
                 
                 // Sample patterns based on sampleCount uniform
-                if (sampleCount == 1) {
+                if (sampleCount == 1.0) {
                     // Single sample (no blur)
                     color = texture2D(contentTexture, uv);
                     totalWeight = 1.0;
                     
-                } else if (sampleCount == 5) {
+                } else if (sampleCount == 5.0) {
                     // 5 samples: center + 4 cardinal directions (cross pattern)
                     color += texture2D(contentTexture, uv);
                     totalWeight += 1.0;
@@ -71,7 +71,7 @@ function getShaderConfig() {
                         totalWeight += 1.0;
                     }
                     
-                } else if (sampleCount == 9) {
+                } else if (sampleCount == 9.0) {
                     // 9 samples: 3x3 box pattern
                     for (float x = -1.0; x <= 1.0; x += 1.0) {
                         for (float y = -1.0; y <= 1.0; y += 1.0) {
@@ -81,7 +81,7 @@ function getShaderConfig() {
                         }
                     }
                     
-                } else if (sampleCount == 13) {
+                } else if (sampleCount == 13.0) {
                     // 13 samples: center + two rings (cross + diagonals)
                     color += texture2D(contentTexture, uv);
                     totalWeight += 1.0;
@@ -131,7 +131,7 @@ function getShaderConfig() {
             falloffPower: 1.5,           // How quickly blur increases (1.0 = linear, 2.0 = quadratic)
             
             // Performance control
-            sampleCount: 5               // Number of samples: 1 (none), 5 (fast), 9 (balanced), 13 (quality)
+            sampleCount: 5.0             // Number of samples: 1 (none), 5 (fast), 9 (balanced), 13 (quality)
         }
     };
 }

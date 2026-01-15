@@ -251,6 +251,7 @@ proc toFloat*(v: Value): float =
   of vkInt: float(v.i)
   of vkFloat: v.f
   of vkRand: 0.0  # Can't convert RNG to float
+  of vkNil: 0.0   # Return 0.0 for nil (common pattern in bindings)
   of vkString:
     try:
       parseFloat(v.s)
@@ -269,6 +270,7 @@ proc toInt*(v: Value): int =
   of vkInt: v.i
   of vkFloat: int(v.f)
   of vkRand: 0  # Can't convert RNG to int
+  of vkNil: 0   # Return 0 for nil (common pattern in bindings)
   of vkString:
     try:
       parseInt(v.s)

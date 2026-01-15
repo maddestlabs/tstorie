@@ -58,8 +58,9 @@
             width: 100% !important;
             height: 100% !important;
             display: block;
-            margin: 0;
-            padding: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0;
             background: #001111;
             outline: none;
             image-rendering: pixelated;
@@ -1545,7 +1546,7 @@
                 // Expose globally for PNG export
                 window.terminalCanvas = terminalCanvas;
                 
-                // Get actual rendered dimensions
+                // Get actual rendered dimensions from terminal
                 const width = terminalCanvas.width || 800;
                 const height = terminalCanvas.height || 600;
                 
@@ -1554,14 +1555,19 @@
                 // Keep terminal rendering to its original canvas
                 // We'll sample from it each frame
                 
-                // Create new WebGL canvas for shader output
+                // Create new WebGL canvas for shader output - fill viewport to eliminate gaps
                 const webglCanvas = document.createElement('canvas');
                 webglCanvas.id = 'terminal-webgl';
-                webglCanvas.width = width;
-                webglCanvas.height = height;
+                const dpr = window.devicePixelRatio || 1;
+                webglCanvas.width = window.innerWidth * dpr;
+                webglCanvas.height = window.innerHeight * dpr;
                 webglCanvas.className = terminalCanvas.className;
-                webglCanvas.style.cssText = terminalCanvas.style.cssText;
-                webglCanvas.style.outline = 'none';  // Ensure outline is disabled
+                webglCanvas.style.position = 'absolute';
+                webglCanvas.style.top = '0';
+                webglCanvas.style.left = '0';
+                webglCanvas.style.width = '100%';
+                webglCanvas.style.height = '100%';
+                webglCanvas.style.outline = 'none';
                 webglCanvas.tabIndex = terminalCanvas.tabIndex || 0;
                 
                 // Hide terminal canvas but keep it rendering
@@ -1578,21 +1584,17 @@
                     });
                 });
                 
-                // Function to sync WebGL canvas dimensions from terminal canvas
+                // Function to sync WebGL canvas dimensions - use viewport not terminal canvas
                 function syncCanvasDimensions() {
-                    const newWidth = terminalCanvas.width;
-                    const newHeight = terminalCanvas.height;
-                    const newStyleWidth = terminalCanvas.style.width;
-                    const newStyleHeight = terminalCanvas.style.height;
+                    const dpr = window.devicePixelRatio || 1;
+                    const newWidth = window.innerWidth * dpr;
+                    const newHeight = window.innerHeight * dpr;
                     
-                    // Always sync both buffer size and style dimensions together
-                    if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight ||
-                        webglCanvas.style.width !== newStyleWidth || webglCanvas.style.height !== newStyleHeight) {
+                    // Only resize if dimensions actually changed
+                    if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight) {
                         webglCanvas.width = newWidth;
                         webglCanvas.height = newHeight;
-                        webglCanvas.style.width = newStyleWidth;
-                        webglCanvas.style.height = newStyleHeight;
-                        console.log('Synced shader canvas size:', newWidth, 'x', newHeight, 'style:', newStyleWidth, 'x', newStyleHeight);
+                        console.log('Resized shader canvas to viewport:', newWidth, 'x', newHeight);
                         
                         // Force viewport update on next render
                         if (shaderSystem && shaderSystem.gl) {
@@ -1601,23 +1603,9 @@
                     }
                 }
                 
-                // Watch for terminal canvas size changes and sync to WebGL canvas
-                const resizeObserver = new ResizeObserver(entries => {
-                    for (const entry of entries) {
-                        if (entry.target === terminalCanvas) {
-                            // Use requestAnimationFrame to ensure terminal canvas properties are updated
-                            requestAnimationFrame(syncCanvasDimensions);
-                        }
-                    }
-                });
-                resizeObserver.observe(terminalCanvas);
-                
-                // Also listen to window resize to catch any missed updates
+                // Watch for window resize events
                 window.addEventListener('resize', () => {
-                    // Double-delay to ensure terminal has processed the resize
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(syncCanvasDimensions);
-                    });
+                    requestAnimationFrame(syncCanvasDimensions);
                 });
                 
                 // Update canvas reference for shader rendering
