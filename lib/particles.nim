@@ -34,6 +34,7 @@ when not declared(Color):
   import ../src/types
   import ../src/layers
 import graph  # Import the unified node graph system
+import terminal_shaders  # Import shader system for rendering
 
 # ================================================================
 # TYPES
@@ -47,12 +48,6 @@ type
     char*: string          # Display character
     color*: Color          # Display color
     age*: float            # Age of this segment (for fading)
-  
-  ParticleDrawMode* = enum
-    pdmReplace,      ## Replace entire cell (char + all colors) - default
-    pdmBackground,   ## Change background only, preserve char + foreground
-    pdmForeground,   ## Change foreground only, preserve char + background
-    pdmCharacter     ## Change character only, preserve all colors
   
   CollisionResponse* = enum
     crNone,        ## Pass through cells (no collision)
@@ -154,10 +149,10 @@ type
     trailFade*: bool          # Whether trail fades with age
     trailChars*: seq[string]  # Character pool for trail segments
     
-    # Rendering
+    # Rendering (SHADER-BASED)
     fadeOut*: bool            # Fade alpha based on life
     colorInterpolation*: bool # Interpolate from colorMin to colorMax over lifetime
-    drawMode*: ParticleDrawMode  # How particles affect cells
+    shader*: CellShader       # How to render particles to cells
     layerTarget*: ptr Layer   # Target layer for rendering
     backgroundColor*: Color   # Background color for particles (theme-aware)
     
@@ -255,7 +250,7 @@ proc initParticleSystem*(maxParticles: int = 1000): ParticleSystem =
     # Default rendering
     fadeOut: true,
     colorInterpolation: false,
-    drawMode: pdmReplace,  # Default to full cell replacement
+    shader: nil,  # Will be set to replaceShader() on first render
     layerTarget: nil,
     backgroundColor: rgb(0, 0, 0),  # Default to black
     
@@ -654,176 +649,18 @@ proc applyColorField*(ps: ParticleSystem, buffer: var TermBuffer) =
 # ================================================================
 
 proc render*(ps: ParticleSystem, layer: ptr Layer) =
-  ## Render all active particles to a layer (Phase 3: supports effect modes/flags)
-  if layer.isNil:
+  ## Render all active particles to a layer using shaders
+  
+  # Lazy initialization of default shader (avoids WASM closure issues at module init)
+  if ps.shader.isNil:
+    ps.shader = replaceShader()
+  
+  if layer.isNil or ps.shader.isNil:
     return
   
   var buf = layer.buffer.addr
   
-  # NEW Phase 3: Apply spatial effects first (if enabled)
-  if ps.effectMode in {pemSpatialField, pemHybrid}:
-    if ps.effectFlags.displace:
-      ps.applyDisplacementField(buf[])
-    
-    if ps.effectFlags.modulateColor:
-      ps.applyColorField(buf[])
-  
-  # Render particles (if mode includes them)
-  if ps.effectMode in {pemParticles, pemHybrid}:
-    for i in 0 ..< ps.maxParticles:
-      if not ps.particles[i].active:
-        continue
-      
-      # Render trail first (so particle appears on top)
-      if ps.trailEnabled and ps.particles[i].trail.len > 0:
-        for j in countdown(ps.particles[i].trail.len - 1, 0):
-          let segment = ps.particles[i].trail[j]
-          let ix = int(segment.x)
-          let iy = int(segment.y)
-          
-          # Bounds check
-          if ix < 0 or ix >= buf.width or iy < 0 or iy >= buf.height:
-            continue
-          
-          # Calculate fade based on segment position and age
-          var color = segment.color
-          if ps.trailFade:
-            # Fade based on position in trail (further = dimmer)
-            let positionFade = 1.0 - (float(j) / float(ps.particles[i].trail.len))
-            color.r = uint8(float(color.r) * positionFade)
-            color.g = uint8(float(color.g) * positionFade)
-            color.b = uint8(float(color.b) * positionFade)
-          
-          # Render trail segment based on draw mode
-          case ps.drawMode
-          of pdmReplace:
-            let style = Style(fg: color, bg: ps.backgroundColor, bold: false, underline: false, italic: false, dim: false)
-            buf[].write(ix, iy, segment.char, style)
-          
-          of pdmBackground:
-            let existingCell = buf[].getCell(ix, iy)
-            let style = Style(
-              fg: existingCell.style.fg,
-              bg: color,
-              bold: existingCell.style.bold,
-              underline: existingCell.style.underline,
-              italic: existingCell.style.italic,
-              dim: existingCell.style.dim
-            )
-            # If cell is transparent (empty), use space so background color shows
-            let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
-            buf[].write(ix, iy, ch, style)
-          
-          of pdmForeground:
-            let existingCell = buf[].getCell(ix, iy)
-            let style = Style(
-              fg: color,
-              bg: existingCell.style.bg,
-              bold: existingCell.style.bold,
-              underline: existingCell.style.underline,
-              italic: existingCell.style.italic,
-              dim: existingCell.style.dim
-            )
-            buf[].write(ix, iy, existingCell.ch, style)
-          
-          of pdmCharacter:
-            let existingCell = buf[].getCell(ix, iy)
-            buf[].write(ix, iy, segment.char, existingCell.style)
-      
-      # Render main particle
-      let ix = int(ps.particles[i].x)
-      let iy = int(ps.particles[i].y)
-    
-      # Bounds check
-      if ix < 0 or ix >= buf.width or iy < 0 or iy >= buf.height:
-        continue
-      
-      # NEW Phase 3: Evaluate color graph if available
-      var color = ps.particles[i].color
-      if not ps.colorGraph.isNil:
-        ps.particleContext.custom["px"] = ps.particles[i].x
-        ps.particleContext.custom["py"] = ps.particles[i].y
-        ps.particleContext.custom["pvx"] = ps.particles[i].vx
-        ps.particleContext.custom["pvy"] = ps.particles[i].vy
-        let age = ps.particles[i].maxLife - ps.particles[i].life
-        ps.particleContext.custom["page"] = age
-        ps.particleContext.custom["plife"] = ps.particles[i].life
-        ps.particleContext.custom["plifeFraction"] = age / ps.particles[i].maxLife
-        
-        let outputs = ps.colorGraph.evaluate(ps.particleContext)
-        if outputs.len > 0 and outputs[0].domain == edVisual:
-          color = Color(
-            r: outputs[0].visualColor.r,
-            g: outputs[0].visualColor.g,
-            b: outputs[0].visualColor.b
-          )
-      else:
-        # LEGACY: Apply color interpolation if enabled
-        if ps.colorInterpolation:
-          let t = 1.0 - (ps.particles[i].life / ps.particles[i].maxLife)  # 0 at birth, 1 at death
-          # Lerp from spawnColor (colorMin) to colorMax
-          color.r = uint8(float(ps.particles[i].spawnColor.r) * (1.0 - t) + float(ps.colorMax.r) * t)
-          color.g = uint8(float(ps.particles[i].spawnColor.g) * (1.0 - t) + float(ps.colorMax.g) * t)
-          color.b = uint8(float(ps.particles[i].spawnColor.b) * (1.0 - t) + float(ps.colorMax.b) * t)
-      
-      # Apply fade out if enabled (both graph and legacy modes)
-      if ps.fadeOut:
-        let alpha = ps.particles[i].life / ps.particles[i].maxLife
-        color.r = uint8(float(color.r) * alpha)
-        color.g = uint8(float(color.g) * alpha)
-        color.b = uint8(float(color.b) * alpha)
-      
-      # NEW Phase 3: Evaluate character graph if available
-      var particleChar = ps.particles[i].char
-      if not ps.characterGraph.isNil:
-        let outputs = ps.characterGraph.evaluate(ps.particleContext)
-        if outputs.len > 0:
-          let idx = clamp(int(outputs[0].controlValue), 0, ps.chars.len - 1)
-          if ps.chars.len > 0:
-            particleChar = ps.chars[idx]
-      
-      # Render based on draw mode
-      case ps.drawMode
-      of pdmReplace:
-        # Replace entire cell (default behavior)
-        let style = Style(fg: color, bg: ps.backgroundColor, bold: false, underline: false, italic: false, dim: false)
-        buf[].write(ix, iy, particleChar, style)
-      
-      of pdmBackground:
-        # Change background only, preserve char + foreground
-        let existingCell = buf[].getCell(ix, iy)
-        let style = Style(
-          fg: existingCell.style.fg,
-          bg: color,
-          bold: existingCell.style.bold,
-          underline: existingCell.style.underline,
-          italic: existingCell.style.italic,
-          dim: existingCell.style.dim
-        )
-        # If cell is transparent (empty), use space so background color shows
-        let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
-        buf[].write(ix, iy, ch, style)
-      
-      of pdmForeground:
-        # Change foreground only, preserve char + background
-        let existingCell = buf[].getCell(ix, iy)
-        let style = Style(
-          fg: color,
-          bg: existingCell.style.bg,
-          bold: existingCell.style.bold,
-          underline: existingCell.style.underline,
-          italic: existingCell.style.italic,
-          dim: existingCell.style.dim
-        )
-        buf[].write(ix, iy, existingCell.ch, style)
-      
-      of pdmCharacter:
-        # Change character only, preserve all colors
-        let existingCell = buf[].getCell(ix, iy)
-        buf[].write(ix, iy, particleChar, existingCell.style)
-
-proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
-  ## Render all active particles directly to a buffer
+  # Render particles using shader
   for i in 0 ..< ps.maxParticles:
     if not ps.particles[i].active:
       continue
@@ -836,10 +673,10 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
         let iy = int(segment.y)
         
         # Bounds check
-        if ix < 0 or ix >= buffer.width or iy < 0 or iy >= buffer.height:
+        if ix < 0 or ix >= buf.width or iy < 0 or iy >= buf.height:
           continue
         
-        # Calculate fade based on segment position
+        # Calculate fade based on segment position and age
         var color = segment.color
         if ps.trailFade:
           let positionFade = 1.0 - (float(j) / float(ps.particles[i].trail.len))
@@ -847,41 +684,144 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
           color.g = uint8(float(color.g) * positionFade)
           color.b = uint8(float(color.b) * positionFade)
         
-        # Render trail segment based on draw mode
-        case ps.drawMode
-        of pdmReplace:
-          let style = Style(fg: color, bg: ps.backgroundColor, bold: false, underline: false, italic: false, dim: false)
-          buffer.write(ix, iy, segment.char, style)
+        # Apply shader to trail segment
+        let ctx = ShaderContext(
+          cellX: ix,
+          cellY: iy,
+          time: ps.frame,
+          particle: ParticleData(
+            x: segment.x,
+            y: segment.y,
+            vx: 0.0,
+            vy: 0.0,
+            life: 0.0,
+            maxLife: 1.0,
+            color: color,
+            char: segment.char,
+            age: 1.0
+          ),
+          hasParticle: true,
+          backgroundColor: ps.backgroundColor
+        )
         
-        of pdmBackground:
-          let existingCell = buffer.getCell(ix, iy)
-          let style = Style(
-            fg: existingCell.style.fg,
-            bg: color,
-            bold: existingCell.style.bold,
-            underline: existingCell.style.underline,
-            italic: existingCell.style.italic,
-            dim: existingCell.style.dim
-          )
-          # If cell is transparent (empty), use space so background color shows
-          let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
-          buffer.write(ix, iy, ch, style)
+        if not ps.shader.isNil:
+          let cellTuple = buf[].getCell(ix, iy)
+          let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
+          let shaderProc = ps.shader
+          let outCell = shaderProc(inCell, ctx)
+          buf[].write(ix, iy, outCell.ch, outCell.style)
+    
+    # Render main particle
+    let ix = int(ps.particles[i].x)
+    let iy = int(ps.particles[i].y)
+  
+    # Bounds check
+    if ix < 0 or ix >= buf.width or iy < 0 or iy >= buf.height:
+      continue
+    
+    # Calculate particle color (with interpolation and fade)
+    var color = ps.particles[i].color
+    
+    # Apply color interpolation if enabled
+    if ps.colorInterpolation:
+      let t = 1.0 - (ps.particles[i].life / ps.particles[i].maxLife)
+      color.r = uint8(float(ps.particles[i].spawnColor.r) * (1.0 - t) + float(ps.colorMax.r) * t)
+      color.g = uint8(float(ps.particles[i].spawnColor.g) * (1.0 - t) + float(ps.colorMax.g) * t)
+      color.b = uint8(float(ps.particles[i].spawnColor.b) * (1.0 - t) + float(ps.colorMax.b) * t)
+    
+    # Apply fade out if enabled
+    if ps.fadeOut:
+      let alpha = ps.particles[i].life / ps.particles[i].maxLife
+      color.r = uint8(float(color.r) * alpha)
+      color.g = uint8(float(color.g) * alpha)
+      color.b = uint8(float(color.b) * alpha)
+    
+    # Calculate normalized age
+    let age = 1.0 - (ps.particles[i].life / ps.particles[i].maxLife)
+    
+    # Apply shader
+    let ctx = ShaderContext(
+      cellX: ix,
+      cellY: iy,
+      time: ps.frame,
+      particle: ParticleData(
+        x: ps.particles[i].x,
+        y: ps.particles[i].y,
+        vx: ps.particles[i].vx,
+        vy: ps.particles[i].vy,
+        life: ps.particles[i].life,
+        maxLife: ps.particles[i].maxLife,
+        color: color,
+        char: ps.particles[i].char,
+        age: age
+      ),
+      hasParticle: true,
+      backgroundColor: ps.backgroundColor
+    )
+    
+    if not ps.shader.isNil:
+      let cellTuple = buf[].getCell(ix, iy)
+      let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
+      let shaderProc = ps.shader
+      let outCell = shaderProc(inCell, ctx)
+      buf[].write(ix, iy, outCell.ch, outCell.style)
+
+proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
+  ## Render all active particles directly to a buffer using shaders
+  
+  # Lazy initialization of default shader (avoids WASM closure issues at module init)
+  if ps.shader.isNil:
+    ps.shader = replaceShader()
+  
+  if ps.shader.isNil:
+    return
+  
+  for i in 0 ..< ps.maxParticles:
+    if not ps.particles[i].active:
+      continue
+    
+    # Render trail first
+    if ps.trailEnabled and ps.particles[i].trail.len > 0:
+      for j in countdown(ps.particles[i].trail.len - 1, 0):
+        let segment = ps.particles[i].trail[j]
+        let ix = int(segment.x)
+        let iy = int(segment.y)
         
-        of pdmForeground:
-          let existingCell = buffer.getCell(ix, iy)
-          let style = Style(
-            fg: color,
-            bg: existingCell.style.bg,
-            bold: existingCell.style.bold,
-            underline: existingCell.style.underline,
-            italic: existingCell.style.italic,
-            dim: existingCell.style.dim
-          )
-          buffer.write(ix, iy, existingCell.ch, style)
+        if ix < 0 or ix >= buffer.width or iy < 0 or iy >= buffer.height:
+          continue
         
-        of pdmCharacter:
-          let existingCell = buffer.getCell(ix, iy)
-          buffer.write(ix, iy, segment.char, existingCell.style)
+        var color = segment.color
+        if ps.trailFade:
+          let positionFade = 1.0 - (float(j) / float(ps.particles[i].trail.len))
+          color.r = uint8(float(color.r) * positionFade)
+          color.g = uint8(float(color.g) * positionFade)
+          color.b = uint8(float(color.b) * positionFade)
+        
+        let ctx = ShaderContext(
+          cellX: ix,
+          cellY: iy,
+          time: ps.frame,
+          particle: ParticleData(
+            x: segment.x,
+            y: segment.y,
+            vx: 0.0,
+            vy: 0.0,
+            life: 0.0,
+            maxLife: 1.0,
+            color: color,
+            char: segment.char,
+            age: 1.0
+          ),
+          hasParticle: true,
+          backgroundColor: ps.backgroundColor
+        )
+        
+        if not ps.shader.isNil:
+          let cellTuple = buffer.getCell(ix, iy)
+          let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
+          let shaderProc = ps.shader
+          let outCell = shaderProc(inCell, ctx)
+          buffer.write(ix, iy, outCell.ch, outCell.style)
     
     # Render main particle
     let ix = int(ps.particles[i].x)
@@ -909,45 +849,33 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
       color.g = uint8(float(color.g) * alpha)
       color.b = uint8(float(color.b) * alpha)
     
-    # Render based on draw mode
-    case ps.drawMode
-    of pdmReplace:
-      # Replace entire cell (default behavior)
-      let style = Style(fg: color, bg: ps.backgroundColor, bold: false, underline: false, italic: false, dim: false)
-      buffer.write(ix, iy, ps.particles[i].char, style)
+    let age = 1.0 - (ps.particles[i].life / ps.particles[i].maxLife)
     
-    of pdmBackground:
-      # Change background only, preserve char + foreground
-      let existingCell = buffer.getCell(ix, iy)
-      let style = Style(
-        fg: existingCell.style.fg,
-        bg: color,
-        bold: existingCell.style.bold,
-        underline: existingCell.style.underline,
-        italic: existingCell.style.italic,
-        dim: existingCell.style.dim
-      )
-      # If cell is transparent (empty), use space so background color shows
-      let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
-      buffer.write(ix, iy, ch, style)
+    let ctx = ShaderContext(
+      cellX: ix,
+      cellY: iy,
+      time: ps.frame,
+      particle: ParticleData(
+        x: ps.particles[i].x,
+        y: ps.particles[i].y,
+        vx: ps.particles[i].vx,
+        vy: ps.particles[i].vy,
+        life: ps.particles[i].life,
+        maxLife: ps.particles[i].maxLife,
+        color: color,
+        char: ps.particles[i].char,
+        age: age
+      ),
+      hasParticle: true,
+      backgroundColor: ps.backgroundColor
+    )
     
-    of pdmForeground:
-      # Change foreground only, preserve char + background
-      let existingCell = buffer.getCell(ix, iy)
-      let style = Style(
-        fg: color,
-        bg: existingCell.style.bg,
-        bold: existingCell.style.bold,
-        underline: existingCell.style.underline,
-        italic: existingCell.style.italic,
-        dim: existingCell.style.dim
-      )
-      buffer.write(ix, iy, existingCell.ch, style)
-    
-    of pdmCharacter:
-      # Change character only, preserve all colors
-      let existingCell = buffer.getCell(ix, iy)
-      buffer.write(ix, iy, ps.particles[i].char, existingCell.style)
+    if not ps.shader.isNil:
+      let cellTuple = buffer.getCell(ix, iy)
+      let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
+      let shaderProc = ps.shader
+      let outCell = shaderProc(inCell, ctx)
+      buffer.write(ix, iy, outCell.ch, outCell.style)
 
 # ================================================================
 # UTILITY FUNCTIONS
@@ -987,7 +915,7 @@ proc configureRain*(ps: ParticleSystem, intensity: float = 50.0) =
   ps.windForce = (0.0, 0.0)
   ps.damping = 0.98
   ps.fadeOut = false
-  ps.drawMode = pdmReplace  # Use default mode for rain characters
+  ps.shader = replaceShader()  # Replace entire cell
 
 proc configureSnow*(ps: ParticleSystem, intensity: float = 30.0) =
   ## Configure system for snow effect
@@ -1004,7 +932,7 @@ proc configureSnow*(ps: ParticleSystem, intensity: float = 30.0) =
   ps.windForce = (1.0, 0.0)
   ps.damping = 0.99
   ps.fadeOut = false
-  ps.drawMode = pdmReplace  # Use default mode for snow characters
+  ps.shader = replaceShader()  # Replace entire cell
   ps.collisionEnabled = true
   ps.collisionResponse = crStick
   ps.stickChar = "."
@@ -1024,7 +952,7 @@ proc configureFire*(ps: ParticleSystem, intensity: float = 100.0) =
   ps.turbulence = 3.0
   ps.damping = 0.95
   ps.fadeOut = true
-  ps.drawMode = pdmReplace  # Use default mode for fire particles
+  ps.shader = replaceShader()  # Replace entire cell
   ps.collisionEnabled = false  # Fire doesn't collide
   ps.collisionResponse = crNone
 
@@ -1042,7 +970,7 @@ proc configureSparkles*(ps: ParticleSystem, intensity: float = 20.0) =
   ps.gravity = 0.0
   ps.damping = 0.92
   ps.fadeOut = true
-  ps.drawMode = pdmReplace  # Use default mode for sparkles
+  ps.shader = replaceShader()
 
 proc configureExplosion*(ps: ParticleSystem) =
   ## Configure for one-shot explosion (use ps.emit(50) after)
@@ -1058,7 +986,7 @@ proc configureExplosion*(ps: ParticleSystem) =
   ps.gravity = 10.0
   ps.damping = 0.95
   ps.fadeOut = true
-  ps.drawMode = pdmReplace  # Use default mode for explosion particles
+  ps.shader = replaceShader()
 
 proc configureColorblast*(ps: ParticleSystem) =
   ## Configure for color blast effect that paints existing cells (use ps.emit(100) after)
@@ -1074,7 +1002,7 @@ proc configureColorblast*(ps: ParticleSystem) =
   ps.gravity = 0.0
   ps.damping = 0.90
   ps.fadeOut = true
-  ps.drawMode = pdmReplace  # Render visible colored particles
+  ps.shader = replaceShader()
   ps.trailEnabled = false
 
 proc configureMatrix*(ps: ParticleSystem, intensity: float = 20.0) =
@@ -1099,7 +1027,7 @@ proc configureMatrix*(ps: ParticleSystem, intensity: float = 20.0) =
   ps.windForce = (0.0, 0.0)
   ps.damping = 1.0  # No resistance
   ps.fadeOut = false  # Trail handles fading
-  ps.drawMode = pdmReplace
+  ps.shader = replaceShader()
   
   # Enable trails for cascading effect
   ps.trailEnabled = true
@@ -1133,7 +1061,7 @@ proc configureBugs*(ps: ParticleSystem, intensity: float = 5.0) =
   ps.turbulence = 5.0  # Erratic movement
   ps.damping = 0.85    # Some drag
   ps.fadeOut = false
-  ps.drawMode = pdmReplace
+  ps.shader = replaceShader()
   
   # Enable trails for segmented body
   ps.trailEnabled = true

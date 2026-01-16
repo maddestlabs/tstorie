@@ -22,6 +22,32 @@ when not declared(Color):
   import ../src/layers
 
 # ================================================================
+# PARTICLE SHADER TYPES
+# ================================================================
+
+type
+  ParticleData* = object
+    ## Particle information passed to shaders
+    x*, y*: float         # Particle position
+    vx*, vy*: float       # Particle velocity
+    life*, maxLife*: float
+    color*: Color         # Particle color
+    char*: string         # Particle character
+    age*: float           # Normalized age (0.0 = birth, 1.0 = death)
+
+  ShaderContext* = object
+    ## Context information passed to cell shaders
+    cellX*, cellY*: int   # Cell position being rendered
+    time*: int            # Frame counter
+    particle*: ParticleData  # Source particle (if rendering particle)
+    hasParticle*: bool    # Whether particle data is valid
+    backgroundColor*: Color  # System background color
+
+  CellShader* = proc(inCell: Cell, ctx: ShaderContext): Cell {.closure.}
+    ## A shader that transforms a cell
+    ## Takes input cell + context, returns output cell
+
+# ================================================================
 # SHADER STATE
 # ================================================================
 
@@ -157,7 +183,196 @@ proc grayscale*(value: int): Color =
   Color(r: v, g: v, b: v)
 
 # ==============================================================================
-# SHADER OUTPUT TYPE
+# PARTICLE CELL SHADERS
+# ==============================================================================
+
+proc replaceShader*(): CellShader =
+  ## Replace entire cell with particle (char + fg + bg)
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    Cell(
+      ch: ctx.particle.char,
+      style: Style(
+        fg: ctx.particle.color,
+        bg: ctx.backgroundColor,
+        bold: false, underline: false, italic: false, dim: false
+      )
+    )
+
+proc charOnlyShader*(): CellShader =
+  ## Replace only character, preserve colors
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    Cell(
+      ch: ctx.particle.char,
+      style: inCell.style
+    )
+
+proc foregroundOnlyShader*(): CellShader =
+  ## Replace only foreground color, preserve char and background
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    Cell(
+      ch: inCell.ch,
+      style: Style(
+        fg: ctx.particle.color,
+        bg: inCell.style.bg,
+        bold: inCell.style.bold,
+        underline: inCell.style.underline,
+        italic: inCell.style.italic,
+        dim: inCell.style.dim
+      )
+    )
+
+proc backgroundOnlyShader*(): CellShader =
+  ## Replace only background color, preserve char and foreground
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    let ch = if inCell.ch.len == 0: " " else: inCell.ch
+    Cell(
+      ch: ch,
+      style: Style(
+        fg: inCell.style.fg,
+        bg: ctx.particle.color,
+        bold: inCell.style.bold,
+        underline: inCell.style.underline,
+        italic: inCell.style.italic,
+        dim: inCell.style.dim
+      )
+    )
+
+proc colorModulateShader*(strength: float = 1.0): CellShader =
+  ## Modulate (tint) foreground color toward particle color
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    
+    let t = clamp(strength, 0.0, 1.0)
+    let fg = inCell.style.fg
+    let pc = ctx.particle.color
+    
+    Cell(
+      ch: inCell.ch,
+      style: Style(
+        fg: Color(
+          r: uint8(float(fg.r) * (1.0 - t) + float(pc.r) * t),
+          g: uint8(float(fg.g) * (1.0 - t) + float(pc.g) * t),
+          b: uint8(float(fg.b) * (1.0 - t) + float(pc.b) * t)
+        ),
+        bg: inCell.style.bg,
+        bold: inCell.style.bold,
+        underline: inCell.style.underline,
+        italic: inCell.style.italic,
+        dim: inCell.style.dim
+      )
+    )
+
+proc colorAdditiveShader*(strength: float = 1.0): CellShader =
+  ## Add particle color to foreground (brightening effect)
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    
+    let fg = inCell.style.fg
+    let pc = ctx.particle.color
+    let s = clamp(strength, 0.0, 1.0)
+    
+    Cell(
+      ch: inCell.ch,
+      style: Style(
+        fg: Color(
+          r: min(255'u8, uint8(min(255, int(fg.r) + int(float(pc.r) * s)))),
+          g: min(255'u8, uint8(min(255, int(fg.g) + int(float(pc.g) * s)))),
+          b: min(255'u8, uint8(min(255, int(fg.b) + int(float(pc.b) * s))))
+        ),
+        bg: inCell.style.bg,
+        bold: inCell.style.bold,
+        underline: inCell.style.underline,
+        italic: inCell.style.italic,
+        dim: inCell.style.dim
+      )
+    )
+
+proc colorMultiplyShader*(): CellShader =
+  ## Multiply particle color with foreground
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle:
+      return inCell
+    
+    let fg = inCell.style.fg
+    let pc = ctx.particle.color
+    
+    Cell(
+      ch: inCell.ch,
+      style: Style(
+        fg: Color(
+          r: uint8((float(fg.r) / 255.0) * (float(pc.r) / 255.0) * 255.0),
+          g: uint8((float(fg.g) / 255.0) * (float(pc.g) / 255.0) * 255.0),
+          b: uint8((float(fg.b) / 255.0) * (float(pc.b) / 255.0) * 255.0)
+        ),
+        bg: inCell.style.bg,
+        bold: inCell.style.bold,
+        underline: inCell.style.underline,
+        italic: inCell.style.italic,
+        dim: inCell.style.dim
+      )
+    )
+
+const CharDensityScale* = [" ", ".", "·", ":", "-", "=", "+", "*", "#", "@", "█"]
+
+proc charDensityReduceShader*(amount: int = 1): CellShader =
+  ## Reduce character density (make less dense)
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle or inCell.ch.len == 0:
+      return inCell
+    
+    # Find current char in density scale
+    var idx = -1
+    for i, ch in CharDensityScale:
+      if ch == inCell.ch:
+        idx = i
+        break
+    
+    let newIdx = if idx >= 0: max(0, idx - amount) else: 0
+    
+    Cell(
+      ch: CharDensityScale[newIdx],
+      style: inCell.style
+    )
+
+proc charDensityIncreaseShader*(amount: int = 1): CellShader =
+  ## Increase character density (make more dense)
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    if not ctx.hasParticle or inCell.ch.len == 0:
+      return inCell
+    
+    # Find current char in density scale
+    var idx = -1
+    for i, ch in CharDensityScale:
+      if ch == inCell.ch:
+        idx = i
+        break
+    
+    let newIdx = if idx >= 0: min(CharDensityScale.high, idx + amount) else: 0
+    
+    Cell(
+      ch: CharDensityScale[newIdx],
+      style: inCell.style
+    )
+
+proc compositeShader*(shaders: seq[CellShader]): CellShader =
+  ## Compose multiple shaders (apply in sequence)
+  result = proc(inCell: Cell, ctx: ShaderContext): Cell =
+    result = inCell
+    for shader in shaders:
+      result = shader(result, ctx)
+
+# ==============================================================================
+# SHADER OUTPUT TYPE (LEGACY)
 # ==============================================================================
 
 type

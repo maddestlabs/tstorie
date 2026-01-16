@@ -209,7 +209,7 @@ proc getLayerDesaturation*(layerId: string): float =
   return effectsPtr.desaturation
 
 # ================================================================
-# AUTO-DEPTHING (Killer Feature)
+# AUTO-DEPTHING
 # ================================================================
 
 proc enableAutoDepthing*(minBrightness: float = 0.3, maxBrightness: float = 1.0) =

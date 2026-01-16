@@ -79,7 +79,6 @@ var defaultStyle = getStyle("default")
 
 # Configure sparkles (manual emission on click)
 particleConfigureSparkles("sparkles", 10.0)
-particleSetDrawMode("sparkles", 1)
 particleSetBackgroundFromStyle("sparkles", defaultStyle)
 particleSetEmitterPos("sparkles", float(termWidth / 2), float(termHeight / 2))
 # Speed up sparkles with higher velocity range
@@ -93,7 +92,6 @@ particleSetForegroundFromStyle("sparkles", accentStyle)
 
 # Configure fire effect rising from bottom (always active)
 particleConfigureFire("techbubbles", 10.0, false)
-particleSetDrawMode("techbubbles", 0)  # Mode 2 = draw characters
 particleSetBackgroundFromStyle("techbubbles", defaultStyle)
 particleSetForegroundFromStyle("techbubbles", accentStyle)
 particleSetEmitterPos("techbubbles", 0, termHeight)

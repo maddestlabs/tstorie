@@ -24,6 +24,7 @@
 
 import std/[tables, math]
 import particles
+import terminal_shaders  # For shader functions
 import graph
 import primitives
 import ../nimini
@@ -328,19 +329,58 @@ proc particleSetEmitterShape*(env: ref Env; args: seq[Value]): Value {.nimini.} 
       gParticleSystems[args[0].s].emitterShape = EmitterShape(shape)
   return valNil()
 
+# ==============================================================================
+# SHADER CONFIGURATION
+# ==============================================================================
 
-proc particleSetDrawMode*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Set how particles affect cells they render to
-  ## Args: name (string), mode (int)
-  ##   0 = Replace entire cell (default)
-  ##   1 = Background only (preserves text/char)
-  ##   2 = Foreground only (preserves char)
-  ##   3 = Character only (preserves colors)
+proc particleSetShader*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set particle shader for rendering
+  ## Args: name (string), shaderType (string)
+  ## Shader types:
+  ##   "replace" - Replace entire cell (char + fg + bg)
+  ##   "char" - Replace only character, preserve colors
+  ##   "foreground" or "fg" - Replace only foreground color
+  ##   "background" or "bg" - Replace only background color
+  ##   "modulate" - Modulate/tint existing colors (optional strength arg)
+  ##   "additive" - Additive color blending (optional strength arg)
+  ##   "multiply" - Multiply colors (darken)
   if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
-    let mode = args[1].i
-    if mode >= 0 and mode <= 3:
-      gParticleSystems[args[0].s].drawMode = ParticleDrawMode(mode)
+    let shaderType = args[1].s
+    let strength = if args.len >= 3: args[2].f else: 0.5
+    
+    case shaderType
+    of "replace":
+      gParticleSystems[args[0].s].shader = replaceShader()
+    of "char", "character":
+      gParticleSystems[args[0].s].shader = charOnlyShader()
+    of "foreground", "fg":
+      gParticleSystems[args[0].s].shader = foregroundOnlyShader()
+    of "background", "bg":
+      gParticleSystems[args[0].s].shader = backgroundOnlyShader()
+    of "modulate", "tint":
+      gParticleSystems[args[0].s].shader = colorModulateShader(strength)
+    of "additive", "add":
+      gParticleSystems[args[0].s].shader = colorAdditiveShader(strength)
+    of "multiply", "mult":
+      gParticleSystems[args[0].s].shader = colorMultiplyShader()
+    else:
+      discard  # Unknown shader type, keep existing
+  
   return valNil()
+
+# ==============================================================================
+# LEGACY DRAW MODE/BLEND MODE FUNCTIONS REMOVED
+# ==============================================================================
+# The following functions have been removed in favor of shader-based rendering:
+# - particleSetDrawMode
+# - particleSetDrawFlags  
+# - particleSetCharBlend
+# - particleSetFgBlend
+# - particleSetBgBlend
+# - particleSetFgStrength
+# - particleSetBgStrength
+# 
+# New shader-based API coming soon!
 
 proc particleSetBackgroundFromStyle*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Set particle background color from a style object's background
@@ -670,7 +710,10 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   env.vars["particleSetBackgroundColor"] = valNativeFunc(particleSetBackgroundColor)
   env.vars["particleSetColorRange"] = valNativeFunc(particleSetColorRange)
   env.vars["particleSetTrailChars"] = valNativeFunc(particleSetTrailChars)
-  env.vars["particleSetDrawMode"] = valNativeFunc(particleSetDrawMode)
+  
+  # Shader configuration
+  env.vars["particleSetShader"] = valNativeFunc(particleSetShader)
+  
   env.vars["particleSetBackgroundFromStyle"] = valNativeFunc(particleSetBackgroundFromStyle)
   env.vars["particleSetForegroundFromStyle"] = valNativeFunc(particleSetForegroundFromStyle)
   

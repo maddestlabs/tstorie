@@ -9,17 +9,18 @@ Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
 - [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=notebook&font=Courier+Prime) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
-- [dungen.md](https://maddestlabs.github.io/tstorie/?content=demo:dungen&theme=coffee&shader=grid+sand+gradualblur&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
-- [clock.md](https://maddestlabs.github.io/tstorie?content=demo:clock&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/clock.md)
-- [shader.md](https://maddestlabs.github.io/tstorie?content=demo:shader&fontsize=26&shader=gradualblur+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
+- [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock&fontsize=26&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
 - [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx&theme=neonopia&fontsize=40&font=LXGW+WenKai+Mono+TC&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
 
 Core examples:
+- [figletclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock&fontsize=30&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/figletclock.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie/?content=demo:dungen&theme=coffee&shader=grid+sand+gradualblur&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [edit.md](https://maddestlabs.github.io/tstorie?content=demo:edit) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/edit.md)
 - [layout.md](https://maddestlabs.github.io/tstorie?content=demo:layout&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
 - [drawing.md](https://maddestlabs.github.io/tstorie?content=demo:drawing) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/drawing.md)
 - [tui.md](https://maddestlabs.github.io/tstorie?content=demo:tui&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
 - [tui3.md](https://maddestlabs.github.io/tstorie?content=demo:tui3&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
+- [shader.md](https://maddestlabs.github.io/tstorie?content=demo:shader&fontsize=26&shader=gradualblur+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
 
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie/?content=863a4175989370857ccd67cb5492ac11&shader=crt&font=Zeyada) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)
@@ -61,15 +62,13 @@ Native compilation:
 
 You'll get a native compiled binary in just moments, Nim compiles super fast. This is still early in development but supports small projects currently. The export is standalone with zero dependencies.
 
-### Desktop App (tStauri)
+### Desktop App
 
-**[tStauri](tstauri/)** is a desktop runner that lets you drag and drop `.md` files to run them locally:
-- 🖥️ Native desktop app for Linux, macOS, and Windows
-- 📁 Drag & drop `.md` files to run instantly
-- ⚡ Uses the same WASM engine as the web version
-- 🔒 Runs completely offline
-
-See [tstauri/README.md](tstauri/README.md) for installation and development instructions.
+**t|Stauri** is a desktop runner that lets you drag and drop `.md` files to run them locally:
+- Native desktop app for Linux, macOS, and Windows
+- Drag & drop `.md` files to run instantly
+- Uses the same WASM engine as the web version
+- Runs completely offline
 
 ### Web Usage
 
@@ -127,5 +126,7 @@ For educators who want to provie GitHub token access for classroom Gist creation
 ## Development & AI Disclosure
 
 AI assistance has been used extensively throughout every part of this project's development, including the separate repositories that paved way to the engine's current state. However, the core concepts behind t|Storie have been in development for over 9 years, with foundational precedents established in prior projects such as [Treverse](https://github.com/R3V1Z3/treverse) from before the advent of modern AI tooling.
+
+AI assistance is just that, assistance. It's a tool to quickly meet a vision that starts with the simplicity of scrpting in a browser app and ends with an optimized, natively compiled binary.
 
 This project represents a blend of long-term creative vision with modern AI-assisted development.

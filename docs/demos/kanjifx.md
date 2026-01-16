@@ -75,19 +75,19 @@ var particleSystems = ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"]
 displayChars = ["爆", "符", "雪", "火", "星", "雷", "雨", "虫"]
 
 # Initialize particle systems with different effects for each kanji
-# All particles use mode 2 (foreground only) to only change foreground color
+# All particles use foreground-only shader to only change foreground color
 
 # System 0: Fireworks/Explosion
 particleInit(particleSystems[0], 500)
 particleConfigureExplosion(particleSystems[0])
-particleSetDrawMode(particleSystems[0], 2)
+particleSetShader(particleSystems[0], "foreground")
 particleSetEmitRate(particleSystems[0], 0.0)  # Manual trigger only
 particleSetEmitterPos(particleSystems[0], float(termWidth / 2), float(termHeight / 2))
 
 # System 1: Matrix Rain with long trails
 particleInit(particleSystems[1], 300)
 particleConfigureMatrix(particleSystems[1], 15.0)
-particleSetDrawMode(particleSystems[1], 2)
+particleSetShader(particleSystems[1], "foreground")
 particleSetTrailLength(particleSystems[1], 30)
 particleSetEmitterPos(particleSystems[1], 0.0, 0.0)
 particleSetEmitterSize(particleSystems[1], termWidth, 1.0)
@@ -95,7 +95,7 @@ particleSetEmitterSize(particleSystems[1], termWidth, 1.0)
 # System 2: Snow
 particleInit(particleSystems[2], 400)
 particleConfigureSnow(particleSystems[2], 10.0)
-particleSetDrawMode(particleSystems[2], 2)
+particleSetShader(particleSystems[2], "foreground")
 particleSetEmitterPos(particleSystems[2], 0.0, 0.0)
 particleSetEmitterSize(particleSystems[2], termWidth, 1.0)
 particleSetVelocityRange(particleSystems[2], 2.0, 0.25, 3.0, 0.5)
@@ -103,7 +103,7 @@ particleSetVelocityRange(particleSystems[2], 2.0, 0.25, 3.0, 0.5)
 # System 3: Fire
 particleInit(particleSystems[3], 600)
 particleConfigureFire(particleSystems[3], 120.0)
-particleSetDrawMode(particleSystems[3], 2)
+particleSetShader(particleSystems[3], "foreground")
 particleSetEmitterPos(particleSystems[3], 0.0, termHeight)
 particleSetEmitterSize(particleSystems[3], termWidth, float(termHeight) / 2)
 particleSetLifeRange(particleSystems[3], 3.0, 5.0)
@@ -112,14 +112,14 @@ particleSetVelocityRange(particleSystems[3], 0.0, -5.0, 0.0, -15.0)
 # System 4: Sparkles
 particleInit(particleSystems[4], 300)
 particleConfigureSparkles(particleSystems[4], 30.0)
-particleSetDrawMode(particleSystems[4], 2)
+particleSetShader(particleSystems[4], "foreground")
 particleSetEmitterPos(particleSystems[4], 0.0, 0.0)
 particleSetEmitterSize(particleSystems[4], termWidth, termHeight)
 
 # System 5: Colorblast (lightning-like)
 particleInit(particleSystems[5], 400)
 particleConfigureColorblast(particleSystems[5])
-particleSetDrawMode(particleSystems[5], 2)
+particleSetShader(particleSystems[5], "foreground")
 particleSetEmitRate(particleSystems[5], 0.0)  # Start at zero, will pulse
 particleSetEmitterSize(particleSystems[5], termWidth, termHeight)
 particleSetEmitterPos(particleSystems[5], float(termWidth / 2), float(termHeight / 2))
@@ -127,13 +127,13 @@ particleSetEmitterPos(particleSystems[5], float(termWidth / 2), float(termHeight
 # System 6: Rain
 particleInit(particleSystems[6], 300)
 particleConfigureRain(particleSystems[6], 40.0)
-particleSetDrawMode(particleSystems[6], 2)
+particleSetShader(particleSystems[6], "foreground")
 particleSetEmitterPos(particleSystems[6], 0.0, 0.0)
 particleSetEmitterSize(particleSystems[6], termWidth, 1.0)
 
 # System 7: Bugs (organic movement with edge spawning and arcing motion)
 particleInit(particleSystems[7], 200)
-particleSetDrawMode(particleSystems[7], 2)
+particleSetShader(particleSystems[7], "foreground")
 particleSetEmitRate(particleSystems[7], 0.0)  # Manual emission only
 particleSetTrailEnabled(particleSystems[7], true)
 particleSetTrailLength(particleSystems[7], 10)  # 4-segment body
