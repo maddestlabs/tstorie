@@ -1085,6 +1085,8 @@ when defined(emscripten):
                 registerCanvasEditorBindings()
                 # Register layer effects bindings
                 registerLayerFxBindings(storieCtx.niminiContext.env)
+                # Register text editor bindings
+                registerTextEditorBindings(storieCtx.niminiContext.env)
             except:
               discard
         

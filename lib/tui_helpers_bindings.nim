@@ -54,13 +54,145 @@
 import ../nimini
 import ../nimini/runtime
 import ../src/types
+import ../src/layers  # For resolveLayerIndex
 import ../src/binding_utils  # For valueToStyle, toInt, toBool, toFloat
 import std/[tables, strutils]
-import tui_helpers  # Import the TUI helper functions
+import tui_helpers  # Import the TUI helper functions (includes gAppStateRef)
 
 # ==============================================================================
-# BOX DRAWING BINDINGS
+# LAYER RESOLUTION HELPER
 # ==============================================================================
+
+proc resolveNiminiLayer(layerVal: Value): int =
+  ## Resolve a nimini Value that could be int or string to a layer index
+  ## Returns -1 if layer not found or invalid
+  if gAppStateRef.isNil:
+    return -1
+  
+  case layerVal.kind
+  of vkInt:
+    return resolveLayerIndex(gAppStateRef, layerVal.i)
+  of vkString:
+    return resolveLayerIndex(gAppStateRef, layerVal.s)
+  else:
+    return -1
+
+# ==============================================================================
+# BOX DRAWING BINDINGS WITH STRING/INT LAYER SUPPORT
+# ==============================================================================
+
+# ==============================================================================
+# BOX DRAWING BINDINGS WITH STRING/INT LAYER SUPPORT
+# ==============================================================================
+
+proc nimini_fillBox_polymorphic*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## fillBox(layer, x, y, w, h, ch, style) - layer can be int or string
+  if args.len < 7:
+    return valNil()
+  
+  let layerIdx = resolveNiminiLayer(args[0])
+  if layerIdx < 0:
+    return valNil()
+  
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let ch = $args[5]
+  let style = valueToStyle(args[6])
+  
+  fillBox(layerIdx, x, y, w, h, ch, style)
+  return valNil()
+
+proc nimini_drawLabel_polymorphic*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawLabel(layer, x, y, text, style) - layer can be int or string
+  if args.len < 5:
+    return valNil()
+  
+  let layerIdx = resolveNiminiLayer(args[0])
+  if layerIdx < 0:
+    return valNil()
+  
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let text = $args[3]
+  let style = valueToStyle(args[4])
+  
+  drawLabel(layerIdx, x, y, text, style)
+  return valNil()
+
+proc nimini_drawPanel_polymorphic*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawPanel(layer, x, y, w, h, title, [borderStyle]) - layer can be int or string
+  if args.len < 6:
+    return valNil()
+  
+  let layerIdx = resolveNiminiLayer(args[0])
+  if layerIdx < 0:
+    return valNil()
+  
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let title = $args[5]
+  let borderStyle = if args.len >= 7: $args[6] else: "single"
+  
+  drawPanel(layerIdx, x, y, w, h, title, borderStyle)
+  return valNil()
+
+proc nimini_drawBoxSingle_polymorphic*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawBoxSingle(layer, x, y, w, h, style) - layer can be int or string
+  if args.len < 6:
+    return valNil()
+  
+  let layerIdx = resolveNiminiLayer(args[0])
+  if layerIdx < 0:
+    return valNil()
+  
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let style = valueToStyle(args[5])
+  
+  drawBoxSingle(layerIdx, x, y, w, h, style)
+  return valNil()
+
+proc nimini_drawBoxDouble_polymorphic*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawBoxDouble(layer, x, y, w, h, style) - layer can be int or string
+  if args.len < 6:
+    return valNil()
+  
+  let layerIdx = resolveNiminiLayer(args[0])
+  if layerIdx < 0:
+    return valNil()
+  
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let style = valueToStyle(args[5])
+  
+  drawBoxDouble(layerIdx, x, y, w, h, style)
+  return valNil()
+
+proc nimini_drawBoxRounded_polymorphic*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## drawBoxRounded(layer, x, y, w, h, style) - layer can be int or string
+  if args.len < 6:
+    return valNil()
+  
+  let layerIdx = resolveNiminiLayer(args[0])
+  if layerIdx < 0:
+    return valNil()
+  
+  let x = toInt(args[1])
+  let y = toInt(args[2])
+  let w = toInt(args[3])
+  let h = toInt(args[4])
+  let style = valueToStyle(args[5])
+  
+  drawBoxRounded(layerIdx, x, y, w, h, style)
+  return valNil()
 
 proc nimini_drawBox*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## drawBox(layer, x, y, w, h, style, boxType)
@@ -414,13 +546,35 @@ proc registerTUIHelperBindings*(env: ref Env) =
   # ==============================================================================
   # These are automatically handled by auto_bindings:
   # - Simple utilities: centerTextX, centerTextY, truncateText, pointInRect
-  # - Box drawing: drawBoxSimple, drawBoxSingle, drawBoxDouble, drawBoxRounded, fillBox
-  # - Labels: drawLabel, drawCenteredText, drawSeparator
   # - Layout helpers: layoutVertical, layoutHorizontal, layoutCentered, layoutGrid
-  # - Simple widgets: drawButton, drawTextBox, drawSlider, drawCheckBox, 
-  #                   drawPanel, drawProgressBar, drawRadioButton
   # 
-  # These functions are registered by initTUIHelpersModule() in tui_helpers.nim
+  # The following are auto-exposed but we override them with polymorphic versions
+  # that support both int and string layer parameters:
+  
+  # Override auto-exposed drawing functions with polymorphic versions
+  registerNative("fillBox", nimini_fillBox_polymorphic,
+    storieLibs = @["tui_helpers"],
+    description = "Fill a rectangular area (layer: int or string)")
+  
+  registerNative("drawLabel", nimini_drawLabel_polymorphic,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a text label (layer: int or string)")
+  
+  registerNative("drawPanel", nimini_drawPanel_polymorphic,
+    storieLibs = @["tui_helpers"],
+    description = "Draw a titled panel (layer: int or string)")
+  
+  registerNative("drawBoxSingle", nimini_drawBoxSingle_polymorphic,
+    storieLibs = @["tui_helpers"],
+    description = "Draw single-line box (layer: int or string)")
+  
+  registerNative("drawBoxDouble", nimini_drawBoxDouble_polymorphic,
+    storieLibs = @["tui_helpers"],
+    description = "Draw double-line box (layer: int or string)")
+  
+  registerNative("drawBoxRounded", nimini_drawBoxRounded_polymorphic,
+    storieLibs = @["tui_helpers"],
+    description = "Draw rounded box (layer: int or string)")
   
   # ==============================================================================
   # COMPLEX MANUAL WRAPPERS (kept here - not auto-exposeable)

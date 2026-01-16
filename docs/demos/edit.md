@@ -218,8 +218,8 @@ var lastKeyCode = 0
 # ===================================================================
 clear()
 
-let w = getWidth()
-let h = getHeight()
+let w = termWidth
+let h = termHeight
 
 # Calculate responsive editor dimensions
 let editorW = w - 1  # Full width with margins
@@ -379,26 +379,6 @@ elif activeMenu == "help":
   drawPanel(1, menuDropX, menuDropY, menuW, menuH, "", "single")
   # Item 0: Shortcuts
   drawLabel(1, menuDropX + 2, menuDropY + 1, "Shortcuts (F1)", if hoveredMenuItem == 0: menuHoverStyle else: getStyle("default"))
-let cursorLine = cursor["line"]
-let cursorCol = cursor["col"]
-let lineCount = editorLineCount(editor)
-let isModified = editorIsModified(editor)
-let scroll = editorGetScroll(editor)
-let scrollX = scroll["scrollX"]
-let scrollY = scroll["scrollY"]
-
-# Status line 1: Cursor position and scroll
-let modStr = if isModified: " [MODIFIED]" else: ""
-let scrollInfo = if scrollX > 0 or scrollY > 0: " | Scroll X:" & str(scrollX) & " Y:" & str(scrollY) else: ""
-let posInfo = "Line " & str(cursorLine + 1) & ", Col " & str(cursorCol + 1) & " | Total: " & str(lineCount) & " lines" & modStr & scrollInfo
-drawLabel(0, 7, statusY + 1, posInfo, getStyle("info"))
-
-# Status line 2: Current message
-drawLabel(0, 7, statusY + 2, statusMessage, getStyle("default"))
-
-# Status line 3: Key stats
-let statsInfo = "Keys pressed: " & str(keyPressCount) & " | Last key: " & str(lastKeyCode)
-drawLabel(0, 7, statusY + 3, statsInfo, getStyle("warning"))
 
 # ===================================================================
 # Dialogs on layer 1 (on top of everything)

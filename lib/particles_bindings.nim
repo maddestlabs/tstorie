@@ -79,13 +79,12 @@ proc particleUpdate*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc particleRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render particle system to layer
-  ## Args: name (string), layerId (int)
+  ## Args: name (string), layerId (string|int)
   ## Returns: nil
   if args.len < 2 or not gParticleSystems.hasKey(args[0].s):
     return valNil()
   
   let name = args[0].s
-  let layerId = args[1].i
   
   if gAppStateRef.isNil:
     return valNil()
@@ -96,10 +95,20 @@ proc particleRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if gAppStateRef.layers.len == 0:
     return valNil()
   
-  let layer = if layerId == 0 and gAppStateRef.layers.len > 0:
-    gAppStateRef.layers[0]
-  elif layerId >= 0 and layerId < gAppStateRef.layers.len:
-    gAppStateRef.layers[layerId]
+  # Support both string and int layer references
+  let layer = if args[1].kind == vkInt:
+    let layerId = args[1].i
+    if layerId == 0 and gAppStateRef.layers.len > 0:
+      gAppStateRef.layers[0]
+    elif layerId >= 0 and layerId < gAppStateRef.layers.len:
+      gAppStateRef.layers[layerId]
+    else:
+      return valNil()
+  elif args[1].kind == vkString:
+    let layerId = args[1].s
+    let foundLayer = getLayer(gAppStateRef, layerId)
+    if foundLayer.isNil: return valNil()
+    foundLayer
   else:
     return valNil()
   
@@ -192,8 +201,27 @@ proc particleSetChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
     let charsStr = args[1].s
     var charSeq: seq[string] = @[]
-    for ch in charsStr:
-      charSeq.add($ch)
+    
+    # Parse UTF-8 characters properly
+    var i = 0
+    while i < charsStr.len:
+      var b = ord(charsStr[i])
+      
+      # Detect UTF-8 character length based on first byte
+      var charLen = 1
+      if b < 128:
+        charLen = 1
+      elif b >= 192 and b < 224:
+        charLen = 2
+      elif b >= 224 and b < 240:
+        charLen = 3
+      elif b >= 240:
+        charLen = 4
+      
+      var endIdx = min(i + charLen, charsStr.len)
+      charSeq.add(charsStr[i ..< endIdx])
+      i = endIdx
+    
     gParticleSystems[args[0].s].chars = charSeq
   return valNil()
 
@@ -231,8 +259,27 @@ proc particleSetTrailChars*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
     let charsStr = args[1].s
     var charSeq: seq[string] = @[]
-    for ch in charsStr:
-      charSeq.add($ch)
+    
+    # Parse UTF-8 characters properly
+    var i = 0
+    while i < charsStr.len:
+      var b = ord(charsStr[i])
+      
+      # Detect UTF-8 character length based on first byte
+      var charLen = 1
+      if b < 128:
+        charLen = 1
+      elif b >= 192 and b < 224:
+        charLen = 2
+      elif b >= 224 and b < 240:
+        charLen = 3
+      elif b >= 240:
+        charLen = 4
+      
+      var endIdx = min(i + charLen, charsStr.len)
+      charSeq.add(charsStr[i ..< endIdx])
+      i = endIdx
+    
     gParticleSystems[args[0].s].trailChars = charSeq
   return valNil()
 

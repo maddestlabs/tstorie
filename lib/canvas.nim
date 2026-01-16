@@ -130,6 +130,8 @@ type
     navigable*: bool  # Whether this section can be navigated to
     actualVisualWidth*: int  # Actual visual width of rendered content (accounting for double-width chars)
     actualVisualHeight*: int  # Actual height of rendered content in lines
+    zIndex*: int  # Z-index for layer rendering (0 = default layer)
+    layerName*: string  # Named layer to render to (empty = default)
   
   # Callback type for executing code blocks (lifecycle hooks)
   ExecuteCodeBlockCallback* = proc(codeBlock: CodeBlock, lifecycle: string): bool
@@ -529,12 +531,24 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
       let navValue = section.metadata["navigable"].toLowerAscii()
       isNavigable = navValue notin ["false", "no", "0"]
     
+    # Read z-index from metadata for layer rendering
+    var zIndex = 0
+    var layerName = ""
+    if section.metadata.hasKey("z"):
+      try:
+        zIndex = parseInt(section.metadata["z"])
+        layerName = "z" & section.metadata["z"]  # e.g., "z-3" for z:-3
+      except:
+        discard
+    
     var layout = SectionLayout(
       section: section,
       width: sectionWidth,
       height: sectionHeight,
       index: i,
-      navigable: isNavigable
+      navigable: isNavigable,
+      zIndex: zIndex,
+      layerName: layerName
     )
     
     # Check for custom x,y in metadata
@@ -1133,14 +1147,15 @@ proc getSectionRawContent(section: Section): string =
       # Add preformatted text directly (renders as-is without backticks)
       lines.add(blk.content)
     of AnsiBlock:
-      # Parse ANSI content to a styled buffer for later rendering
-      # Convert bracket notation to actual ANSI escape sequences first
-      let convertedContent = convertBracketNotationToAnsi(blk.ansiContent)
-      let ansiBuffer = parseAnsiToBuffer(convertedContent)
+      # Parse ANSI content to a styled buffer (only once, cached)
+      let bufferKey = blk.ansiBufferKey
       
-      # Store the buffer with a unique key
-      let bufferKey = section.id & "_ansi_" & $lines.len
-      gAnsiBuffers[bufferKey] = ansiBuffer
+      # Only parse if not already cached
+      if not gAnsiBuffers.hasKey(bufferKey):
+        # Convert bracket notation to actual ANSI escape sequences first
+        let convertedContent = convertBracketNotationToAnsi(blk.ansiContent)
+        let ansiBuffer = parseAnsiToBuffer(convertedContent)
+        gAnsiBuffers[bufferKey] = ansiBuffer
       
       # Add a marker line so we know where to render the ANSI buffer
       # This marker will be recognized during rendering
@@ -1434,14 +1449,9 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
   if canvasState.isNil:
     return
   
-  # Get background color from stylesheet, defaulting to black if not set
-  let bgColor = if styleSheet.hasKey("body"):
-                  styleSheet["body"].bg
-                else:
-                  (0'u8, 0'u8, 0'u8)
-  
-  # Clear the entire buffer to ensure clean rendering during animations
-  buffer.clear(bgColor)
+  # Clear the buffer with transparency to allow lower layers to show through
+  # This enables multi-layer rendering (e.g., particles underneath canvas content)
+  buffer.clearTransparent()
   
   # Copy parameters to local variables to avoid any potential shadowing issues
   let vw = viewportWidth
@@ -1503,7 +1513,19 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
     
     renderedCount += 1
     let isCurrent = (layout.index == getCurrentSectionIdx())
-    let (links, visualWidth, visualHeight) = renderSection(layout, screenX, screenY, buffer, isCurrent, styleSheet)
+    
+    # Determine which buffer to render to based on z-index
+    var targetBuffer = addr buffer
+    if layout.layerName != "" and not canvasState.appState.isNil:
+      # Section has z-index - render to its own layer
+      var targetLayer = getLayer(canvasState.appState[], layout.layerName)
+      if targetLayer.isNil:
+        # Layer doesn't exist - create it
+        targetLayer = addLayer(canvasState.appState[], layout.layerName, layout.zIndex)
+      if not targetLayer.isNil:
+        targetBuffer = addr targetLayer.buffer
+    
+    let (links, visualWidth, visualHeight) = renderSection(layout, screenX, screenY, targetBuffer[], isCurrent, styleSheet)
     
     # Update the actual dimensions in the section layout
     let previousWidth = canvasState.sections[i].actualVisualWidth

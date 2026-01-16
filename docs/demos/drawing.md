@@ -1,7 +1,7 @@
 ---
 title: "Drawing & Compositing Demo"
-minWidth: 100
-minHeight: 50
+minWidth: 60
+minHeight: 18
 theme: "neotopia"
 ---
 

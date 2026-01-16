@@ -306,6 +306,8 @@ type
     targetFps*: float
     colorSupport*: int
     layers*: seq[Layer]
+    layerIndexCache*: Table[string, int]  ## Cache for O(1) layer name -> index lookup
+    cacheValid*: bool                      ## Whether cache is up-to-date
     inputParser*: TerminalInputParser
     lastMouseX*, lastMouseY*: int
     audioSystemPtr*: pointer  ## Points to AudioSystem (to avoid import issues)

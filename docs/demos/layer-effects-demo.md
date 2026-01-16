@@ -17,26 +17,30 @@ This demo showcases tstorie's layer effects system with automatic depth cueing a
 - **Q**: Quit
 
 ```nim on:init
+# Create named layers with z-coordinates
+addLayer("sky", -3)
+addLayer("mountains", -2)
+addLayer("trees", -1)
+addLayer("player", 0)
+
 # Camera position
 var cameraX = 0.0
 var cameraY = 0.0
 
 # Layer visibility
-var showLayer1 = true
-var showLayer2 = true
-var showLayer3 = true
-var showLayer4 = true
+var showSky = true
+var showMountains = true
+var showTrees = true
+var showPlayer = true
 
-# Auto-depthing toggle
-var autoDepthing = false  # Start disabled
+# Auto-depthing toggle (start with it on to showcase the effect)
+var autoDepthing = true
+enableAutoDepthing(0.3, 1.0)
 
 # Animation
 var time = 0.0
 
-# Disable layer effects plugin to test basic rendering
-disableLayerFx()
-
-echo "Basic layer test (effects disabled)"
+echo "Layer effects demo initialized with named layers"
 ```
 
 ```nim on:update
@@ -45,43 +49,45 @@ time = time + 0.05
 ```
 
 ```nim on:render
-clear(0)
+clear("default")
+clear("sky", true)
+clear("mountains", true)
+clear("trees", true)
+clear("player", true)
 
 let w = termWidth
 let h = termHeight
 
 # Safety check for minimum dimensions
 if w < 10 or h < 10:
-  drawLabel(0, 2, 2, "Terminal too small!", getStyle("error"))
+  drawLabel("default", 2, 2, "Terminal too small!", getStyle("error"))
   return
 
-# Draw directly to layer 0 first
-fillBox(0, 0, 0, w, 3, "═", getStyle("primary"))
-drawLabel(0, w div 2 - 15, 1, "LAYER EFFECTS DEMO", getStyle("warning"))
-drawLabel(0, 2, 3, "w=" & $w & " h=" & $h, getStyle("dim"))
+# Apply parallax offsets to create depth effect
+setLayerOffset("sky", int(cameraX * 0.1), int(cameraY * 0.1))
+setLayerOffset("mountains", int(cameraX * 0.3), int(cameraY * 0.2))
+setLayerOffset("trees", int(cameraX * 0.6), int(cameraY * 0.4))
+setLayerOffset("player", int(cameraX), int(cameraY))
 
-# Draw to each layer using simple indices (layers auto-create with z=index)
+# HUD on default layer (always on top, no offset)
+fillBox("default", 0, 0, w, 3, "═", getStyle("primary"))
+drawLabel("default", w div 2 - 15, 1, "LAYER EFFECTS DEMO", getStyle("warning"))
 
-# Layer 1: Sky (background)
-if showLayer1:
-  clear(1, true)
-  drawLabel(1, 5, 5, "LAYER 1: SKY", getStyle("error"))
-  
+# Sky layer (z=-3, darkest with auto-depthing)
+if showSky:
   # Stars
   let halfH = h div 2
-  for i in 0..15:
+  for i in 0..20:
     let x = (i * 17) mod w
     let y = (i * 13) mod halfH
-    draw(1, x, y, "*", getStyle("warning"))
+    drawLabel("sky", x, y, "*", getStyle("warning"))
 
   
   # Moon
-  draw(1, w - 15, 3, "O", getStyle("info"))
+  drawLabel("sky", w - 15, 3, "O", getStyle("info"))
 
-# Layer 2: Mountains
-if showLayer2:
-  clear(2, true)
-  
+# Mountains layer (z=-2)
+if showMountains:
   # Mountain silhouettes
   for x in 0..w-1:
     let mountain1 = int(sin(float(x) * 0.1) * 5.0 + 15.0)
@@ -89,12 +95,10 @@ if showLayer2:
     let peak = max(mountain1, mountain2)
     
     for y in peak..h-1:
-      draw(2, x, y, "▓", getStyle("primary"))
+      drawLabel("mountains", x, y, "▓", getStyle("primary"))
 
-# Layer 3: Trees
-if showLayer3:
-  clear(3, true)
-  
+# Trees layer (z=-1, closer)
+if showTrees:
   # Animated swaying trees
   for i in 0..8:
     let baseX = i * 10 + 5
@@ -103,66 +107,60 @@ if showLayer3:
     let treeY = h - 8
     
     # Tree trunk
-    draw(3, treeX, treeY, "|", getStyle("warning"))
-    draw(3, treeX, treeY + 1, "|", getStyle("warning"))
+    drawLabel("trees", treeX, treeY, "|", getStyle("warning"))
+    drawLabel("trees", treeX, treeY + 1, "|", getStyle("warning"))
     
     # Tree foliage
-    draw(3, treeX - 1, treeY - 1, "#", getStyle("success"))
-    draw(3, treeX, treeY - 1, "#", getStyle("success"))
-    draw(3, treeX + 1, treeY - 1, "#", getStyle("success"))
-    draw(3, treeX, treeY - 2, "#", getStyle("success"))
+    drawLabel("trees", treeX - 1, treeY - 1, "#", getStyle("success"))
+    drawLabel("trees", treeX, treeY - 1, "#", getStyle("success"))
+    drawLabel("trees", treeX + 1, treeY - 1, "#", getStyle("success"))
+    drawLabel("trees", treeX, treeY - 2, "#", getStyle("success"))
 
-# Layer 4: Player/Ground
-if showLayer4:
-  clear(4, true)
-  
+# Player layer (z=0, foreground - full brightness)
+if showPlayer:
   # Ground
   for x in 0..w-1:
-    draw(4, x, h - 3, "=", getStyle("dim"))
+    drawLabel("player", x, h - 3, "=", getStyle("dim"))
   
   # Player character (centered)
   let playerX = w div 2
   let playerY = h - 5
   let bounce = int(sin(time * 4.0) * 1.0)
   
-  draw(4, playerX, playerY + bounce, "@", getStyle("error"))
+  drawLabel("player", playerX, playerY + bounce, "@", getStyle("error"))
   
   # Shadow
-  draw(4, playerX, playerY + 1, ".", getStyle("dim"))
+  drawLabel("player", playerX, playerY + 1, ".", getStyle("dim"))
 
-# HUD (on default layer 0, always on top)
-fillBox(0, 0, 0, w, 1, " ", getStyle("primary"))
-let title = "LAYER EFFECTS DEMO - Camera: " & $int(cameraX) & "," & $int(cameraY)
-drawLabel(0, 2, 0, title, getStyle("warning"))
-
-# Status
+# Status bar
 var status = "Auto-Depth: "
 if autoDepthing:
-  status = status & "ON"
+  status = status & "ON (0.3-1.0)"
 else:
   status = status & "OFF"
 status = status & " | Layers: "
-if showLayer1:
-  status = status & "1"
+if showSky:
+  status = status & "S"
 else:
-  status = status & " "
-if showLayer2:
-  status = status & "2"
+  status = status & "_"
+if showMountains:
+  status = status & "M"
 else:
-  status = status & " "
-if showLayer3:
-  status = status & "3"
+  status = status & "_"
+if showTrees:
+  status = status & "T"
 else:
-  status = status & " "
-if showLayer4:
-  status = status & "4"
+  status = status & "_"
+if showPlayer:
+  status = status & "P"
 else:
-  status = status & " "
-drawLabel(0, 2, h - 1, status, getStyle("info"))
+  status = status & "_"
+status = status & " | Cam: " & $int(cameraX) & "," & $int(cameraY)
+drawLabel("default", 2, h - 1, status, getStyle("info"))
 
 # Instructions
 let controls = "←→↑↓:Move | Space:Toggle Depth | 1-4:Toggle Layers | R:Reset | Q:Quit"
-drawLabel(0, w - controls.len - 2, h - 1, controls, getStyle("dim"))
+drawLabel("default", w - controls.len - 2, h - 1, controls, getStyle("dim"))
 ```
 
 ```nim on:input
@@ -194,23 +192,25 @@ if event.keyCode == 82 or event.keyCode == 114:  # 'R' or 'r'
 if event.keyCode == 32:  # Space
   autoDepthing = not autoDepthing
   if autoDepthing:
-    echo "Auto-depthing: ON"
+    enableAutoDepthing(0.3, 1.0)
+    echo "Auto-depthing: ON (0.3-1.0)"
   else:
+    disableAutoDepthing()
     echo "Auto-depthing: OFF"
   return true
 
 # Toggle layers
-if event.keyCode == 49:  # '1'
-  showLayer1 = not showLayer1
+if event.keyCode == 49:  # '1' - Sky
+  showSky = not showSky
   return true
-elif event.keyCode == 50:  # '2'
-  showLayer2 = not showLayer2
+elif event.keyCode == 50:  # '2' - Mountains
+  showMountains = not showMountains
   return true
-elif event.keyCode == 51:  # '3'
-  showLayer3 = not showLayer3
+elif event.keyCode == 51:  # '3' - Trees
+  showTrees = not showTrees
   return true
-elif event.keyCode == 52:  # '4'
-  showLayer4 = not showLayer4
+elif event.keyCode == 52:  # '4' - Player
+  showPlayer = not showPlayer
   return true
 
 # Quit
@@ -221,6 +221,24 @@ return false
 ```
 
 ## How It Works
+
+### String-Based Layer API
+This demo showcases the new string-based layer API:
+
+```nim
+# Create named layers
+addLayer("sky", -3)
+addLayer("mountains", -2)
+addLayer("trees", -1)
+addLayer("player", 0)
+
+# Draw using layer names (no more index guessing!)
+drawLabel("sky", x, y, "*", style)
+fillBox("mountains", x, y, w, h, "▓", style)
+setLayerOffset("trees", offsetX, offsetY)
+```
+
+Much clearer than numeric indices!
 
 ### Auto-Depth Cueing
 When `enableAutoDepthing(0.3, 1.0)` is called, tstorie automatically calculates brightness for each layer based on its z-coordinate:

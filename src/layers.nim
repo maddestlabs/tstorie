@@ -5,7 +5,7 @@
 ## including buffer operations, layer management, compositing, and terminal display.
 
 import types
-import std/[strutils, algorithm]
+import std/[strutils, algorithm, tables]
 import charwidth
 
 # ================================================================
@@ -147,6 +147,48 @@ proc newLayer*(id: string, width, height: int, z: int = 0): Layer =
   )
   result.buffer.clearTransparent()
 
+# ================================================================
+# LAYER CACHE MANAGEMENT
+# ================================================================
+
+proc rebuildLayerCache*(state: AppState) =
+  ## Rebuild the layer name -> index cache
+  ## This is called automatically when needed, but can be called manually
+  ## after batch layer operations for performance
+  state.layerIndexCache.clear()
+  for i, layer in state.layers:
+    state.layerIndexCache[layer.id] = i
+  state.cacheValid = true
+
+proc invalidateLayerCache*(state: AppState) =
+  ## Mark the layer cache as invalid (will be rebuilt on next access)
+  state.cacheValid = false
+
+proc resolveLayerIndex*(state: AppState, layerId: string): int =
+  ## Resolve a layer name to its index in the layers array
+  ## Returns -1 if layer not found
+  ## Special case: \"default\" or \"\" returns 0 (the default layer)
+  if layerId == "default" or layerId == "":
+    return 0
+  
+  # Rebuild cache if invalid
+  if not state.cacheValid:
+    rebuildLayerCache(state)
+  
+  # Look up in cache
+  if state.layerIndexCache.hasKey(layerId):
+    return state.layerIndexCache[layerId]
+  else:
+    return -1
+
+proc resolveLayerIndex*(state: AppState, layerId: int): int =
+  ## Resolve an integer layer index (bounds checking)
+  ## Returns -1 if out of bounds
+  if layerId >= 0 and layerId < state.layers.len:
+    return layerId
+  else:
+    return -1
+
 proc addLayer*(state: AppState, id: string, z: int): Layer =
   let layer = Layer(
     id: id,
@@ -156,6 +198,7 @@ proc addLayer*(state: AppState, id: string, z: int): Layer =
   )
   layer.buffer.clearTransparent()
   state.layers.add(layer)
+  invalidateLayerCache(state)  # Cache is now stale
   return layer
 
 proc getLayer*(state: AppState, id: string): Layer =
@@ -169,6 +212,7 @@ proc removeLayer*(state: AppState, id: string) =
   while i < state.layers.len:
     if state.layers[i].id == id:
       state.layers.delete(i)
+      invalidateLayerCache(state)  # Cache is now stale
     else:
       i += 1
 
@@ -202,6 +246,7 @@ proc compositeLayers*(state: AppState) =
   state.layers.sort(proc(a, b: Layer): int =
     cmp(a.z, b.z)
   )
+  invalidateLayerCache(state)  # Cache is stale after reordering
   
   for layer in state.layers:
     if layer.visible:

@@ -690,8 +690,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           codeLines.add(lines[i])
           inc i
         
-        # Check if this is a ```ascii block (preformatted text)
-        if language == "ascii":
+        # Check if this is a bare code block (no language) or ```ascii block (preformatted text)
+        if language == "" or language == "ascii":
           # Create preformatted text block (renders without backticks)
           let content = codeLines.join("\n")
           
@@ -727,15 +727,19 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           # Store raw ANSI content (will be parsed at render time)
           let ansiContent = codeLines.join("\n")
           
+          # Generate a unique buffer key for this ANSI block
+          inc sectionCounter
+          let bufferKey = "ansi_block_" & $sectionCounter & "_" & $ansiContent.len
+          
           # Add to current section
           if hasCurrentSection:
             currentSection.blocks.add(ContentBlock(
               kind: AnsiBlock,
-              ansiContent: ansiContent
+              ansiContent: ansiContent,
+              ansiBufferKey: bufferKey
             ))
           else:
             # Create default section if needed
-            inc sectionCounter
             let sectionId = "section_" & $sectionCounter
             currentSection = Section(
               id: sectionId,
@@ -751,7 +755,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
             ))
             currentSection.blocks.add(ContentBlock(
               kind: AnsiBlock,
-              ansiContent: ansiContent
+              ansiContent: ansiContent,
+              ansiBufferKey: bufferKey
             ))
             hasCurrentSection = true
         else:

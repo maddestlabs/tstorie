@@ -64,6 +64,7 @@ type
       content*: string
     of AnsiBlock:
       ansiContent*: string  ## Raw ANSI escape sequence content (parsed at render time)
+      ansiBufferKey*: string  ## Cache key for parsed buffer (generated once)
   
   Section* = object
     ## A section represents a heading and all content until the next heading

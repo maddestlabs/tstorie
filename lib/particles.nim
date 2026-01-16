@@ -710,7 +710,9 @@ proc render*(ps: ParticleSystem, layer: ptr Layer) =
               italic: existingCell.style.italic,
               dim: existingCell.style.dim
             )
-            buf[].write(ix, iy, existingCell.ch, style)
+            # If cell is transparent (empty), use space so background color shows
+            let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
+            buf[].write(ix, iy, ch, style)
           
           of pdmForeground:
             let existingCell = buf[].getCell(ix, iy)
@@ -798,7 +800,9 @@ proc render*(ps: ParticleSystem, layer: ptr Layer) =
           italic: existingCell.style.italic,
           dim: existingCell.style.dim
         )
-        buf[].write(ix, iy, existingCell.ch, style)
+        # If cell is transparent (empty), use space so background color shows
+        let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
+        buf[].write(ix, iy, ch, style)
       
       of pdmForeground:
         # Change foreground only, preserve char + background
@@ -859,7 +863,9 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
             italic: existingCell.style.italic,
             dim: existingCell.style.dim
           )
-          buffer.write(ix, iy, existingCell.ch, style)
+          # If cell is transparent (empty), use space so background color shows
+          let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
+          buffer.write(ix, iy, ch, style)
         
         of pdmForeground:
           let existingCell = buffer.getCell(ix, iy)
@@ -921,7 +927,9 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
         italic: existingCell.style.italic,
         dim: existingCell.style.dim
       )
-      buffer.write(ix, iy, existingCell.ch, style)
+      # If cell is transparent (empty), use space so background color shows
+      let ch = if existingCell.ch.len == 0: " " else: existingCell.ch
+      buffer.write(ix, iy, ch, style)
     
     of pdmForeground:
       # Change foreground only, preserve char + background

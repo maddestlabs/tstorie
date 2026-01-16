@@ -54,6 +54,13 @@ proc tuiDraw(layer: int, x, y: int, text: string, style: Style) =
   elif not gAppStateRef.isNil and layer > 0 and layer < gAppStateRef.layers.len:
     gAppStateRef.layers[layer].buffer.writeText(x, y, text, style)
 
+proc tuiResolveLayer(layerId: string): int =
+  ## Resolve layer name to index for drawing
+  ## Returns -1 if layer not found or state unavailable
+  if gAppStateRef.isNil:
+    return -1
+  return resolveLayerIndex(gAppStateRef, layerId)
+
 # ==============================================================================
 # BOX DRAWING
 # ==============================================================================
@@ -101,12 +108,24 @@ proc drawBoxSimple*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tu
           "|", "|",
           "+", "-", "+")
 
+proc drawBoxSimple*(layer: string, x, y, w, h: int, style: Style) =
+  ## Draw a simple ASCII box (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawBoxSimple(idx, x, y, w, h, style)
+
 proc drawBoxSingle*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a box with single-line Unicode borders
   drawBox(layer, x, y, w, h, style,
           "┌", "─", "┐",
           "│", "│",
           "└", "─", "┘")
+
+proc drawBoxSingle*(layer: string, x, y, w, h: int, style: Style) =
+  ## Draw a box with single-line Unicode borders (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawBoxSingle(idx, x, y, w, h, style)
 
 proc drawBoxDouble*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a box with double-line Unicode borders
@@ -115,6 +134,12 @@ proc drawBoxDouble*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tu
           "║", "║",
           "╚", "═", "╝")
 
+proc drawBoxDouble*(layer: string, x, y, w, h: int, style: Style) =
+  ## Draw a box with double-line Unicode borders (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawBoxDouble(idx, x, y, w, h, style)
+
 proc drawBoxRounded*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "tui".} =
   ## Draw a box with rounded Unicode corners
   drawBox(layer, x, y, w, h, style,
@@ -122,11 +147,23 @@ proc drawBoxRounded*(layer: int, x, y, w, h: int, style: Style) {.autoExpose: "t
           "│", "│",
           "╰", "─", "╯")
 
+proc drawBoxRounded*(layer: string, x, y, w, h: int, style: Style) =
+  ## Draw a box with rounded Unicode corners (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawBoxRounded(idx, x, y, w, h, style)
+
 proc fillBox*(layer: int, x, y, w, h: int, ch: string, style: Style) {.autoExpose: "tui".} =
   ## Fill a rectangular area with a character
   for dy in 0 ..< h:
     for dx in 0 ..< w:
       tuiDraw(layer, x + dx, y + dy, ch, style)
+
+proc fillBox*(layer: string, x, y, w, h: int, ch: string, style: Style) =
+  ## Fill a rectangular area with a character (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    fillBox(idx, x, y, w, h, ch, style)
 
 # ==============================================================================
 # TEXT HELPERS
@@ -149,6 +186,12 @@ proc drawCenteredText*(layer: int, x, y, w, h: int, text: string, style: Style) 
   let tx = centerTextX(text, x, w)
   let ty = centerTextY(y, h)
   tuiDraw(layer, tx, ty, text, style)
+
+proc drawCenteredText*(layer: string, x, y, w, h: int, text: string, style: Style) =
+  ## Draw text centered in a box (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawCenteredText(idx, x, y, w, h, text, style)
 
 proc truncateText*(text: string, maxWidth: int): string {.autoExpose: "tui".} =
   ## Truncate text to fit maxWidth, adding "..." if needed
@@ -206,9 +249,23 @@ proc drawButton*(layer: int, x, y, w, h: int, label: string,
     
     drawCenteredText(layer, x, y, w, h, label, baseStyle)
 
+proc drawButton*(layer: string, x, y, w, h: int, label: string,
+                isFocused: bool, isPressed: bool = false,
+                borderStyle: string = "single") =
+  ## Draw a complete button widget (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawButton(idx, x, y, w, h, label, isFocused, isPressed, borderStyle)
+
 proc drawLabel*(layer: int, x, y: int, text: string, style: Style) {.autoExpose: "tui".} =
   ## Draw a simple text label
   tuiDraw(layer, x, y, text, style)
+
+proc drawLabel*(layer: string, x, y: int, text: string, style: Style) =
+  ## Draw a simple text label (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawLabel(idx, x, y, text, style)
 
 proc drawTextBox*(layer: int, x, y, w, h: int, 
                  content: string, cursorPos: int,
@@ -241,6 +298,14 @@ proc drawTextBox*(layer: int, x, y, w, h: int,
     let cursorX = x + 1 + min(cursorPos, maxLen - 1)
     tuiDraw(layer, cursorX, contentY, "_", tuiGetStyle("warning"))
 
+proc drawTextBox*(layer: string, x, y, w, h: int, 
+                 content: string, cursorPos: int,
+                 isFocused: bool, borderStyle: string = "single") =
+  ## Draw a text input box with cursor (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawTextBox(idx, x, y, w, h, content, cursorPos, isFocused, borderStyle)
+
 proc drawSlider*(layer: int, x, y, w: int, value: float,
                 minVal, maxVal: float, isFocused: bool) {.autoExpose: "tui".} =
   ## Draw a slider widget (horizontal)
@@ -259,6 +324,13 @@ proc drawSlider*(layer: int, x, y, w: int, value: float,
   let valueText = $int(value)
   tuiDraw(layer, x + w - valueText.len, y + 1, valueText, style)
 
+proc drawSlider*(layer: string, x, y, w: int, value: float,
+                minVal, maxVal: float, isFocused: bool) =
+  ## Draw a slider widget (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawSlider(idx, x, y, w, value, minVal, maxVal, isFocused)
+
 proc drawCheckBox*(layer: int, x, y: int, label: string,
                   isChecked: bool, isFocused: bool) {.autoExpose: "tui".} =
   ## Draw a checkbox with label
@@ -272,6 +344,13 @@ proc drawCheckBox*(layer: int, x, y: int, label: string,
   
   # Draw label
   tuiDraw(layer, x + 4, y, label, tuiGetStyle("default"))
+
+proc drawCheckBox*(layer: string, x, y: int, label: string,
+                  isChecked: bool, isFocused: bool) =
+  ## Draw a checkbox with label (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawCheckBox(idx, x, y, label, isChecked, isFocused)
 
 proc drawPanel*(layer: int, x, y, w, h: int, title: string,
                borderStyle: string = "single") {.autoExpose: "tui".} =
@@ -299,6 +378,13 @@ proc drawPanel*(layer: int, x, y, w, h: int, title: string,
     let titleX = centerTextX(titleText, x, w)
     tuiDraw(layer, titleX, y, titleText, tuiGetStyle("info"))
 
+proc drawPanel*(layer: string, x, y, w, h: int, title: string,
+               borderStyle: string = "single") =
+  ## Draw a titled panel/frame (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawPanel(idx, x, y, w, h, title, borderStyle)
+
 proc drawProgressBar*(layer: int, x, y, w: int, progress: float,
                      showPercent: bool = true) {.autoExpose: "tui".} =
   ## Draw a progress bar (0.0 to 1.0)
@@ -324,10 +410,23 @@ proc drawProgressBar*(layer: int, x, y, w: int, progress: float,
     let textX = centerTextX(percentText, x, w)
     tuiDraw(layer, textX, y, percentText, tuiGetStyle("warning"))
 
+proc drawProgressBar*(layer: string, x, y, w: int, progress: float,
+                     showPercent: bool = true) =
+  ## Draw a progress bar (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawProgressBar(idx, x, y, w, progress, showPercent)
+
 proc drawSeparator*(layer: int, x, y, w: int, style: Style, ch: string = "─") {.autoExpose: "tui".} =
   ## Draw a horizontal separator line
   for dx in 0 ..< w:
     tuiDraw(layer, x + dx, y, ch, style)
+
+proc drawSeparator*(layer: string, x, y, w: int, style: Style, ch: string = "─") =
+  ## Draw a horizontal separator line (string layer reference)
+  let idx = tuiResolveLayer(layer)
+  if idx >= 0:
+    drawSeparator(idx, x, y, w, style, ch)
 
 # ==============================================================================
 # LAYOUT HELPERS
@@ -827,17 +926,20 @@ proc calculateMaxScroll*(contentLines: int, viewportHeight: int): int =
 proc initTUIHelpersModule*() {.used.} =
   ## Initialize TUI helpers module - registers all auto-exposed functions
   ## This is called from runtime_api.nim to ensure WASM compatibility
+  ## 
+  ## NOTE: Some functions are commented out here because they have polymorphic
+  ## (int/string layer) versions registered manually in tui_helpers_bindings.nim
   queuePluginRegistration(register_centerTextX)
   queuePluginRegistration(register_centerTextY)
   queuePluginRegistration(register_truncateText)
   queuePluginRegistration(register_pointInRect)
   queuePluginRegistration(register_drawBoxSimple)
-  queuePluginRegistration(register_drawBoxSingle)
-  queuePluginRegistration(register_drawBoxDouble)
-  queuePluginRegistration(register_drawBoxRounded)
-  queuePluginRegistration(register_fillBox)
+  # queuePluginRegistration(register_drawBoxSingle)  # Polymorphic version in bindings
+  # queuePluginRegistration(register_drawBoxDouble)  # Polymorphic version in bindings
+  # queuePluginRegistration(register_drawBoxRounded)  # Polymorphic version in bindings
+  # queuePluginRegistration(register_fillBox)  # Polymorphic version in bindings
   queuePluginRegistration(register_drawCenteredText)
-  queuePluginRegistration(register_drawLabel)
+  # queuePluginRegistration(register_drawLabel)  # Polymorphic version in bindings
   queuePluginRegistration(register_drawSeparator)
   queuePluginRegistration(register_layoutVertical)
   queuePluginRegistration(register_layoutHorizontal)
@@ -847,7 +949,7 @@ proc initTUIHelpersModule*() {.used.} =
   queuePluginRegistration(register_drawTextBox)
   queuePluginRegistration(register_drawSlider)
   queuePluginRegistration(register_drawCheckBox)
-  queuePluginRegistration(register_drawPanel)
+  # queuePluginRegistration(register_drawPanel)  # Polymorphic version in bindings
   queuePluginRegistration(register_drawProgressBar)
   queuePluginRegistration(register_drawRadioButton)
 

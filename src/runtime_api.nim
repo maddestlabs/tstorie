@@ -1246,9 +1246,13 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Register ASCII art bindings and dungeon generator
   registerAsciiArtBindings(drawWrapper, addr state)
   registerAnsiArtBindings(runtimeEnv, drawWrapper)
-  registerTUIHelperBindings(runtimeEnv)
   registerTextEditorBindings(runtimeEnv)
   registerParticleBindings(runtimeEnv, state)
+  
+  # Register TUI helper bindings with polymorphic int/string layer support
+  # NOTE: Some auto-exposed versions are disabled in initTUIHelpersModule()
+  # to avoid conflicts with these polymorphic wrappers
+  registerTUIHelperBindings(runtimeEnv)
   
   # Register figlet bindings with font cache references and layer system
   registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
@@ -1542,6 +1546,8 @@ proc expandVariablesInSections(sections: var seq[Section], frontMatter: FrontMat
         blk.text = expandVariablesInText(blk.text, frontMatter)
       of HeadingBlock:
         blk.title = expandVariablesInText(blk.title, frontMatter)
+      of PreformattedBlock:
+        blk.content = expandVariablesInText(blk.content, frontMatter)
       else:
         discard
 
