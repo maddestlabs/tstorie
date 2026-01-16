@@ -13,7 +13,7 @@ Demos:
 - [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx&theme=neonopia&fontsize=40&font=LXGW+WenKai+Mono+TC&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
 
 Core examples:
-- [figletclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock&fontsize=30&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/figletclock.md)
+- [figletclock.md](https://maddestlabs.github.io/tstorie?content=figletclock&fontsize=30&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/figletclock.md)
 - [dungen.md](https://maddestlabs.github.io/tstorie/?content=demo:dungen&theme=coffee&shader=grid+sand+gradualblur&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
 - [edit.md](https://maddestlabs.github.io/tstorie?content=demo:edit) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/edit.md)
 - [layout.md](https://maddestlabs.github.io/tstorie?content=demo:layout&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
