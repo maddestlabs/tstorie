@@ -139,13 +139,12 @@ NIM_OPTS="c
   --passL:-s --passL:STACK_OVERFLOW_CHECK=0
   --passL:-Os
   --passL:-flto
-  --passL:--js-library --passL:web/console_bridge.js
-  --passL:--js-library --passL:web/audio_bridge.js
-  --passL:--js-library --passL:web/audio_nodes_bridge.js
-  --passL:--js-library --passL:web/figlet_bridge.js
-  --passL:--js-library --passL:web/document_bridge.js
-  --passL:--js-library --passL:web/font_metrics_bridge.js
-  -o:$OUTPUT_DIR/tstorie.wasm.js
+  --passL:--js-library --passL:web/console_bridge.js \
+  --passL:--js-library --passL:web/audio_bridge.js \
+  --passL:--js-library --passL:web/figlet_bridge.js \
+  --passL:--js-library --passL:web/document_bridge.js \
+  --passL:--js-library --passL:web/font_metrics_bridge.js \
+  -o:$OUTPUT_DIR/tstorie.wasm.js \
   tstorie.nim"
 
 # Compile

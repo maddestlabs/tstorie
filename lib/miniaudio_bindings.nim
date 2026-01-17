@@ -45,7 +45,10 @@ when defined(emscripten):
 {.passC: "-I" & currentSourcePath.parentDir().}
 
 # Use the helper C file instead of compiling header directly
-{.compile: "miniaudio_helper.c".}
+# Guard to prevent duplicate compilation with audio.nim
+when not defined(tStorieMiniaudioHelperCompiled):
+  {.define: tStorieMiniaudioHelperCompiled.}
+  {.compile: "miniaudio_helper.c".}
 
 const
   MA_SUCCESS* = 0

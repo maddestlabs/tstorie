@@ -8,7 +8,7 @@ import src/charwidth  # Character display width utilities
 import src/layers  # Layer system and buffer operations
 import src/appstate  # Application state management
 import lib/storie_types
-import lib/audio_gen
+# Audio system is now imported through nimini_bridge (which exports audio)
 import lib/storie_md          # Markdown parser (includes gEmbeddedFigletFonts)
 import lib/section_manager    # Section navigation and management (includes nimini bindings)
 import lib/layout             # Text layout utilities

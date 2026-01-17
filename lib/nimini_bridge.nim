@@ -9,14 +9,11 @@ import times
 import strutils
 import "../nimini"
 import storie_types
-import audio_gen
+import audio  # Unified audio system (includes audio_gen)
 import terminal_shaders
 import ../src/types
 import ../src/layers
 import ../src/appstate
-
-# Import audio as a module to avoid name conflicts
-import audio as audioModule
 
 # ================================================================
 # HELPER TEMPLATES
@@ -517,12 +514,11 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
   # Audio System (Procedural Sound Generation)
   # ============================================================================
   
-  # Helper to get AudioSystem from pointer
-  template getAudioSys(): untyped =
+  # Helper to get AudioSystem from app state (lazy init)
+  proc getAudioSys(): audio.AudioSystem =
     if appState.audioSystemPtr.isNil:
-      # Lazy initialization
-      appState.audioSystemPtr = cast[pointer](audioModule.initAudio(44100))
-    cast[audioModule.AudioSystem](appState.audioSystemPtr)
+      appState.audioSystemPtr = cast[pointer](audio.initAudio(44100))
+    result = cast[audio.AudioSystem](appState.audioSystemPtr)
   
   env.vars["audioPlayTone"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
     ## audioPlayTone(frequency: float, duration: float, waveform: string, volume: float)

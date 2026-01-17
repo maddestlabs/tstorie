@@ -9,7 +9,7 @@ Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
 - [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=notebook&font=Courier+Prime) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
-- [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock&fontsize=26&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
+- [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock&fontsize=26) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
 - [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx&theme=neonopia&fontsize=40&font=LXGW+WenKai+Mono+TC&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
 
 Core examples:
