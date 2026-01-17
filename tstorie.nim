@@ -641,6 +641,32 @@ when defined(emscripten):
     
     defineVar(runtimeEnv, "_flush_status", valString("flushed_" & $wasmPendingParams.len))
   
+  # JavaScript bridge functions for font and shader loading
+  proc emLoadFont(fontName: cstring) {.importc.}
+  proc emLoadShaders(shadersStr: cstring) {.importc.}
+  proc emSetFontSize(size: int) {.importc.}
+  
+  proc loadFontFromFrontMatter(fontName: string) =
+    ## Load a custom font from Google Fonts or URL (called from front matter)
+    try:
+      emLoadFont(fontName.cstring)
+    except:
+      discard  # Gracefully ignore errors
+  
+  proc setFontSizeFromFrontMatter(size: int) =
+    ## Set font size from front matter
+    try:
+      emSetFontSize(size)
+    except:
+      discard  # Gracefully ignore errors
+  
+  proc loadShadersFromFrontMatter(shadersStr: string) =
+    ## Load shader chain from front matter (semicolon or + separated)
+    try:
+      emLoadShaders(shadersStr.cstring)
+    except:
+      discard  # Gracefully ignore errors
+  
   proc emInit(width, height: int) {.exportc.} =
     globalState = newAppState(width, height)
     
@@ -1117,6 +1143,29 @@ when defined(emscripten):
         # Update browser tab title if title is defined in frontmatter
         if storieCtx.frontMatter.hasKey("title"):
           setDocumentTitle(storieCtx.frontMatter["title"])
+        
+        # Apply front matter settings for font, fontsize, and shaders
+        when defined(emscripten):
+          # Load custom font if specified (only if not overridden by URL param)
+          if not hasParamDirect("font") and storieCtx.frontMatter.hasKey("font"):
+            let fontName = storieCtx.frontMatter["font"]
+            if fontName.len > 0:
+              loadFontFromFrontMatter(fontName)
+          
+          # Apply font size if specified (only if not overridden by URL param)
+          if not hasParamDirect("fontsize") and storieCtx.frontMatter.hasKey("fontsize"):
+            try:
+              let fontSize = parseInt(storieCtx.frontMatter["fontsize"])
+              if fontSize > 0:
+                setFontSizeFromFrontMatter(fontSize)
+            except:
+              discard  # Gracefully ignore invalid fontsize
+          
+          # Load shaders if specified (only if not overridden by URL param)
+          if not hasParamDirect("shader") and storieCtx.frontMatter.hasKey("shaders"):
+            let shadersStr = storieCtx.frontMatter["shaders"]
+            if shadersStr.len > 0:
+              loadShadersFromFrontMatter(shadersStr)
         
         # Clear all layer buffers with theme background
         for layer in globalState.layers:

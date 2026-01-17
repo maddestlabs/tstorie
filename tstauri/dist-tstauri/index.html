@@ -728,6 +728,7 @@
         // ===== MAIN APPLICATION LOGIC =====
         // Setup Module before loading WASM (Emscripten will merge with this)
         let canvas = document.getElementById('terminal');  // Use 'let' so we can replace it with WebGL canvas
+        window.canvas = canvas;  // Store globally for shader system access
         const loading = document.getElementById('loading');
         const progress = document.getElementById('progress');
         const container = document.getElementById('container');
@@ -1770,13 +1771,24 @@
         let shaderSystem = null;
         
         function initShaderSystem() {
-            if (!shaderCodes || shaderCodes.length === 0 || !canvas) {
-                console.log('Cannot init shader system - missing shader code or canvas');
+            // Check window.shaderCodes which is set by front matter bridge
+            const codes = window.shaderCodes || shaderCodes;
+            if (!codes || codes.length === 0) {
+                console.log('Cannot init shader system - no shader code loaded');
+                console.log('  window.shaderCodes:', window.shaderCodes);
+                console.log('  local shaderCodes:', shaderCodes);
+                return;
+            }
+            
+            let canvas = window.canvas || document.getElementById('terminal');
+            if (!canvas) {
+                console.log('Cannot init shader system - canvas not found');
                 return;
             }
             
             try {
-                console.log('Initializing multi-shader system with', shaderCodes.length, 'shader(s):', shaderCodes.map(s => s.name).join(' → '));
+                console.log('Initializing multi-shader system with', codes.length, 'shader(s):', codes.map(s => s.name).join(' → '));
+                console.log('Canvas found:', canvas.id, canvas.width, 'x', canvas.height);
                 
                 // Store original terminal canvas reference
                 const terminalCanvas = canvas;
@@ -1858,9 +1870,9 @@
                 // Compile all shader programs
                 const shaderPrograms = [];
                 
-                for (let i = 0; i < shaderCodes.length; i++) {
-                    const shaderInfo = shaderCodes[i];
-                    console.log('Compiling shader', i + 1, '/', shaderCodes.length, ':', shaderInfo.name);
+                for (let i = 0; i < codes.length; i++) {
+                    const shaderInfo = codes[i];
+                    console.log('Compiling shader', i + 1, '/', codes.length, ':', shaderInfo.name);
                     
                     // Create isolated scope for eval to avoid variable conflicts
                     const getShaderConfig = (function() {

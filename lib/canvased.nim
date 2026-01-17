@@ -218,16 +218,14 @@ proc panCamera*(editor: NodeEditor, dx, dy: float) =
   editor.camera.targetY += dy
 
 proc setCameraTarget*(editor: NodeEditor, x, y: float) =
-  ## Set camera target position (will smooth interpolate)
+  ## Set camera target position (immediate update)
   editor.camera.targetX = x
   editor.camera.targetY = y
 
 proc updateCamera*(editor: NodeEditor, deltaTime: float) =
-  ## Smooth camera interpolation (from canvas.nim)
-  const SMOOTH_SPEED = 8.0
-  let t = min(1.0, SMOOTH_SPEED * deltaTime)
-  editor.camera.x = editor.camera.x + (editor.camera.targetX - editor.camera.x) * t
-  editor.camera.y = editor.camera.y + (editor.camera.targetY - editor.camera.y) * t
+  ## Direct camera update (no smoothing/easing)
+  editor.camera.x = editor.camera.targetX
+  editor.camera.y = editor.camera.targetY
 
 proc centerOnNode*(editor: NodeEditor, node: EditorNode) =
   ## Center camera on a specific node
@@ -336,9 +334,6 @@ proc handleMouseMove*(editor: NodeEditor, screenX, screenY: int): bool =
       let totalDy = screenY - editor.dragStartY
       editor.camera.targetX = editor.dragCameraStartX - float(totalDx)
       editor.camera.targetY = editor.dragCameraStartY - float(totalDy)
-      # For immediate feel, also update current position
-      editor.camera.x = editor.camera.targetX
-      editor.camera.y = editor.camera.targetY
       return true
     
     else:
@@ -540,7 +535,7 @@ proc renderNode*(editor: NodeEditor, node: EditorNode,
 
 proc render*(editor: NodeEditor, buffer: var TermBuffer, layer: int = 0) =
   ## Render the entire node editor
-  # Update camera (smooth interpolation)
+  # Update camera position
   editor.updateCamera(0.016)  # Assume 60fps for now
   
   # Render connections first (under nodes)
@@ -871,7 +866,7 @@ proc nimini_editorRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   result = valNil()
 
 proc nimini_editorUpdateCamera*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update camera smooth interpolation
+  ## Update camera position (immediate)
   ## Usage: updateCamera(editor, deltaTime)
   if args.len < 2:
     return valNil()

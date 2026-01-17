@@ -33,6 +33,14 @@ else:
 
 var editor = newEditor(initialContent)
 
+# Try to restore auto-saved content if no URL parameter provided
+if contentParam == "":
+  let autoSaved = localStorage_getItem("__autosave__")
+  if autoSaved != "" and autoSaved != "#":
+    editor = newEditor(autoSaved)
+    statusMessage = "Restored auto-saved content (Ctrl+S to save)"
+    lastAutoSaveContent = autoSaved
+
 # Focus system: 0=editor, 1=menu, 2=dialog
 var focusedComponent = 0
 
@@ -73,6 +81,11 @@ var mousePressed = 0
 var isDraggingScrollbar = 0
 var isDraggingMinimap = 0
 var dragStartY = 0
+
+# Auto-save state
+var autoSaveTimer = 0
+var autoSaveInterval = 180  # Auto-save every 180 frames (~3 seconds at 60fps)
+var lastAutoSaveContent = ""
 
 # Update saved files list
 proc refreshFileList() =
@@ -237,6 +250,17 @@ drawLabel(0, 0, 1, titleText, getStyle("info"))
 
 # Draw the main editor on layer 0
 drawEditor(0, editorX, editorY, editorW, editorH, editor, 1, hasSelection, selStartLine, selStartCol, selEndLine, selEndCol)
+
+# Auto-save logic (runs every frame)
+autoSaveTimer = autoSaveTimer + 1
+if autoSaveTimer >= autoSaveInterval:
+  autoSaveTimer = 0
+  let currentContent = editorGetText(editor)
+  if currentContent != lastAutoSaveContent:
+    let success = localStorage_setItem("__autosave__", currentContent)
+    if success:
+      lastAutoSaveContent = currentContent
+      lastSaveTime = "auto-saved"
 
 # Status bar (automatically positioned at bottom)
 let statusY = h - 5
@@ -579,6 +603,9 @@ if event.type == "key":
           editorClearModified(editor)
           statusMessage = "✓ Saved as '" & saveFileName & "' to browser storage"
           refreshFileList()
+          # Clear auto-save since user explicitly saved
+          discard localStorage_delete("__autosave__")
+          lastAutoSaveContent = content
         else:
           statusMessage = "✗ Failed to save to browser storage"
         showSaveDialog = 0
@@ -1457,6 +1484,45 @@ elif event.type == "mouse":
         hoveredMenuItem = -1
         focusedComponent = 0
   
+  # Mouse wheel scrolling (scroll_up/scroll_down button events) - check FIRST before generic press
+  if action == "press" and (event.button == "scroll_up" or event.button == "scroll_down"):
+    if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
+      let cursor = editorGetCursor(editor)
+      let cursorLine = cursor["line"]
+      let cursorCol = cursor["col"]
+      
+      # Scroll up or down
+      if event.button == "scroll_up":
+        # Scroll up - move cursor up 3 lines
+        let scrollAmount = 3
+        let newLine = max(0, cursorLine - scrollAmount)
+        let targetLine = editorGetLine(editor, newLine)
+        let newCol = min(cursorCol, len(targetLine))
+        editorSetCursor(editor, newLine, newCol)
+        statusMessage = "Mouse wheel: scrolled up"
+      else:
+        # Scroll down - move cursor down 3 lines
+        let scrollAmount = 3
+        let maxLine = editorLineCount(editor) - 1
+        let newLine = min(maxLine, cursorLine + scrollAmount)
+        let targetLine = editorGetLine(editor, newLine)
+        let newCol = min(cursorCol, len(targetLine))
+        editorSetCursor(editor, newLine, newCol)
+        statusMessage = "Mouse wheel: scrolled down"
+      
+      return 1
+  
+  # Mouse release - end any drag operation
+  if action == "release":
+    if mousePressed:
+      mousePressed = 0
+      isDraggingScrollbar = 0
+      isDraggingMinimap = 0
+      isDraggingText = 0
+      statusMessage = "Ready"
+      return 1
+  
+  # Regular mouse button press (left/right/middle buttons only)
   if action == "press":
     # Click in editor area - give it focus
     if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
@@ -1485,61 +1551,24 @@ elif event.type == "mouse":
       elif mx >= minimapX and mx < scrollbarX:
         mousePressed = 1
         isDraggingMinimap = 1
-        dragStartY = my
-        # Handle minimap click
-        let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
+        let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 0)
         if minimapHandled:
           statusMessage = "Minimap: jumped to position"
-          return 1
+        return 1
       
-      # Regular editor click
+      # Regular click in text area
       else:
+        mousePressed = 1
+        isDraggingText = 1
+        dragStartX = mx
+        dragStartY = my
+        
+        # Use the built-in click handler which properly accounts for scroll
         let handled = editorHandleClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
         if handled:
           let cursor = editorGetCursor(editor)
-          statusMessage = "Clicked: line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
-          return 1
-  
-  # Mouse release - stop dragging
-  elif action == "release":
-    if mousePressed:
-      mousePressed = 0
-      if isDraggingScrollbar:
-        isDraggingScrollbar = 0
-        statusMessage = "Scrollbar drag ended"
+          statusMessage = "Clicked at line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
         return 1
-      elif isDraggingMinimap:
-        isDraggingMinimap = 0
-        statusMessage = "Minimap drag ended"
-        return 1
-  
-  # Mouse wheel scrolling (scroll_up/scroll_down button events)
-  elif action == "press" and (event.button == "scroll_up" or event.button == "scroll_down"):
-    if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
-      let cursor = editorGetCursor(editor)
-      let cursorLine = cursor["line"]
-      let cursorCol = cursor["col"]
-      
-      # Scroll up or down
-      if event.button == "scroll_up":
-        # Scroll up - move cursor up 3 lines
-        let scrollAmount = 3
-        let newLine = max(0, cursorLine - scrollAmount)
-        let targetLine = editorGetLine(editor, newLine)
-        let newCol = min(cursorCol, len(targetLine))
-        editorSetCursor(editor, newLine, newCol)
-        statusMessage = "Mouse wheel: scrolled up"
-      else:
-        # Scroll down - move cursor down 3 lines
-        let scrollAmount = 3
-        let maxLine = editorLineCount(editor) - 1
-        let newLine = min(maxLine, cursorLine + scrollAmount)
-        let targetLine = editorGetLine(editor, newLine)
-        let newCol = min(cursorCol, len(targetLine))
-        editorSetCursor(editor, newLine, newCol)
-        statusMessage = "Mouse wheel: scrolled down"
-      
-      return 1
   
   return 0
 
@@ -1556,8 +1585,9 @@ elif event.type == "mouse_move":
   
   # Handle dragging while button is pressed
   if mousePressed and isDraggingScrollbar:
-    if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
-      # Calculate position from drag
+    # Allow dragging anywhere vertically within editor bounds
+    if my >= editorY and my < editorY + editorH:
+      # Calculate position from drag - direct mapping to total lines
       let relativeY = my - editorY
       let totalLines = editorLineCount(editor)
       let targetLine = (relativeY * totalLines) div editorH
@@ -1565,7 +1595,8 @@ elif event.type == "mouse_move":
       statusMessage = "Scrollbar drag: line " & str(targetLine + 1)
       return 1
   elif mousePressed and isDraggingMinimap:
-    if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
+    # Allow dragging anywhere vertically within editor bounds
+    if my >= editorY and my < editorY + editorH:
       # Handle minimap drag
       let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
       if minimapHandled:
