@@ -119,6 +119,16 @@ else:
   import std/locks
   var nativeQueueLock: Lock
   
+  # Playing voices - for mixing multiple sounds
+  type
+    AudioVoice = object
+      sample: AudioSample
+      position: int
+      active: bool
+  
+  const MaxVoices = 16
+  var nativeVoices: array[MaxVoices, AudioVoice]
+  
   proc initQueueLock() =
     initLock(nativeQueueLock)
   
@@ -126,42 +136,60 @@ else:
     deinitLock(nativeQueueLock)
 
   # Miniaudio callback - called when device needs audio data
+  # CRITICAL: Keep lock time minimal to prevent audio dropouts
   proc nativeAudioCallback(pDevice: ptr ma_device, pOutput: pointer,
                           pInput: pointer, frameCount: ma_uint32) {.cdecl.} =
-    acquire(nativeQueueLock)
-    defer: release(nativeQueueLock)
-    
-    if nativeSampleQueue.len == 0:
-      # No audio playing - output silence
-      let outputBuf = cast[ptr UncheckedArray[float32]](pOutput)
-      for i in 0 ..< int(frameCount) * 2:  # Stereo
-        outputBuf[i] = 0.0
-      return
-    
     let outputBuf = cast[ptr UncheckedArray[float32]](pOutput)
-    var outIdx = 0
+    let numFrames = int(frameCount)
     
-    for i in 0 ..< int(frameCount):
-      if nativeSampleQueue.len > 0:
-        let sample = nativeSampleQueue[0]
-        
-        if nativeQueuePos < sample.data.len:
-          let value = sample.data[nativeQueuePos]
-          # Stereo output - duplicate mono
-          outputBuf[outIdx] = value
-          outputBuf[outIdx + 1] = value
-          nativeQueuePos += 1
-        else:
-          # Sample finished, remove from queue
-          nativeSampleQueue.delete(0)
-          nativeQueuePos = 0
-          outputBuf[outIdx] = 0.0
-          outputBuf[outIdx + 1] = 0.0
-      else:
-        outputBuf[outIdx] = 0.0
-        outputBuf[outIdx + 1] = 0.0
+    # Clear output buffer first
+    for i in 0 ..< numFrames * 2:
+      outputBuf[i] = 0.0
+    
+    # Mix all active voices
+    for voiceIdx in 0 ..< MaxVoices:
+      if not nativeVoices[voiceIdx].active:
+        continue
       
-      outIdx += 2
+      let sample = nativeVoices[voiceIdx].sample
+      var pos = nativeVoices[voiceIdx].position
+      
+      for frameIdx in 0 ..< numFrames:
+        if pos >= sample.data.len:
+          # Voice finished
+          nativeVoices[voiceIdx].active = false
+          break
+        
+        let value = sample.data[pos]
+        let outIdx = frameIdx * 2
+        
+        # Mix into stereo output (simple averaging)
+        outputBuf[outIdx] += value * 0.25  # Scale down to prevent clipping
+        outputBuf[outIdx + 1] += value * 0.25
+        
+        pos += 1
+      
+      nativeVoices[voiceIdx].position = pos
+    
+    # Quick check for new samples to add (minimal lock time)
+    if nativeSampleQueue.len > 0:
+      if tryAcquire(nativeQueueLock):
+        # Try to find free voice slots for queued samples
+        while nativeSampleQueue.len > 0:
+          var foundSlot = false
+          for i in 0 ..< MaxVoices:
+            if not nativeVoices[i].active:
+              nativeVoices[i].sample = nativeSampleQueue[0]
+              nativeVoices[i].position = 0
+              nativeVoices[i].active = true
+              nativeSampleQueue.delete(0)
+              foundSlot = true
+              break
+          
+          if not foundSlot:
+            break  # No free slots, queue will be processed next callback
+        
+        release(nativeQueueLock)
 
 # ================================================================
 # UNIFIED AUDIO SYSTEM TYPE

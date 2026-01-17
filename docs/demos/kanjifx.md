@@ -2,7 +2,7 @@
 title: "Kanji FX"
 author: "Maddest Labs"
 chars: "闇雲霧雨雪月星空夢幻影光風水火土木金銀鉄石砂爆雷虫符花"
-doubleWidth: "true"
+doubleWidth: true
 theme: "stonegarden"
 shaders: "bloom+crt"
 ---
@@ -43,7 +43,7 @@ if len(chars) > 0:
 
 var charWidth = 1
 # Calculate character width for rendering
-if doubleWidth == "true":
+if doubleWidth:
   charWidth = 2
 
 # Random kanji character selection for background (static, no animation)

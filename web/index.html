@@ -280,6 +280,64 @@
         .settings-buttons button.primary:hover {
             background: rgba(0, 217, 142, 0.5);
         }
+        
+        /* Drag-and-Drop Overlay */
+        #drop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 217, 142, 0.15);
+            border: 4px dashed #00d98e;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            pointer-events: none;
+        }
+        
+        #drop-overlay.drag-active {
+            display: flex;
+        }
+        
+        #drop-overlay-text {
+            font-size: 32px;
+            color: #00d98e;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(0, 217, 142, 0.8);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
+        
+        #drop-status {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 20, 20, 0.95);
+            border: 2px solid #00d98e;
+            border-radius: 6px;
+            padding: 12px 24px;
+            color: #00d98e;
+            font-size: 14px;
+            z-index: 2001;
+            display: none;
+            box-shadow: 0 4px 16px rgba(0, 217, 142, 0.3);
+        }
+        
+        #drop-status.visible {
+            display: block;
+        }
+        
+        #drop-status.error {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
     </style>
 </head>
 <body>
@@ -350,6 +408,16 @@
             <button id="apply-button" class="primary">Apply & Reload</button>
         </div>
     </div>
+    
+    <!-- Drag-and-Drop Overlay -->
+    <div id="drop-overlay">
+        <div id="drop-overlay-text">
+            📄 Drop .md or .png file here
+        </div>
+    </div>
+    
+    <!-- Drop Status Message -->
+    <div id="drop-status"></div>
     
     <div id="container">
         <div id="loading">
@@ -486,7 +554,177 @@
         
         // Load current settings on page load
         loadCurrentSettings();
-        
+    </script>
+    
+    <script>
+        // ===== DRAG-AND-DROP FILE HANDLING =====
+        (function() {
+            const dropOverlay = document.getElementById('drop-overlay');
+            const dropStatus = document.getElementById('drop-status');
+            const container = document.getElementById('container');
+            
+            let dragCounter = 0;
+            
+            function showDropStatus(message, isError = false) {
+                dropStatus.textContent = message;
+                dropStatus.className = 'visible' + (isError ? ' error' : '');
+                
+                if (!isError) {
+                    setTimeout(() => {
+                        dropStatus.classList.remove('visible');
+                    }, 3000);
+                }
+            }
+            
+            // Prevent default drag behaviors on the whole document
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                document.body.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+            
+            // Show overlay when dragging over
+            document.body.addEventListener('dragenter', (e) => {
+                dragCounter++;
+                if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+                    dropOverlay.classList.add('drag-active');
+                }
+            });
+            
+            // Update overlay appearance
+            document.body.addEventListener('dragover', (e) => {
+                e.dataTransfer.dropEffect = 'copy';
+            });
+            
+            // Hide overlay when dragging away
+            document.body.addEventListener('dragleave', () => {
+                dragCounter--;
+                if (dragCounter === 0) {
+                    dropOverlay.classList.remove('drag-active');
+                }
+            });
+            
+            // Handle dropped files
+            document.body.addEventListener('drop', async (e) => {
+                dragCounter = 0;
+                dropOverlay.classList.remove('drag-active');
+                
+                const files = e.dataTransfer.files;
+                if (files.length === 0) return;
+                
+                // Process first .md or .png file found
+                for (const file of files) {
+                    if (file.name.endsWith('.md')) {
+                        await handleMarkdownFile(file);
+                        break;
+                    } else if (file.name.endsWith('.png')) {
+                        await handlePNGFile(file);
+                        break;
+                    }
+                }
+            });
+            
+            // Handle markdown files
+            async function handleMarkdownFile(file) {
+                try {
+                    showDropStatus(`📖 Loading ${file.name}...`, false);
+                    
+                    const content = await file.text();
+                    
+                    // Wait for Module to be ready
+                    if (!window.Module || !window.Module.ccall) {
+                        showDropStatus('⏳ Waiting for tStorie engine...', false);
+                        
+                        // Wait up to 10 seconds for Module to initialize
+                        let attempts = 0;
+                        while ((!window.Module || !window.Module.ccall) && attempts < 100) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
+                        
+                        if (!window.Module || !window.Module.ccall) {
+                            throw new Error('tStorie engine not ready');
+                        }
+                    }
+                    
+                    // Load markdown into tStorie
+                    console.log('Loading markdown via drag-and-drop:', file.name, content.length, 'bytes');
+                    
+                    if (window.Module.ccall) {
+                        window.Module.ccall(
+                            'emLoadMarkdownFromJS',
+                            null,
+                            ['string'],
+                            [content],
+                            { async: false }
+                        );
+                        showDropStatus(`✓ Loaded ${file.name}`, false);
+                    } else {
+                        throw new Error('Module not ready');
+                    }
+                    
+                } catch (error) {
+                    console.error('Failed to load markdown file:', error);
+                    showDropStatus(`❌ Error: ${error.message}`, true);
+                }
+            }
+            
+            // Handle PNG files with embedded workflows
+            async function handlePNGFile(file) {
+                try {
+                    showDropStatus(`🖼️ Extracting workflow from ${file.name}...`, false);
+                    
+                    // Use existing extractWorkflowFromPNG function
+                    const content = await extractWorkflowFromPNG(file);
+                    
+                    if (!content) {
+                        showDropStatus('❌ No workflow found in PNG', true);
+                        return;
+                    }
+                    
+                    // Wait for Module to be ready
+                    if (!window.Module || !window.Module.ccall) {
+                        showDropStatus('⏳ Waiting for tStorie engine...', false);
+                        
+                        let attempts = 0;
+                        while ((!window.Module || !window.Module.ccall) && attempts < 100) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
+                        
+                        if (!window.Module || !window.Module.ccall) {
+                            throw new Error('tStorie engine not ready');
+                        }
+                    }
+                    
+                    // Load extracted workflow
+                    console.log('Loading workflow from PNG via drag-and-drop:', file.name, content.length, 'bytes');
+                    
+                    if (window.Module.ccall) {
+                        window.Module.ccall(
+                            'emLoadMarkdownFromJS',
+                            null,
+                            ['string'],
+                            [content],
+                            { async: false }
+                        );
+                        showDropStatus(`✓ Loaded workflow from ${file.name}`, false);
+                    } else {
+                        throw new Error('Module not ready');
+                    }
+                    
+                } catch (error) {
+                    console.error('Failed to load PNG file:', error);
+                    showDropStatus(`❌ Error: ${error.message}`, true);
+                }
+            }
+            
+            console.log('✓ Drag-and-drop initialized - you can now drop .md or .png files');
+        })();
+    </script>
+    
+    <script>
         // ===== MAIN APPLICATION LOGIC =====
         // Setup Module before loading WASM (Emscripten will merge with this)
         let canvas = document.getElementById('terminal');  // Use 'let' so we can replace it with WebGL canvas

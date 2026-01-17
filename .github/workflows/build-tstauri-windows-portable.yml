@@ -27,20 +27,25 @@ jobs:
         with:
           version: '3.1.50'
 
-      - name: Build tStorie WASM with WebGL
+      - name: Build tStorie WASM for tStauri
         run: |
-          chmod +x build-web.sh
-          ./build-web.sh -o docs
+          chmod +x build-web-tauri.sh
+          ./build-web-tauri.sh
           
       - name: Verify WASM files
         run: |
           echo "Checking for required WASM files..."
-          ls -lh docs/tstorie*.js docs/tstorie.wasm.wasm
-          if [ ! -f "docs/tstorie-webgl.js" ]; then
+          ls -lh tstauri/dist-tstauri/tstorie*.js tstauri/dist-tstauri/tstorie.wasm.wasm
+          if [ ! -f "tstauri/dist-tstauri/tstorie-webgl.js" ]; then
             echo "ERROR: tstorie-webgl.js not found!"
             exit 1
           fi
+          if [ ! -f "tstauri/dist-tstauri/index.md" ]; then
+            echo "ERROR: index.md (welcome screen) not found!"
+            exit 1
+          fi
           echo "✓ All WASM files present"
+          echo "✓ Welcome screen installed"
 
       - name: Install Rust stable with Windows target
         uses: dtolnay/rust-toolchain@stable
@@ -98,6 +103,7 @@ jobs:
           [ -f "tstorie-webgl.js" ] && echo "✓ tstorie-webgl.js" || echo "✗ tstorie-webgl.js MISSING"
           [ -f "tstorie.wasm.js" ] && echo "✓ tstorie.wasm.js" || echo "✗ tstorie.wasm.js MISSING"
           [ -f "tstorie.wasm.wasm" ] && echo "✓ tstorie.wasm.wasm" || echo "✗ tstorie.wasm.wasm MISSING"
+          [ -f "index.md" ] && echo "✓ index.md (welcome)" || echo "✗ index.md MISSING"
           [ -f "WebView2Loader.dll" ] && echo "✓ WebView2Loader.dll" || echo "✗ WebView2Loader.dll MISSING"
 
       - name: Upload portable package as artifact

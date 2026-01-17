@@ -43,10 +43,10 @@ jobs:
         with:
           version: '3.1.50'
 
-      - name: Build tStorie WASM
+      - name: Build tStorie WASM for tStauri
         run: |
-          chmod +x build-web.sh
-          ./build-web.sh -o docs
+          chmod +x build-web-tauri.sh
+          ./build-web-tauri.sh
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable

@@ -225,45 +225,56 @@ async function runMarkdown(filePath) {
         
         // Load the markdown content
         const content = await invoke('load_markdown_content', { path: filePath });
-        console.log('✓ File read successfully, length:', content.length);
-        console.log('First 100 chars:', content.substring(0, 100));
+        await loadMarkdownContent(content, filePath);
         
-        currentMarkdownPath = filePath;
-        const fileName = filePath.split(/[\\/]/).pop();
-        
-        // Show container BEFORE initializing tStorie (canvas must be visible)
-        console.log('Showing container for tStorie initialization...');
-        dropZone.classList.add('hidden');
-        tstorieContainer.classList.add('active');
-        controls.classList.add('active');
-        
-        // Wait a moment for the DOM to update and canvas to be rendered
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Initialize tStorie on first file drop (now that canvas is visible and rendered)
-        if (!tstorieInitialized) {
-            console.log('First file drop - initializing tStorie engine...');
-            showStatus('⚡ Initializing tStorie engine...', false);
-            try {
-                await loadTStorieEngine();
-                tstorieInitialized = true;
-                console.log('✓ tStorie engine ready');
-            } catch (error) {
-                console.error('Failed to initialize tStorie:', error);
-                showStatus('❌ Failed to initialize: ' + error.message, true);
-                // Reset UI on failure
-                resetToDropZone();
-                return;
-            }
+    } catch (error) {
+        console.error('❌ Failed to run markdown:', error);
+        console.error('Error stack:', error.stack);
+        showStatus('❌ ' + error.message, true);
+    }
+}
+
+// Load markdown content (shared by file drop and welcome screen)
+async function loadMarkdownContent(content, sourceName = 'content') {
+    console.log('✓ Content read successfully, length:', content.length);
+    console.log('First 100 chars:', content.substring(0, 100));
+    
+    currentMarkdownPath = sourceName;
+    const fileName = sourceName.split(/[\\/]/).pop();
+    
+    // Show container BEFORE initializing tStorie (canvas must be visible)
+    console.log('Showing container for tStorie initialization...');
+    dropZone.classList.add('hidden');
+    tstorieContainer.classList.add('active');
+    controls.classList.add('active');
+    
+    // Wait a moment for the DOM to update and canvas to be rendered
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Initialize tStorie on first load (now that canvas is visible and rendered)
+    if (!tstorieInitialized) {
+        console.log('First load - initializing tStorie engine...');
+        showStatus('⚡ Initializing tStorie engine...', false);
+        try {
+            await loadTStorieEngine();
+            tstorieInitialized = true;
+            console.log('✓ tStorie engine ready');
+        } catch (error) {
+            console.error('Failed to initialize tStorie:', error);
+            showStatus('❌ Failed to initialize: ' + error.message, true);
+            // Reset UI on failure
+            resetToDropZone();
+            return;
         }
-        
-        showStatus(`✓ Loaded: ${fileName}`, false);
-        
-        // Check Module state
-        console.log('=== Checking Module state ===');
-        console.log('window.Module exists:', !!window.Module);
-        console.log('Module.ccall exists:', !!(window.Module && window.Module.ccall));
-        console.log('Module._emLoadMarkdownFromJS exists:', !!(window.Module && window.Module._emLoadMarkdownFromJS));
+    }
+    
+    showStatus(`✓ Loaded: ${fileName}`, false);
+    
+    // Check Module state
+    console.log('=== Checking Module state ===');
+    console.log('window.Module exists:', !!window.Module);
+    console.log('Module.ccall exists:', !!(window.Module && window.Module.ccall));
+    console.log('Module._emLoadMarkdownFromJS exists:', !!(window.Module && window.Module._emLoadMarkdownFromJS));
         
         // Load markdown into tStorie WASM module
         if (window.Module && typeof window.Module.ccall === 'function') {
@@ -304,19 +315,27 @@ async function runMarkdown(filePath) {
             console.log('Available Module properties:', window.Module ? Object.keys(window.Module).filter(k => k.includes('em')).join(', ') : 'Module not defined');
             showStatus('❌ tStorie engine not ready', true);
         }
-        
+}
+
+// Load welcome screen
+async function loadWelcomeScreen() {
+    try {
+        console.log('Loading bundled welcome screen...');
+        const welcomeContent = await invoke('load_bundled_welcome');
+        await loadMarkdownContent(welcomeContent, 'Welcome');
+        console.log('✓ Welcome screen loaded');
     } catch (error) {
-        console.error('❌ Failed to run markdown:', error);
-        console.error('Error stack:', error.stack);
-        showStatus('❌ ' + error.message, true);
+        console.error('Failed to load welcome screen:', error);
+        // If welcome screen fails, just stay on drop zone
+        console.log('Staying on drop zone');
     }
 }
 
 // Reset to drop zone
 function resetToDropZone() {
-    // TStorie WASM is not designed for reloading content - just refresh the page
-    console.log('Reloading page...');
-    window.location.reload();
+    currentMarkdownPath = null;
+    console.log('Returning to welcome screen...');
+    loadWelcomeScreen();
 }
 
 // Show status message
@@ -351,16 +370,33 @@ await listen('file-dropped', async (event) => {
     }
 });
 
-console.log('✓ File drop listener registered');
-console.log('✓ tStauri ready - tStorie will initialize when you drop a file');
+// Listen for command-line file arguments (file dropped on exe)
+await listen('cli-file-arg', async (event) => {
+    const filePath = event.payload;
+    console.log('=== COMMAND-LINE FILE ARGUMENT RECEIVED ===');
+    console.log('File path:', filePath);
+    console.log('Event:', event);
+    showStatus('📂 Opening: ' + filePath.split(/[\\/]/).pop(), false);
+    
+    try {
+        await runMarkdown(filePath);
+    } catch (error) {
+        console.error('Error in CLI file handler:', error);
+        showStatus('❌ Error: ' + error.message, true);
+    }
+});
 
-// Don't initialize tStorie until a file is dropped
-// This avoids auto-loading any bundled index.md
+console.log('✓ File drop listener registered');
+console.log('✓ CLI file argument listener registered');
+console.log('✓ tStauri ready');
+
+// Load welcome screen automatically on startup
+loadWelcomeScreen();
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
-    // Escape to return to drop zone
-    if (e.key === 'Escape' && currentMarkdownPath) {
+    // Escape to return to welcome screen
+    if (e.key === 'Escape' && currentMarkdownPath && currentMarkdownPath !== 'Welcome') {
         resetToDropZone();
     }
 });

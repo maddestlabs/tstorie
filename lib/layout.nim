@@ -148,7 +148,7 @@ proc wrapText*(text: string, maxWidth: int, mode: WrapMode): seq[string] =
       # If word alone is too wide, force char wrap
       if wordWidth > maxWidth:
         if line.len > 0:
-          result.add(line.strip(trailing = true))
+          result.add(strutils.strip(line, trailing = true))
           line = ""
           lineWidth = 0
         
@@ -169,12 +169,12 @@ proc wrapText*(text: string, maxWidth: int, mode: WrapMode): seq[string] =
       else:
         # Start new line
         if line.len > 0:
-          result.add(line.strip(trailing = true))
+          result.add(strutils.strip(line, trailing = true))
         line = word
         lineWidth = wordWidth
     
     if line.len > 0:
-      result.add(line.strip(trailing = true))
+      result.add(strutils.strip(line, trailing = true))
   
   of WrapJustify:
     # Same as WrapWord for wrapping, justify applied during render

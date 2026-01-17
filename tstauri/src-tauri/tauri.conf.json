@@ -18,16 +18,26 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "../../docs/tstorie.js",
-      "../../docs/tstorie.wasm.js",
-      "../../docs/tstorie.wasm.wasm",
-      "../../docs/tstorie-webgl.js"
+      "../dist-tstauri/tstorie.js",
+      "../dist-tstauri/tstorie.wasm.js",
+      "../dist-tstauri/tstorie.wasm.wasm",
+      "../dist-tstauri/tstorie-webgl.js",
+      "../dist-tstauri/index.md"
     ],
     "externalBin": [],
     "copyright": "",
     "category": "DeveloperTool",
     "shortDescription": "Desktop tStorie runner",
     "longDescription": "Drag and drop tStorie .md documents to run them with the WASM engine",
+    "fileAssociations": [
+      {
+        "ext": ["md"],
+        "name": "Markdown Document",
+        "description": "tStorie Markdown Document",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      }
+    ],
     "linux": {
       "deb": {
         "depends": []

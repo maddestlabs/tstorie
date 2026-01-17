@@ -1619,8 +1619,13 @@ proc exposeFrontMatterVariables*() =
       else:
         setGlobal(key, valInt(numVal.int))
     except:
-      # Not a number, store as string
-      setGlobal(key, valString(value))
+      # Check if it's a boolean
+      let lowerVal = value.toLowerAscii()
+      if lowerVal == "true" or lowerVal == "false":
+        setGlobal(key, valBool(lowerVal == "true"))
+      else:
+        # Not a number or bool, store as string
+        setGlobal(key, valString(value))
 
 proc initStorieContext(state: AppState) =
   ## Initialize the Storie context, parse Markdown, and set up layers

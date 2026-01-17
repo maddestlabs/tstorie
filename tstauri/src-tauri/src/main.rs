@@ -39,6 +39,17 @@ fn get_bundled_wasm_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(clean_path)
 }
 
+#[tauri::command]
+fn load_bundled_welcome(app: tauri::AppHandle) -> Result<String, String> {
+    let resource_path = app.path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    
+    let file_path = resource_path.join("index.md");
+    fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read welcome screen: {}", e))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -46,10 +57,36 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             load_markdown_content,
             get_bundled_wasm_path,
-            get_bundled_wasm_file
+            get_bundled_wasm_file,
+            load_bundled_welcome
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
+            
+            // Check for command-line arguments (file dropped on exe)
+            let args: Vec<String> = std::env::args().collect();
+            if args.len() > 1 {
+                // Skip first arg (exe path), check remaining for .md or .png files
+                for arg in &args[1..] {
+                    let path = std::path::Path::new(arg);
+                    if path.exists() {
+                        let ext = path.extension().and_then(|s| s.to_str());
+                        if ext == Some("md") || ext == Some("png") {
+                            // Clone window for async emit
+                            let window_for_emit = window.clone();
+                            let file_path = arg.clone();
+                            
+                            // Emit after a short delay to ensure frontend is ready
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                let _ = window_for_emit.emit("cli-file-arg", file_path);
+                            });
+                            
+                            break; // Only load first valid file
+                        }
+                    }
+                }
+            }
             
             // Clone window for the closure
             let window_clone = window.clone();
@@ -58,7 +95,8 @@ fn main() {
             window.on_window_event(move |event| {
                 if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop {paths, position: _}) = event {
                     if let Some(path) = paths.first() {
-                        if path.extension().and_then(|s| s.to_str()) == Some("md") {
+                        let ext = path.extension().and_then(|s| s.to_str());
+                        if ext == Some("md") || ext == Some("png") {
                             // Send the file path to the frontend
                             let _ = window_clone.emit("file-dropped", path.to_string_lossy().to_string());
                         }
