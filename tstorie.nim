@@ -948,6 +948,19 @@ when defined(emscripten):
     # Call inputHandler directly
     discard inputHandler(globalState, event)
   
+  proc emHandleMouseWheel(x, y, deltaY, shift, alt, ctrl: int) {.exportc: "emHandleMouseWheel", used.} =
+    var mods: set[uint8] = {}
+    if shift != 0: mods.incl ModShift
+    if alt != 0: mods.incl ModAlt
+    if ctrl != 0: mods.incl ModCtrl
+    
+    # deltaY is positive when scrolling down, negative when scrolling up
+    let mouseButton = if deltaY < 0: ScrollUp else: ScrollDown
+    
+    let event = InputEvent(kind: MouseEvent, button: mouseButton, mouseX: x, mouseY: y, mods: mods, action: Press)
+    # Call inputHandler directly
+    discard inputHandler(globalState, event)
+  
   proc emSetWaitingForGist() {.exportc.} =
     ## Set flag to wait for gist content instead of loading index.md
     gWaitingForGist = true

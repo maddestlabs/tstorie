@@ -5,7 +5,7 @@ author: "Maddest Labs"
 minWidth: 20
 minHeight: 10
 chars: "岩僧石座固僧・苔霧松竹梅"
-doubleWidth: "true"
+doubleWidth: true
 theme: "stonegarden"
 shaders: "grid2x1+sand+gradualblur"
 ---
@@ -439,7 +439,7 @@ if len(chars) >= 8:
 
 var charWidth = 1
 # Calculate character width for rendering
-if doubleWidth == "true":
+if doubleWidth:
   charWidth = 2
 
 # Random outside character selection

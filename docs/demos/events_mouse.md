@@ -43,7 +43,7 @@ clear()
 draw(0, 2, 2, "=== MOUSE EVENT TEST ===")
 
 # Draw instructions
-draw(0, 2, 4, "Move your mouse and click buttons to test")
+draw(0, 2, 4, "Move your mouse, click buttons, and use scroll wheel")
 draw(0, 2, 5, "Press Q or ESC to quit")
 
 # Display mouse state (using local variables)
@@ -51,6 +51,7 @@ draw(0, 2, 7, "Mouse Position (local): (" & str(mouseX) & ", " & str(mouseY) & "
 draw(0, 2, 8, "Last Button: " & lastButton)
 draw(0, 2, 9, "Last Action: " & lastAction)
 draw(0, 2, 10, "Click Count: " & str(clickCount))
+draw(0, 2, 11, "(Try scrolling your mouse wheel!)")
 
 # Display mouse state using getMouseX/getMouseY functions
 draw(0, 2, 12, "Mouse Position (getMouseX/Y): (" & str(getMouseX()) & ", " & str(getMouseY()) & ")")

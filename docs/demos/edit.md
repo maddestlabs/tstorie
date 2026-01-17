@@ -68,6 +68,12 @@ var selStartCol = 0
 var selEndLine = 0
 var selEndCol = 0
 
+# Mouse drag state
+var mousePressed = 0
+var isDraggingScrollbar = 0
+var isDraggingMinimap = 0
+var dragStartY = 0
+
 # Update saved files list
 proc refreshFileList() =
   let jsonStr = localStorage_list()
@@ -264,23 +270,27 @@ if pasteInProgress:
   let pastedText = pasteFromClipboard()
   if pastedText != "" and pastedText != lastPasteCheck:
     # Parse lines - handle \r\n, \n, \r, and literal \n
+    # Process the text directly without byte-by-byte iteration to preserve Unicode
     var lines: seq[string] = @[]
     var currentLine = ""
     var i = 0
     var lineCount = 0
+    
+    # Split by different newline types while preserving unicode characters
+    # Instead of iterating byte-by-byte, we build the string until we hit newlines
     while i < len(pastedText):
-      let ch = pastedText[i]
-      let code = ord(ch)
-      
-      # Check for literal backslash-n (escaped newline)
-      if ch == '\\' and i + 1 < len(pastedText) and pastedText[i + 1] == 'n':
+      # Check for literal backslash-n (escaped newline as text)
+      if i + 1 < len(pastedText) and pastedText[i] == '\\' and pastedText[i + 1] == 'n':
         add(lines, currentLine)
         lineCount = lineCount + 1
         currentLine = ""
         i = i + 2  # Skip both \ and n
         continue
+      
+      let code = ord(pastedText[i])
+      
       # Check for actual newlines
-      elif code == 13:  # \r
+      if code == 13:  # \r
         add(lines, currentLine)
         lineCount = lineCount + 1
         currentLine = ""
@@ -297,8 +307,10 @@ if pasteInProgress:
         i = i + 1
         continue
       else:
-        currentLine = currentLine & $ch
+        # Add the character directly without converting - preserves Unicode
+        currentLine = currentLine & pastedText[i..<i+1]
       i = i + 1
+    
     # Add the last line
     if currentLine != "" or len(lines) > 0:
       add(lines, currentLine)
@@ -978,6 +990,153 @@ if event.type == "key":
     
     return 1
   
+  # ===== Home, End, Page Up, Page Down =====
+  
+  # Home key (10004) - Move to start of line or file
+  if keyCode == 10004:
+    let cursor = editorGetCursor(editor)
+    let cursorLine = cursor["line"]
+    let cursorCol = cursor["col"]
+    
+    # Start selection if shift is pressed and no selection exists
+    if shift and not hasSelection:
+      hasSelection = 1
+      selStartLine = cursorLine
+      selStartCol = cursorCol
+      selEndLine = cursorLine
+      selEndCol = cursorCol
+    
+    var newLine = cursorLine
+    var newCol = 0
+    
+    if ctrl:
+      # Ctrl+Home: Move to start of file
+      newLine = 0
+      newCol = 0
+    else:
+      # Home: Move to start of line
+      newCol = 0
+    
+    editorSetCursor(editor, newLine, newCol)
+    
+    # Update selection if shift is pressed
+    if shift:
+      selEndLine = newLine
+      selEndCol = newCol
+      statusMessage = "Selection to line start"
+    else:
+      clearSelection()
+      statusMessage = if ctrl: "Moved to start of file" else: "Moved to line start"
+    
+    return 1
+  
+  # End key (10005) - Move to end of line or file
+  if keyCode == 10005:
+    let cursor = editorGetCursor(editor)
+    let cursorLine = cursor["line"]
+    let cursorCol = cursor["col"]
+    
+    # Start selection if shift is pressed and no selection exists
+    if shift and not hasSelection:
+      hasSelection = 1
+      selStartLine = cursorLine
+      selStartCol = cursorCol
+      selEndLine = cursorLine
+      selEndCol = cursorCol
+    
+    var newLine = cursorLine
+    var newCol = 0
+    
+    if ctrl:
+      # Ctrl+End: Move to end of file
+      newLine = editorLineCount(editor) - 1
+      let lastLine = editorGetLine(editor, newLine)
+      newCol = len(lastLine)
+    else:
+      # End: Move to end of line
+      let line = editorGetLine(editor, cursorLine)
+      newCol = len(line)
+    
+    editorSetCursor(editor, newLine, newCol)
+    
+    # Update selection if shift is pressed
+    if shift:
+      selEndLine = newLine
+      selEndCol = newCol
+      statusMessage = "Selection to line end"
+    else:
+      clearSelection()
+      statusMessage = if ctrl: "Moved to end of file" else: "Moved to line end"
+    
+    return 1
+  
+  # Page Up key (10006) - Scroll up one page
+  if keyCode == 10006:
+    let cursor = editorGetCursor(editor)
+    let cursorLine = cursor["line"]
+    let cursorCol = cursor["col"]
+    
+    # Start selection if shift is pressed and no selection exists
+    if shift and not hasSelection:
+      hasSelection = 1
+      selStartLine = cursorLine
+      selStartCol = cursorCol
+      selEndLine = cursorLine
+      selEndCol = cursorCol
+    
+    # Calculate page size (editor height minus some for scrolling context)
+    let pageSize = max(10, termHeight - 9)
+    var newLine = max(0, cursorLine - pageSize)
+    let targetLine = editorGetLine(editor, newLine)
+    let newCol = min(cursorCol, len(targetLine))
+    
+    editorSetCursor(editor, newLine, newCol)
+    
+    # Update selection if shift is pressed
+    if shift:
+      selEndLine = newLine
+      selEndCol = newCol
+      statusMessage = "Selection page up"
+    else:
+      clearSelection()
+      statusMessage = "Scrolled up one page"
+    
+    return 1
+  
+  # Page Down key (10007) - Scroll down one page
+  if keyCode == 10007:
+    let cursor = editorGetCursor(editor)
+    let cursorLine = cursor["line"]
+    let cursorCol = cursor["col"]
+    
+    # Start selection if shift is pressed and no selection exists
+    if shift and not hasSelection:
+      hasSelection = 1
+      selStartLine = cursorLine
+      selStartCol = cursorCol
+      selEndLine = cursorLine
+      selEndCol = cursorCol
+    
+    # Calculate page size (editor height minus some for scrolling context)
+    let pageSize = max(10, termHeight - 9)
+    let maxLine = editorLineCount(editor) - 1
+    var newLine = min(maxLine, cursorLine + pageSize)
+    let targetLine = editorGetLine(editor, newLine)
+    let newCol = min(cursorCol, len(targetLine))
+    
+    editorSetCursor(editor, newLine, newCol)
+    
+    # Update selection if shift is pressed
+    if shift:
+      selEndLine = newLine
+      selEndCol = newCol
+      statusMessage = "Selection page down"
+    else:
+      clearSelection()
+      statusMessage = "Scrolled down one page"
+    
+    return 1
+  
   # ===== Editor Input (only when editor has focus) =====
   
   # Already checked focusedComponent above
@@ -1015,14 +1174,7 @@ if event.type == "key":
     elif keyCode == 37 or keyCode == 38 or keyCode == 39 or keyCode == 40 or keyCode == 10000 or keyCode == 10001 or keyCode == 10002 or keyCode == 10003:
       let cursor = editorGetCursor(editor)
       statusMessage = "Moved to line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
-    elif keyCode == 36:
-      statusMessage = "Moved to line start"
-    elif keyCode == 35:
-      statusMessage = "Moved to line end"
-    elif keyCode == 33:
-      statusMessage = "Scrolled up"
-    elif keyCode == 34:
-      statusMessage = "Scrolled down"
+    # Note: Home, End, PgUp, PgDn (33-36) are handled above with proper selection support
     
     return 1
   
@@ -1077,8 +1229,8 @@ elif event.type == "mouse":
   let action = event.action
   
   # Recalculate editor dimensions
-  let w = getWidth()
-  let h = getHeight()
+  let w = termWidth
+  let h = termHeight
   let editorW = w - 1
   let editorH = h - 7
   
@@ -1311,40 +1463,114 @@ elif event.type == "mouse":
       focusedComponent = 0
       activeMenu = ""
       hoveredMenuItem = -1
-      # Try minimap click first
-      let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
-      if minimapHandled:
-        statusMessage = "Minimap click: jumped to position"
+      
+      # Calculate scrollbar and minimap positions
+      let scrollbarX = editorX + editorW - 1
+      let minimapX = editorX + editorW - 6
+      
+      # Check if clicking on scrollbar (rightmost column)
+      if mx == scrollbarX:
+        mousePressed = 1
+        isDraggingScrollbar = 1
+        dragStartY = my
+        # Calculate position and jump there
+        let relativeY = my - editorY
+        let totalLines = editorLineCount(editor)
+        let targetLine = (relativeY * totalLines) div editorH
+        editorSetCursor(editor, min(max(0, targetLine), totalLines - 1), 0)
+        statusMessage = "Scrollbar: jumped to line " & str(targetLine + 1)
         return 1
       
-      # Then try regular editor click
-      let handled = editorHandleClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
-      if handled:
-        let cursor = editorGetCursor(editor)
-        statusMessage = "Clicked: moved to line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
+      # Check if clicking on minimap (columns -6 to -2 from right edge)
+      elif mx >= minimapX and mx < scrollbarX:
+        mousePressed = 1
+        isDraggingMinimap = 1
+        dragStartY = my
+        # Handle minimap click
+        let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
+        if minimapHandled:
+          statusMessage = "Minimap: jumped to position"
+          return 1
+      
+      # Regular editor click
+      else:
+        let handled = editorHandleClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
+        if handled:
+          let cursor = editorGetCursor(editor)
+          statusMessage = "Clicked: line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
+          return 1
+  
+  # Mouse release - stop dragging
+  elif action == "release":
+    if mousePressed:
+      mousePressed = 0
+      if isDraggingScrollbar:
+        isDraggingScrollbar = 0
+        statusMessage = "Scrollbar drag ended"
+        return 1
+      elif isDraggingMinimap:
+        isDraggingMinimap = 0
+        statusMessage = "Minimap drag ended"
         return 1
   
-  # Mouse wheel scrolling
-  if action == "wheel":
+  # Mouse wheel scrolling (scroll_up/scroll_down button events)
+  elif action == "press" and (event.button == "scroll_up" or event.button == "scroll_down"):
     if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
+      let cursor = editorGetCursor(editor)
+      let cursorLine = cursor["line"]
+      let cursorCol = cursor["col"]
       
-      # Scroll up
-      if event.wheelDelta > 0:
-        # Move cursor up multiple times for smooth scrolling
-        var i = 0
-        while i < 3:
-          editorMoveUp(editor)
-          i = i + 1
-        statusMessage = "Scrolled up with mouse wheel"
+      # Scroll up or down
+      if event.button == "scroll_up":
+        # Scroll up - move cursor up 3 lines
+        let scrollAmount = 3
+        let newLine = max(0, cursorLine - scrollAmount)
+        let targetLine = editorGetLine(editor, newLine)
+        let newCol = min(cursorCol, len(targetLine))
+        editorSetCursor(editor, newLine, newCol)
+        statusMessage = "Mouse wheel: scrolled up"
       else:
-        # Scroll down
-        var i = 0
-        while i < 3:
-          editorMoveDown(editor)
-          i = i + 1
-        statusMessage = "Scrolled down with mouse wheel"
+        # Scroll down - move cursor down 3 lines
+        let scrollAmount = 3
+        let maxLine = editorLineCount(editor) - 1
+        let newLine = min(maxLine, cursorLine + scrollAmount)
+        let targetLine = editorGetLine(editor, newLine)
+        let newCol = min(cursorCol, len(targetLine))
+        editorSetCursor(editor, newLine, newCol)
+        statusMessage = "Mouse wheel: scrolled down"
       
       return 1
+  
+  return 0
+
+# Handle mouse move events (separate event type)
+elif event.type == "mouse_move":
+  let mx = event.x
+  let my = event.y
+  
+  # Calculate editor dimensions
+  let w = termWidth
+  let h = termHeight
+  let editorW = w - 1
+  let editorH = h - 7
+  
+  # Handle dragging while button is pressed
+  if mousePressed and isDraggingScrollbar:
+    if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
+      # Calculate position from drag
+      let relativeY = my - editorY
+      let totalLines = editorLineCount(editor)
+      let targetLine = (relativeY * totalLines) div editorH
+      editorSetCursor(editor, min(max(0, targetLine), totalLines - 1), 0)
+      statusMessage = "Scrollbar drag: line " & str(targetLine + 1)
+      return 1
+  elif mousePressed and isDraggingMinimap:
+    if mx >= editorX and mx < editorX + editorW and my >= editorY and my < editorY + editorH:
+      # Handle minimap drag
+      let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
+      if minimapHandled:
+        statusMessage = "Minimap drag"
+        return 1
   
   return 0
 

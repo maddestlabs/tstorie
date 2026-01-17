@@ -160,6 +160,12 @@ class TStorieTerminal {
             this.handleMouseMove(e);
         });
         
+        // Mouse wheel scrolling
+        this.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            this.handleMouseWheel(e);
+        });
+        
         // Prevent context menu
         this.canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -307,6 +313,23 @@ class TStorieTerminal {
             this.mouseY = y;
             Module._emHandleMouseMove(x, y);
         }
+    }
+    
+    handleMouseWheel(e) {
+        if (!Module._emHandleMouseWheel) {
+            console.warn('Module._emHandleMouseWheel not available');
+            return;
+        }
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / this.charWidth);
+        const y = Math.floor((e.clientY - rect.top) / this.charHeight);
+        
+        const shift = e.shiftKey ? 1 : 0;
+        const alt = e.altKey ? 1 : 0;
+        const ctrl = e.ctrlKey ? 1 : 0;
+        
+        Module._emHandleMouseWheel(x, y, e.deltaY, shift, alt, ctrl);
     }
     
     render() {
