@@ -3,7 +3,8 @@ title: "Kanji FX"
 author: "Maddest Labs"
 chars: "闇雲霧雨雪月星空夢幻影光風水火土木金銀鉄石砂爆雷虫符花"
 doubleWidth: true
-theme: "stonegarden"
+theme: "neonopia"
+fontsize: 30
 shaders: "bloom+crt"
 ---
 

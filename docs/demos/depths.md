@@ -1,9 +1,11 @@
 ---
-title: "Depths Beckoning"
+title: "Depths Beckon"
 author: "Maddest Labs"
 minWidth: 40
 minHeight: 12
 theme: "coffee"
+shader: "notebook"
+font: "Courier+Prime"
 ---
 
 ```nim on:init

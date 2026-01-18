@@ -30,7 +30,7 @@ type
     dsNone
     dsDraggingNode
     dsDraggingConnection
-    dsPanningMiddleMouse     # Middle mouse panning
+    dsPanning                # Canvas panning (left mouse on empty space)
   
   MouseButton = enum
     mbNone
@@ -84,6 +84,12 @@ type
     activeMouseButton*: MouseButton
     shiftPressed*: bool
     
+    # Long-press detection (for context menus)
+    longPressActive*: bool
+    longPressStartTime*: float  # Time when mouse down occurred
+    longPressThreshold*: float  # Seconds to hold for long press (default 0.5)
+    longPressNode*: EditorNode  # Node that was long-pressed (if any)
+    
     # Keyboard navigation speed
     arrowKeyPanSpeed*: float  # Cells per arrow key press
 
@@ -133,7 +139,11 @@ proc newNodeEditor*(viewportWidth, viewportHeight: int): NodeEditor =
     nextNodeId: 0,
     nextConnectionId: 0,
     activeMouseButton: mbNone,
-    arrowKeyPanSpeed: 5.0  # Default: 5 cells per arrow key press
+    arrowKeyPanSpeed: 5.0,  # Default: 5 cells per arrow key press
+    longPressActive: false,
+    longPressStartTime: 0.0,
+    longPressThreshold: 0.5,  # 500ms default
+    longPressNode: nil
   )
 
 # ================================================================
@@ -264,41 +274,58 @@ proc deselectAll*(editor: NodeEditor) =
 # ================================================================
 
 proc handleMouseDown*(editor: NodeEditor, screenX, screenY: int, 
-                     button: MouseButton, shift: bool): bool =
+                     button: MouseButton, shift: bool, currentTime: float = 0.0): bool =
   ## Handle mouse down event. Returns true if handled.
+  ## currentTime: optional time in seconds for long-press detection
   editor.activeMouseButton = button
   editor.mouseX = screenX
   editor.mouseY = screenY
   editor.shiftPressed = shift
   
+  # Start long-press timer
+  editor.longPressStartTime = currentTime
+  editor.longPressActive = false
+  
   case button
   of mbLeft:
-    # Left mouse: Select and drag nodes
     let (worldX, worldY) = editor.screenToWorld(screenX, screenY)
     let hitNode = editor.findNodeAt(worldX, worldY)
     
-    if hitNode != nil:
-      # Clicked on a node
-      editor.selectNode(hitNode, addToSelection = shift)
+    if hitNode != nil and shift:
+      # Shift + Left mouse on node: Select and drag node
+      editor.selectNode(hitNode, addToSelection = true)
       editor.dragState = dsDraggingNode
       editor.dragStartX = screenX
       editor.dragStartY = screenY
       editor.dragNodeStartX = hitNode.x
       editor.dragNodeStartY = hitNode.y
+      editor.longPressNode = hitNode
+      return true
+    elif hitNode != nil:
+      # Left mouse on node without shift: Select node (no immediate drag)
+      editor.selectNode(hitNode, addToSelection = false)
+      editor.longPressNode = hitNode
       return true
     else:
-      # Clicked on empty space - clear selection
+      # Left mouse on empty space: Pan canvas
+      editor.dragState = dsPanning
+      editor.dragStartX = screenX
+      editor.dragStartY = screenY
+      editor.dragCameraStartX = editor.camera.targetX
+      editor.dragCameraStartY = editor.camera.targetY
+      editor.longPressNode = nil
       if not shift:
         editor.deselectAll()
       return true
   
   of mbMiddle:
-    # Middle mouse: Pan canvas
-    editor.dragState = dsPanningMiddleMouse
+    # Middle mouse: Alternative panning (for desktop convenience)
+    editor.dragState = dsPanning
     editor.dragStartX = screenX
     editor.dragStartY = screenY
     editor.dragCameraStartX = editor.camera.targetX
     editor.dragCameraStartY = editor.camera.targetY
+    editor.longPressNode = nil
     return true
   
   of mbRight:
@@ -322,18 +349,23 @@ proc handleMouseMove*(editor: NodeEditor, screenX, screenY: int): bool =
     case editor.dragState
     of dsDraggingNode:
       # Move selected nodes
+      # Cancel long press if we've moved significantly
+      if abs(screenX - editor.dragStartX) > 3 or abs(screenY - editor.dragStartY) > 3:
+        editor.longPressActive = false
       for node in editor.selectedNodes:
         node.x += dx
         node.y += dy
       return true
     
-    of dsPanningMiddleMouse:
-      # Pan camera (middle mouse drag)
+    of dsPanning:
+      # Pan canvas
       # Note: We use dragStart to calculate total delta from initial position
       let totalDx = screenX - editor.dragStartX
       let totalDy = screenY - editor.dragStartY
       editor.camera.targetX = editor.dragCameraStartX - float(totalDx)
       editor.camera.targetY = editor.dragCameraStartY - float(totalDy)
+      # Cancel long press when panning
+      editor.longPressActive = false
       return true
     
     else:
@@ -352,14 +384,36 @@ proc handleMouseMove*(editor: NodeEditor, screenX, screenY: int): bool =
   
   return false
 
-proc handleMouseUp*(editor: NodeEditor, screenX, screenY: int, button: MouseButton): bool =
+proc handleMouseUp*(editor: NodeEditor, screenX, screenY: int, button: MouseButton, currentTime: float = 0.0): bool =
   ## Handle mouse up event. Returns true if handled.
+  ## currentTime: optional time in seconds for long-press detection
   if button == editor.activeMouseButton:
+    # Check for long press
+    let pressDuration = currentTime - editor.longPressStartTime
+    if pressDuration >= editor.longPressThreshold and editor.dragState == dsNone:
+      editor.longPressActive = true
+      # Long press detected! Can be handled by application code
+    
     editor.activeMouseButton = mbNone
     let wasHandled = editor.dragState != dsNone
     editor.dragState = dsNone
     return wasHandled
   return false
+
+proc checkLongPress*(editor: NodeEditor, currentTime: float): bool =
+  ## Check if a long press is currently active
+  ## Returns true if mouse is held down long enough without movement
+  if editor.activeMouseButton != mbNone and editor.dragState == dsNone:
+    let duration = currentTime - editor.longPressStartTime
+    if duration >= editor.longPressThreshold:
+      editor.longPressActive = true
+      return true
+  return false
+
+proc clearLongPress*(editor: NodeEditor) =
+  ## Clear long press state (e.g., after handling context menu)
+  editor.longPressActive = false
+  editor.longPressNode = nil
 
 proc handleKeyPress*(editor: NodeEditor, key: string): bool =
   ## Handle keyboard input. Returns true if handled.
@@ -859,6 +913,54 @@ proc nimini_editorHandleKeyPress*(env: ref Env; args: seq[Value]): Value {.nimin
   let handled = editor.handleKeyPress(key)
   result = valBool(handled)
 
+proc nimini_editorCheckLongPress*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if long press is active
+  ## Usage: var isLongPress = checkLongPress(editor, currentTime)
+  if args.len < 2:
+    return valBool(false)
+  
+  let editorId = args[0].i
+  let currentTime = args[1].f
+  
+  if not gEditorPtrTable.hasKey(editorId):
+    return valBool(false)
+  
+  let editor = cast[NodeEditor](gEditorPtrTable[editorId])
+  let isLongPress = editor.checkLongPress(currentTime)
+  result = valBool(isLongPress)
+
+proc nimini_editorClearLongPress*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Clear long press state
+  ## Usage: clearLongPress(editor)
+  if args.len < 1:
+    return valNil()
+  
+  let editorId = args[0].i
+  
+  if not gEditorPtrTable.hasKey(editorId):
+    return valNil()
+  
+  let editor = cast[NodeEditor](gEditorPtrTable[editorId])
+  editor.clearLongPress()
+  result = valNil()
+
+proc nimini_editorGetLongPressNode*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get the node that was long-pressed (if any)
+  ## Usage: var nodeId = getLongPressNode(editor)  # Returns -1 if none
+  if args.len < 1:
+    return valInt(-1)
+  
+  let editorId = args[0].i
+  
+  if not gEditorPtrTable.hasKey(editorId):
+    return valInt(-1)
+  
+  let editor = cast[NodeEditor](gEditorPtrTable[editorId])
+  if editor.longPressNode != nil:
+    result = valInt(editor.longPressNode.id)
+  else:
+    result = valInt(-1)
+
 proc nimini_editorRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Render the node editor
   ## Usage: editor.render(buffer, layer)
@@ -1063,6 +1165,8 @@ proc registerCanvasEditorBindings*() =
     nimini_addNode, nimini_removeNode, nimini_connectNodes,
     nimini_editorHandleMouseDown, nimini_editorHandleMouseMove,
     nimini_editorHandleMouseUp, nimini_editorHandleKeyPress,
+    nimini_editorCheckLongPress, nimini_editorClearLongPress,
+    nimini_editorGetLongPressNode,
     nimini_editorRender, nimini_editorUpdateCamera,
     nimini_newEditorNode, nimini_setNodePosition, nimini_setNodeSize,
     nimini_getEditorNodeCount, nimini_getEditorSelectedCount,
@@ -1087,6 +1191,7 @@ export screenToWorld, worldToScreen
 export panCamera, setCameraTarget, updateCamera, centerOnNode
 export selectNode, deselectAll
 export handleMouseDown, handleMouseMove, handleMouseUp, handleKeyPress
+export checkLongPress, clearLongPress
 export render, renderNode, renderConnection
 export newMarkdownSectionNode, renderMarkdownNode, loadMarkdownSections
 export newGraphProcessNode, loadGraph, exportGraph

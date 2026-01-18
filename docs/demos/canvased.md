@@ -10,8 +10,11 @@ theme: "catppuccin"
 # Canvas Editor - Visual Node Graph Editor
 # 
 # Controls:
-# - Left mouse: Select and drag nodes
-# - Middle mouse: Pan the canvas
+# - Left mouse on empty: Pan the canvas
+# - Shift + Left mouse on node: Select and drag nodes
+# - Middle mouse: Alternative panning (desktop)
+# - Left click on node: Select node
+# - Long press (hold 500ms): Context menu (future)
 # - Arrow keys: Navigate viewport
 # - Shift+click: Multi-select nodes
 # - Delete: Remove selected nodes
@@ -21,7 +24,6 @@ theme: "catppuccin"
 
 # Create node editor
 var editor = newNodeEditor(termWidth, termHeight)
-# Can't directly set arrowKeyPanSpeed yet - would need a setter proc
 
 # Create some sample nodes for demonstration
 var node1 = newEditorNode()
@@ -43,52 +45,92 @@ editor.addNode(node3)
 editor.connectNodes(node1, node3)
 editor.connectNodes(node2, node3)
 
-# Mouse state tracking
-var lastMouseX = 0
-var lastMouseY = 0
-var mousePressed = false
-var currentMouseButton = ""  # "left", "middle", or "right"
+# Time tracking for long-press detection
+var currentTime = 0.0
+var showContextMenu = false
+var contextMenuX = 0
+var contextMenuY = 0
 ```
 
 ```nim on:input
 # Handle keyboard and mouse input for node editor
+# The editor's built-in handlers manage most interactions
 
 if event.type == "key":
-  # Arrow keys pan the camera
-  if event.key == "Up":
-    editorPanCamera(editor, 0.0, -10.0)
-    return true
-  elif event.key == "Down":
-    editorPanCamera(editor, 0.0, 10.0)
-    return true
-  elif event.key == "Left":
-    editorPanCamera(editor, -10.0, 0.0)
-    return true
-  elif event.key == "Right":
-    editorPanCamera(editor, 10.0, 0.0)
-    return true
-  elif event.key == "Home":
-    # Reset camera to origin
-    editorPanCamera(editor, -getEditorCameraX(editor), -getEditorCameraY(editor))
-    return true
-  elif event.key == "Escape":
-    editorDeselectAll(editor)
-    return true
+  # Use keyCodes (as tstorie expects) and let canvased handle them
+  # Arrow keys: 1000=Up, 1001=Down, 1002=Left, 1003=Right
+  # Delete: 127 (Backspace), Escape: 27, A: 65/97
+  var keyStr = ""
+  
+  if event.keyCode == 1000:  # Up arrow
+    keyStr = "Up"
+  elif event.keyCode == 1001:  # Down arrow
+    keyStr = "Down"
+  elif event.keyCode == 1002:  # Left arrow
+    keyStr = "Left"
+  elif event.keyCode == 1003:  # Right arrow
+    keyStr = "Right"
+  elif event.keyCode == 27:  # Escape
+    keyStr = "Escape"
+  elif event.keyCode == 127:  # Backspace/Delete
+    keyStr = "Delete"
+  
+  # Pass to editor's key handler
+  if keyStr != "":
+    var handled = editorHandleKeyPress(editor, keyStr)
+    if handled:
+      return true
+
+elif event.type == "text":
+  # Handle text input for letter keys
+  if event.text == "a" or event.text == "A":
+    var handled = editorHandleKeyPress(editor, event.text)
+    if handled:
+      return true
 
 elif event.type == "mouse":
+  # Hide context menu on any mouse press
   if event.action == "press":
-    # Right button starts panning
-    if event.button == "right":
-      mousePressed = true
-      currentMouseButton = event.button
-      lastMouseX = getMouseX()
-      lastMouseY = getMouseY()
+    showContextMenu = false
+  
+  # Convert button string to int (1=left, 2=middle, 3=right)
+  var buttonInt = 0
+  if event.button == "left":
+    buttonInt = 1
+  elif event.button == "middle":
+    buttonInt = 2
+  elif event.button == "right":
+    buttonInt = 3
+  
+  # Check for shift modifier
+  var shiftPressed = false
+  var i = 0
+  while i < len(event.mods):
+    if event.mods[i] == "shift":
+      shiftPressed = true
+    i = i + 1
+  
+  if event.action == "press":
+    var handled = editorHandleMouseDown(editor, event.x, event.y, buttonInt, shiftPressed, currentTime)
+    if handled:
       return true
+  
   elif event.action == "release":
-    if mousePressed and currentMouseButton == "right":
-      mousePressed = false
-      currentMouseButton = ""
+    var handled = editorHandleMouseUp(editor, event.x, event.y, buttonInt, currentTime)
+    # Check for long press after mouse up
+    if editorCheckLongPress(editor, currentTime):
+      # Long press detected!
+      showContextMenu = true
+      contextMenuX = event.x
+      contextMenuY = event.y
+      editorClearLongPress(editor)
+    if handled:
       return true
+
+elif event.type == "mouse_move":
+  var handled = editorHandleMouseMove(editor, event.x, event.y)
+  if handled:
+    return true
 
 return false
 ```
@@ -138,17 +180,28 @@ for i in 0..<len(nodes):
   
   draw(0, x, y + h - 1, botLine, style)
 
-# Render the node editor
-# Note: Full node rendering not yet exposed to nimini
-# For now we just show the UI and status
+# Draw context menu if active
+if showContextMenu:
+  var menuStyle = defaultStyle()
+  menuStyle.fg = rgb(255, 255, 255)
+  menuStyle.bg = rgb(60, 60, 60)
+  
+  var menuX = contextMenuX
+  var menuY = contextMenuY
+  
+  draw(0, menuX, menuY, "┌────────────────┐", menuStyle)
+  draw(0, menuX, menuY + 1, "│ Add Node       │", menuStyle)
+  draw(0, menuX, menuY + 2, "│ Delete Node    │", menuStyle)
+  draw(0, menuX, menuY + 3, "│ Properties...  │", menuStyle)
+  draw(0, menuX, menuY + 4, "└────────────────┘", menuStyle)
 
 # Draw help text
 var helpStyle = defaultStyle()
 helpStyle.fg = rgb(150, 150, 150)
 helpStyle.dim = true
 
-draw(0, 2, termHeight - 4, "Right mouse: Pan (drag) | Arrow keys: Navigate viewport", helpStyle)
-draw(0, 2, termHeight - 3, "Home: Reset camera | Escape: Deselect all", helpStyle)
+draw(0, 2, termHeight - 4, "Left mouse: Pan | Shift+Left on node: Drag | Long press: Context menu", helpStyle)
+draw(0, 2, termHeight - 3, "Arrow keys: Navigate | A: Select all | Escape: Deselect | Delete: Remove", helpStyle)
 
 # Show camera position
 var infoStyle = defaultStyle()
@@ -164,37 +217,25 @@ var selectedCount = getEditorSelectedCount(editor)
 var nodeInfo = "Nodes: " & str(nodeCount) & " | Selected: " & str(selectedCount)
 draw(0, termWidth - len(nodeInfo) - 2, 2, nodeInfo, infoStyle)
 
-# Show panning state
-if mousePressed and currentMouseButton == "right":
-  var stateStyle = defaultStyle()
-  stateStyle.fg = rgb(100, 255, 100)
-  stateStyle.bold = true
-  draw(0, 2, 1, "PANNING", stateStyle)
-
-# Show mouse position for debugging
-var mouseInfo = "Mouse: (" & str(getMouseX()) & ", " & str(getMouseY()) & ")"
-draw(0, 2, 2, mouseInfo, infoStyle)
+# Show time for debugging long-press
+var timeInfo = "Time: " & str(int(currentTime * 1000)) & "ms"
+draw(0, 2, 1, timeInfo, infoStyle)
 ```
 
 ```nim on:update
-# Update camera smooth interpolation
-editorUpdateCamera(editor, 0.016)
+# Update time for long-press detection
+currentTime = currentTime + (1.0 / 60.0)  # Assume 60fps
 
-# Handle panning if right mouse button is held
-if mousePressed and currentMouseButton == "right":
-  var currentMouseX = getMouseX()
-  var currentMouseY = getMouseY()
-  
-  # Pan camera based on mouse movement
-  var dx = float(currentMouseX - lastMouseX)
-  var dy = float(currentMouseY - lastMouseY)
-  
-  # Pan camera (invert direction for natural feel)
-  editorPanCamera(editor, -dx, -dy)
+# Update camera position (no smoothing since we removed it)
+editorUpdateCamera(editor, 1.0 / 60.0)
 
-# Track mouse position for next frame
-lastMouseX = getMouseX()
-lastMouseY = getMouseY()
+# Continuously check for long press during mouse hold
+if editorCheckLongPress(editor, currentTime) and not showContextMenu:
+  # Long press activated during hold!
+  showContextMenu = true
+  contextMenuX = getMouseX()
+  contextMenuY = getMouseY()
+  editorClearLongPress(editor)
 ```
 
 # 🎨 Canvas Editor - Visual Node Graph System
