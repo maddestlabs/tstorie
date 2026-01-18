@@ -6,21 +6,22 @@ Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 
 Demos:
 - [stonegarden.md](https://maddestlabs.github.io/tstorie/) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/stonegarden.md)
-- [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
-- [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
-- [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [slides.md](https://maddestlabs.github.io/tstorie/?content=slides) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
+- [her.md](https://maddestlabs.github.io/tstorie/?content=her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
+- [depths.md](https://maddestlabs.github.io/tstorie/?content=depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
 - [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
 - [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
 
 Core examples:
 - [figletclock.md](https://maddestlabs.github.io/tstorie?content=figletclock&fontsize=30&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/figletclock.md)
-- [dungen.md](https://maddestlabs.github.io/tstorie/?content=demo:dungen&theme=coffee&shader=grid+sand+gradualblur&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
-- [edit.md](https://maddestlabs.github.io/tstorie?content=demo:edit) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/edit.md)
-- [layout.md](https://maddestlabs.github.io/tstorie?content=demo:layout&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
-- [drawing.md](https://maddestlabs.github.io/tstorie?content=demo:drawing) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/drawing.md)
-- [tui.md](https://maddestlabs.github.io/tstorie?content=demo:tui&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
-- [tui3.md](https://maddestlabs.github.io/tstorie?content=demo:tui3&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
-- [shader.md](https://maddestlabs.github.io/tstorie?content=demo:shader&fontsize=26&shader=gradualblur+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
+- [dungen.md](https://maddestlabs.github.io/tstorie/?content=dungen&theme=coffee&shader=grid+sand+gradualblur&fontsize=19&font=Gloria+Hallelujah) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/dungen.md)
+- [edit.md](https://maddestlabs.github.io/tstorie?content=edit) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/edit.md)
+- [hexview.md](https://maddestlabs.github.io/tstorie?content=hexview) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/hexview.md)
+- [layout.md](https://maddestlabs.github.io/tstorie?content=layout&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/layout.md)
+- [drawing.md](https://maddestlabs.github.io/tstorie?content=drawing) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/drawing.md)
+- [tui.md](https://maddestlabs.github.io/tstorie?content=tui&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
+- [tui3.md](https://maddestlabs.github.io/tstorie?content=tui3&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
+- [shader.md](https://maddestlabs.github.io/tstorie?content=shader&fontsize=26&shader=gradualblur+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
 
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie/?content=863a4175989370857ccd67cb5492ac11&shader=crt&font=Zeyada) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)

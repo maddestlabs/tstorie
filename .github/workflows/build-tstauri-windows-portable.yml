@@ -44,8 +44,18 @@ jobs:
             echo "ERROR: index.md (welcome screen) not found!"
             exit 1
           fi
+          if [ ! -d "tstauri/dist-tstauri/shaders" ]; then
+            echo "ERROR: shaders directory not found!"
+            exit 1
+          fi
+          SHADER_COUNT=$(ls tstauri/dist-tstauri/shaders/*.js 2>/dev/null | wc -l)
+          if [ "$SHADER_COUNT" -lt 10 ]; then
+            echo "ERROR: Expected at least 10 shaders, found $SHADER_COUNT"
+            exit 1
+          fi
           echo "✓ All WASM files present"
           echo "✓ Welcome screen installed"
+          echo "✓ Shaders directory present ($SHADER_COUNT shaders)"
 
       - name: Install Rust stable with Windows target
         uses: dtolnay/rust-toolchain@stable
@@ -99,12 +109,12 @@ jobs:
           ls -lh
           echo ""
           echo "Verifying critical files..."
-          [ -f "tstauri.exe" ] && echo "✓ tstauri.exe" || echo "✗ tstauri.exe MISSING"
-          [ -f "tstorie-webgl.js" ] && echo "✓ tstorie-webgl.js" || echo "✗ tstorie-webgl.js MISSING"
-          [ -f "tstorie.wasm.js" ] && echo "✓ tstorie.wasm.js" || echo "✗ tstorie.wasm.js MISSING"
-          [ -f "tstorie.wasm.wasm" ] && echo "✓ tstorie.wasm.wasm" || echo "✗ tstorie.wasm.wasm MISSING"
-          [ -f "index.md" ] && echo "✓ index.md (welcome)" || echo "✗ index.md MISSING"
-          [ -f "WebView2Loader.dll" ] && echo "✓ WebView2Loader.dll" || echo "✗ WebView2Loader.dll MISSING"
+          [ -f "tstauri.exe" ] && echo "✓ tstauri.exe (all-in-one binary)" || echo "✗ tstauri.exe MISSING"
+          [ -f "WebView2Loader.dll" ] && echo "✓ WebView2Loader.dll (required)" || echo "✗ WebView2Loader.dll MISSING"
+          [ -f "run-tstauri.bat" ] && echo "✓ run-tstauri.bat (launcher)" || echo "✗ run-tstauri.bat MISSING"
+          [ -f "README.txt" ] && echo "✓ README.txt" || echo "✗ README.txt MISSING"
+          echo ""
+          echo "Note: WASM files, UI, and welcome screen are bundled inside tstauri.exe"
 
       - name: Upload portable package as artifact
         uses: actions/upload-artifact@v4

@@ -16,6 +16,37 @@ const resetBtn = document.getElementById('reset-btn');
 // Load tStorie WASM engine
 async function loadTStorieEngine() {
     try {
+        // Intercept shader fetch requests to use bundled shaders
+        const originalFetch = window.fetch;
+        window.fetch = async function(url, ...args) {
+            // Check if this is a shader request
+            if (typeof url === 'string' && url.startsWith('shaders/') && url.endsWith('.js')) {
+                const shaderName = url.replace('shaders/', '').replace('.js', '');
+                console.log('Intercepting shader request:', shaderName);
+                
+                try {
+                    const shaderContent = await invoke('load_bundled_shader', { shaderName });
+                    console.log('✓ Loaded bundled shader:', shaderName);
+                    
+                    // Return a Response object that fetch would normally return
+                    return new Response(shaderContent, {
+                        status: 200,
+                        statusText: 'OK',
+                        headers: {
+                            'Content-Type': 'application/javascript'
+                        }
+                    });
+                } catch (error) {
+                    console.log('Bundled shader not found, falling back to Gist:', error);
+                    // Fall back to original fetch (will try Gist)
+                    return originalFetch(url, ...args);
+                }
+            }
+            
+            // For all other requests, use original fetch
+            return originalFetch(url, ...args);
+        };
+        
         // Get the bundled WASM files path
         const resourcePath = await invoke('get_bundled_wasm_path');
         console.log('Resource path:', resourcePath);

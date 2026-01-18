@@ -1,80 +1,133 @@
-# t|Stauri {"hidden": true}
+---
+title: "Welcome to t|Stauri"
+author: "Maddest Labs"
+theme: "default"
+---
+
+# Welcome to t|Stauri Desktop
+
+A terminal-based storytelling environment powered by **t|Storie**.
 
 ```nim on:init
-# Create animated matrix rain effect
-particleCreate("matrix", 150, {
-  char: ["│", "┃", "║", "▌", "▐"],
-  color: "#00d98e",
-  velocity: [0, 0.3]
-})
+# Get theme background and accent colors
+var bgStyle = getStyle("default")
+var bgR = int(bgStyle.bg.r)
+var bgG = int(bgStyle.bg.g)
+var bgB = int(bgStyle.bg.b)
 
-# Create floating dots
-particleCreate("dots", 50, {
-  char: ["·", "•", "◦"],
-  color: "#00d98e80",
-  velocity: [0.1, 0.1]
-})
+# Get accent1 color for rain particles
+var accentStyle = getStyle("accent1")
 
-# State
-var pulseTime = 0.0
-var showInstructions = true
+# Initialize rain particle system
+particleInit("rain", 150)
+particleSetBackgroundColor("rain", bgR, bgG, bgB)
+particleConfigureRain("rain", 30.0)
+particleSetEmitterPos("rain", 0.0, 0.0)
+particleSetEmitterSize("rain", float(termWidth), 1.0)
+particleSetCollision("rain", false, 0)
+
+# Set rain color to theme accent1
+particleSetForegroundFromStyle("rain", accentStyle)
+
+# Animation state variables
+var pulsePhase = 0.0
+var instructionBlink = 0.0
+```
+
+```nim on:update
+# Update particle emitter size based on terminal width
+particleSetEmitterSize("rain", float(termWidth), 1.0)
+
+# Frame-independent animation timing
+pulsePhase = pulsePhase + (deltaTime * 2.0)
+instructionBlink = instructionBlink + (deltaTime * 4.0)
+
+# Update rain particle system
+particleUpdate("rain", deltaTime)
 ```
 
 ```nim on:render
-# Clear and render background particles
+# Clear screen
 clear()
-particleRender("matrix")
-particleRender("dots")
 
-# Calculate pulse for animations
-pulseTime = pulseTime + 0.05
-var pulse = (sin(pulseTime) + 1.0) / 2.0
+# Render rain particles behind UI
+particleRender("rain", 0)
 
-# Title with glow effect
-setCursorPos(width / 2 - 15, height / 2 - 8)
-var titleColor = lerpColor("#00d98e", "#00ffaa", pulse)
-setColor(titleColor)
-echo "╔═══════════════════════════════╗"
-setCursorPos(width / 2 - 15, height / 2 - 7)
-echo "║                               ║"
-setCursorPos(width / 2 - 15, height / 2 - 6)
-echo "║      t|Stauri Desktop         ║"
-setCursorPos(width / 2 - 15, height / 2 - 5)
-echo "║                               ║"
-setCursorPos(width / 2 - 15, height / 2 - 4)
-echo "╚═══════════════════════════════╝"
+# Calculate pulsing values for animations
+var pulse = (sin(pulsePhase) + 1.0) / 2.0
+var blinkVal = (sin(instructionBlink) + 1.0) / 2.0
 
-# Pulsing separator
-setCursorPos(width / 2 - 15, height / 2 - 2)
-setColor("#00d98e")
-var barChar = if pulse > 0.5: "━" else: "─"
-echo barChar.repeat(33)
+# Header styles
+var titleStyle = getStyle("heading")
+var infoStyle = getStyle("info")
+var successStyle = getStyle("success")
 
-# Main instructions with animated cursor
-setCursorPos(width / 2 - 15, height / 2)
-setColor("#ffffff")
-echo "  📄 Drop .md files here"
+# Title box at center-top
+var centerX = termWidth / 2
+var titleY = 3
 
-setCursorPos(width / 2 - 15, height / 2 + 1)
-echo "  🖼️  Drop .png files here"
+draw(0, centerX - 18, titleY, "╔════════════════════════════════════╗")
+draw(0, centerX - 18, titleY + 1, "║                                    ║")
+draw(0, centerX - 18, titleY + 2, "║      t|Stauri Desktop v0.1         ║", titleStyle)
+draw(0, centerX - 18, titleY + 3, "║         Terminal Engine            ║", infoStyle)
+draw(0, centerX - 18, titleY + 4, "║                                    ║")
+draw(0, centerX - 18, titleY + 5, "╚════════════════════════════════════╝")
 
-# Animated tip
-setCursorPos(width / 2 - 15, height / 2 + 3)
-setColor("#00d98e80")
-var tipAlpha = int(pulse * 255)
-echo "  💡 PNG files can contain workflows"
+# Animated separator
+var sepY = titleY + 7
+var sepChar = "─"
+if pulse > 0.5:
+  sepChar = "═"
 
-# Bottom hint
-setCursorPos(width / 2 - 15, height / 2 + 6)
-setColor("#00d98e60")
-echo "     Press ESC to return here"
+var i = 0
+var sepStr = ""
+while i < 36:
+  sepStr = sepStr & sepChar
+  i = i + 1
+draw(0, centerX - 18, sepY, sepStr, successStyle)
 
-# Version info in corner
-setCursorPos(2, height - 2)
-setColor("#00d98e40")
-echo "tStauri v0.1.0 | Powered by tStorie"
+# Main instructions - drop files here
+var instrY = sepY + 2
+draw(0, centerX - 16, instrY, "DROP A t|Storie FILE TO BEGIN", successStyle)
+
+var detailY = instrY + 2
+draw(0, centerX - 18, detailY, "  📄  .md files (t|Storie markdown)")
+draw(0, centerX - 18, detailY + 1, "  🖼️   .png files (embedded workflows)")
+draw(0, centerX - 18, detailY + 2, "  📦  .t|Storie files (packaged stories)")
+
+# Pulsing hint
+var hintY = detailY + 4
+var hintIntensity = int(blinkVal * 100)
+if hintIntensity > 40:
+  draw(0, centerX - 15, hintY, ">>> Drag & drop to get started <<<", successStyle)
+else:
+  draw(0, centerX - 15, hintY, "    Drag & drop to get started    ")
+
+# Controls hint
+var ctrlY = termHeight - 4
+draw(0, 2, ctrlY, "Controls:", infoStyle)
+draw(0, 4, ctrlY + 1, "[Q] or [ESC] Quit")
+
+# Footer
+var footerY = termHeight - 2
+draw(0, 2, footerY, "t|Stauri Desktop | Powered by t|Storie Engine", infoStyle)
+draw(0, termWidth - 25, footerY, "github.com/maddestlabs", infoStyle)
 ```
 
----
+```nim on:input
+# Handle keyboard input
+if event.type == "text":
+  var key = event.text
+  
+  if key == "q":
+    return false
 
-**Ready to run your tStorie documents!** ✨
+# Handle key events for ESC
+if event.type == "key":
+  if event.keyCode == KEY_ESCAPE:
+    return false
+  if event.keyCode == KEY_Q:
+    return false
+
+return true
+```

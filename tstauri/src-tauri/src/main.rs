@@ -50,6 +50,17 @@ fn load_bundled_welcome(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|e| format!("Failed to read welcome screen: {}", e))
 }
 
+#[tauri::command]
+fn load_bundled_shader(app: tauri::AppHandle, shader_name: String) -> Result<String, String> {
+    let resource_path = app.path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    
+    let file_path = resource_path.join("shaders").join(format!("{}.js", shader_name));
+    fs::read_to_string(&file_path)
+        .map_err(|e| format!("Shader '{}' not found: {}", shader_name, e))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -58,7 +69,8 @@ fn main() {
             load_markdown_content,
             get_bundled_wasm_path,
             get_bundled_wasm_file,
-            load_bundled_welcome
+            load_bundled_welcome,
+            load_bundled_shader
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();

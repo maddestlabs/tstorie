@@ -33,7 +33,7 @@ fi
 echo "📄 Copying tstauri.exe..."
 cp "$WINDOWS_BUILD" "$PACKAGE_DIR/"
 
-# Copy WebView2Loader.dll (required for WebView2 to work)
+# Copy WebView2Loader.dll (required for WebView2 to work - MUST be external on Windows)
 echo "📄 Copying WebView2Loader.dll..."
 DLL_PATH="src-tauri/target/x86_64-pc-windows-gnu/release/WebView2Loader.dll"
 if [ -f "$DLL_PATH" ]; then
@@ -43,17 +43,12 @@ else
     echo "⚠️  WebView2Loader.dll not found at $DLL_PATH"
 fi
 
-# Note: Frontend files (index.html, main.js) are now bundled IN the .exe
-# No need to copy them separately
-
-# Copy WASM files from tstauri build directory
-echo "📄 Copying WASM engine..."
-cp dist-tstauri/tstorie.js "$PACKAGE_DIR/"
-cp dist-tstauri/tstorie.wasm.js "$PACKAGE_DIR/"
-cp dist-tstauri/tstorie.wasm.wasm "$PACKAGE_DIR/"
-cp dist-tstauri/tstorie-webgl.js "$PACKAGE_DIR/"
-cp dist-tstauri/index.md "$PACKAGE_DIR/"
-echo "✓ WASM files and welcome screen copied"
+# Note: ALL other files are now bundled IN the .exe:
+# - Frontend files (index.html, main.js) - bundled via Vite
+# - WASM engine (tstorie.wasm.wasm, tstorie.wasm.js, tstorie.js, tstorie-webgl.js) - bundled via Tauri resources
+# - Welcome screen (index.md) - bundled via Tauri resources
+# Only WebView2Loader.dll must remain external (Windows requirement)
+echo "✓ All other files bundled inside tstauri.exe"
 
 # Create a README for Windows users
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
@@ -89,13 +84,13 @@ Files in this folder:
    - run-tstauri.bat                      Launcher with auto-install
    - MicrosoftEdgeWebview2Setup.exe       WebView2 installer (if needed)
    - tstorie.js, tstorie.wasm.*          WASM engine files
+ (all-in-one!)
+   - WebView2Loader.dll                   Required WebView2 interface
+   - run-tstauri.bat                      Launcher with auto-install
+   - MicrosoftEdgeWebview2Setup.exe       WebView2 installer (if needed)
 
-Keep all files together in the same folder!
-
-For more info: https://github.com/maddestlabs/tstorie
-EOF
-
-# Create a simple batch file launcher
+Note: tstauri.exe contains the entire WASM engine, UI, and welcome screen.
+      Only WebView2Loader.dll needs to stay file launcher
 cat > "$PACKAGE_DIR/run-tstauri.bat" << 'EOF'
 @echo off
 echo Starting tStauri...
@@ -142,6 +137,13 @@ echo "To test on Windows:"
 echo "   1. Transfer the ZIP to a Windows machine"
 echo "   2. Extract it"
 echo "   3. Run tstauri.exe or run-tstauri.bat"
+echo ""
+echo "Package contents:"
+echo "   - tstauri.exe (all-in-one binary with bundled WASM/UI)"
+echo "   - WebView2Loader.dll (required Windows component)"
+echo "   - run-tstauri.bat (launcher script)"
+echo "   - MicrosoftEdgeWebview2Setup.exe (WebView2 installer)"
+echo "   - README.txt"
 echo ""
 echo "⚠️  Note: This is a portable build, not an installer"
 echo "   For MSI installer, use GitHub Actions"

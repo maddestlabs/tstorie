@@ -22,7 +22,8 @@
       "../dist-tstauri/tstorie.wasm.js",
       "../dist-tstauri/tstorie.wasm.wasm",
       "../dist-tstauri/tstorie-webgl.js",
-      "../dist-tstauri/index.md"
+      "../dist-tstauri/index.md",
+      "../dist-tstauri/shaders/*"
     ],
     "externalBin": [],
     "copyright": "",
