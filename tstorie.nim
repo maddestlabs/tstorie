@@ -14,7 +14,7 @@ import lib/section_manager    # Section navigation and management (includes nimi
 import lib/layout             # Text layout utilities
 import lib/figlet             # FIGlet font rendering (for parsing and rendering)
 import lib/figlet_bindings    # FIGlet nimini bindings
-import lib/nimini_bridge      # Nimini API registration and bindings
+import lib/nimini_bridge      # Nimini API registration and bindings (includes gDroppedFile* globals)
 import lib/ascii_art_bindings # ASCII art nimini bindings
 import lib/ansi_art_bindings  # ANSI art nimini bindings
 import lib/dungeon_gen        # Dungeon generator (auto-registers via pragmas)
@@ -26,6 +26,7 @@ import lib/animation          # Animation helpers and easing (now pure math, can
 import lib/canvas             # Canvas navigation system (now proper module!)
 import lib/canvased           # Canvas editor - visual node graph editor
 import lib/layerfx            # Layer effects plugin (parallax, depth cueing, etc.)
+import src/timing             # High-precision timing and timers
 
 # Explicitly initialize plugin modules to ensure registration happens
 initDungeonGenModule()
@@ -504,6 +505,11 @@ var gMarkdownFile*: string = "index.md"
 var gWaitingForGist*: bool = false
 var gShowingDimensionWarning*: bool = false  # Flag to skip layer compositing
 
+# Dropped file tracking (for drop target functionality) - now in nimini_bridge.nim
+# var gDroppedFileName*: string = ""
+# var gDroppedFileData*: string = ""
+# var gDroppedFileSize*: int = 0
+
 # ================================================================
 # HELPER FUNCTIONS FOR RUNTIME API (used by both native and WASM)
 # ================================================================
@@ -670,6 +676,9 @@ when defined(emscripten):
   proc emInit(width, height: int) {.exportc.} =
     globalState = newAppState(width, height)
     
+    # Initialize timing system FIRST
+    timing.initTiming()
+    
     # Initialize layer effects plugin
     initLayerFxPlugin()
     
@@ -757,15 +766,24 @@ when defined(emscripten):
   proc emUpdate(deltaMs: float) {.exportc.} =
     var dt = deltaMs / 1000.0
     
-    # Clamp deltaTime to prevent extreme values (0 to 100ms = 0.0 to 0.1 seconds)
-    # This prevents float accumulation errors from propagating
-    dt = max(0.0, min(dt, 0.1))
+    # Update timing system (call FIRST to get accurate deltaTime)
+    timing.updateTiming()
+    timing.updateTimers()
+    timing.processNextFrameCallbacks()
     
-    globalState.totalTime += dt
-    globalState.frameCount += 1
+    # Use real measured deltaTime from timing module
+    dt = timing.getDeltaTime()
+    
+    # Update global state for compatibility
+    globalState.totalTime = timing.getTotalTime()
+    globalState.frameCount = timing.getFrameCount()
     
     if globalState.totalTime - globalState.lastFpsUpdate >= 0.5:
-      globalState.fps = 1.0 / dt
+      # Guard against division by zero
+      if dt > 0.0:
+        globalState.fps = 1.0 / dt
+      else:
+        globalState.fps = 60.0  # Default to 60 FPS if dt is invalid
       globalState.lastFpsUpdate = globalState.totalTime
     
     # DEBUG: Write something to see if emUpdate is running
@@ -1182,6 +1200,57 @@ when defined(emscripten):
             discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
     except Exception as e:
       discard # Silently fail in WASM
+  
+  proc emCheckDropTarget(): int {.exportc: "emCheckDropTarget", cdecl, used.} =
+    ## Check if current section has dropTarget: true in frontmatter
+    ## Returns 1 if yes, 0 if no
+    try:
+      if storieCtx.isNil:
+        return 0
+      
+      let section = storieCtx.sectionMgr.getCurrentSection()
+      
+      # Check if section has dropTarget in its metadata
+      if section.metadata.hasKey("dropTarget"):
+        if section.metadata["dropTarget"].toLowerAscii() in ["true", "yes", "1"]:
+          return 1
+      
+      # Also check global frontmatter for dropTarget
+      if storieCtx.frontMatter.hasKey("dropTarget"):
+        if storieCtx.frontMatter["dropTarget"].toLowerAscii() in ["true", "yes", "1"]:
+          return 1
+      
+      return 0
+    except:
+      return 0
+  
+  proc emHandleDroppedFile(filename: cstring, data: cstring, length: int) {.exportc: "emHandleDroppedFile", cdecl, used.} =
+    ## Handle a dropped file - store data and trigger ondrop lifecycle
+    try:
+      if filename.isNil or data.isNil:
+        return
+      
+      # Store dropped file data in globals
+      gDroppedFileName = $filename
+      gDroppedFileSize = length
+      
+      # Copy binary data safely - data is already a byte buffer
+      gDroppedFileData = newString(length)
+      for i in 0 ..< length:
+        gDroppedFileData[i] = data[i]
+      
+      # Execute ondrop lifecycle hooks
+      if not storieCtx.isNil and not storieCtx.niminiContext.isNil:
+        for codeBlock in storieCtx.codeBlocks:
+          if codeBlock.lifecycle == "ondrop":
+            discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
+        
+        # Also trigger render to show updated content
+        for codeBlock in storieCtx.codeBlocks:
+          if codeBlock.lifecycle == "render":
+            discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
+    except:
+      discard
 
 proc showHelp() =
   echo "tstorie v" & version

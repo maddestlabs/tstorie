@@ -43,7 +43,10 @@ var defaultStyle = getStyle("default")
 
 # Configure sparkles (manual emission on click)
 particleConfigureSparkles("sparkles", 10.0)
-particleSetBackgroundFromStyle("sparkles", defaultStyle)
+# Use background-only shader to only affect background colors
+particleSetShader("sparkles", "background")
+# Set color range around accent color with ±40 deviation for nice variation
+particleSetColorRangeFromStyle("sparkles", accentStyle, 20)
 particleSetEmitterPos("sparkles", float(termWidth / 2), float(termHeight / 2))
 # Speed up sparkles with higher velocity range
 particleSetVelocityRange("sparkles", -15.0, -15.0, 15.0, 15.0)
@@ -51,8 +54,6 @@ particleSetVelocityRange("sparkles", -15.0, -15.0, 15.0, 15.0)
 particleSetLifeRange("sparkles", 0.2, 0.5)
 # Disable automatic emission - only emit on manual clicks
 particleSetEmitRate("sparkles", 0.0)
-particleSetBackgroundFromStyle("sparkles", defaultStyle)
-particleSetForegroundFromStyle("sparkles", accentStyle)
 
 # Configure fire effect rising from bottom (always active)
 particleConfigureFire("techbubbles", 10.0, false)

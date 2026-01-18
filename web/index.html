@@ -613,15 +613,29 @@
                 const files = e.dataTransfer.files;
                 if (files.length === 0) return;
                 
-                // Process first .md or .png file found
-                for (const file of files) {
-                    if (file.name.endsWith('.md')) {
-                        await handleMarkdownFile(file);
-                        break;
-                    } else if (file.name.endsWith('.png')) {
-                        await handlePNGFile(file);
-                        break;
+                const file = files[0];
+                
+                // Check if we have a running app with dropTarget enabled
+                let hasDropTarget = false;
+                try {
+                    if (window.Module && window.Module.ccall) {
+                        hasDropTarget = window.Module.ccall('emCheckDropTarget', 'number', [], []) === 1;
                     }
+                } catch (err) {
+                    console.log('Could not check dropTarget:', err);
+                }
+                
+                // If app wants drops, send to it regardless of file type
+                if (hasDropTarget) {
+                    await handleGenericFileDrop(file);
+                    return;
+                }
+                
+                // Otherwise use default behavior: load .md or .png files
+                if (file.name.endsWith('.md')) {
+                    await handleMarkdownFile(file);
+                } else if (file.name.endsWith('.png')) {
+                    await handlePNGFile(file);
                 }
             });
             
@@ -716,6 +730,54 @@
                     
                 } catch (error) {
                     console.error('Failed to load PNG file:', error);
+                    showDropStatus(`❌ Error: ${error.message}`, true);
+                }
+            }
+            
+            // Handle generic file drops for apps with dropTarget
+            async function handleGenericFileDrop(file) {
+                try {
+                    showDropStatus(`📦 Processing ${file.name}...`, false);
+                    
+                    // Read file as ArrayBuffer
+                    const arrayBuffer = await file.arrayBuffer();
+                    const data = new Uint8Array(arrayBuffer);
+                    
+                    // Wait for Module to be ready
+                    if (!window.Module || !window.Module.ccall) {
+                        showDropStatus('⏳ Waiting for tStorie engine...', false);
+                        
+                        let attempts = 0;
+                        while ((!window.Module || !window.Module.ccall) && attempts < 100) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            attempts++;
+                        }
+                        
+                        if (!window.Module || !window.Module.ccall) {
+                            throw new Error('tStorie engine not ready');
+                        }
+                    }
+                    
+                    // Pass to the running app via emHandleDroppedFile
+                    console.log('Sending dropped file to app:', file.name, data.length, 'bytes');
+                    
+                    // Convert Uint8Array to binary string (each byte becomes a character code)
+                    let binaryString = '';
+                    for (let i = 0; i < data.length; i++) {
+                        binaryString += String.fromCharCode(data[i]);
+                    }
+                    
+                    window.Module.ccall(
+                        'emHandleDroppedFile',
+                        null,
+                        ['string', 'string', 'number'],
+                        [file.name, binaryString, data.length],
+                        { async: false }
+                    );
+                    showDropStatus(`✓ File sent to app: ${file.name}`, false);
+                    
+                } catch (error) {
+                    console.error('Failed to handle file drop:', error);
                     showDropStatus(`❌ Error: ${error.message}`, true);
                 }
             }

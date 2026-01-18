@@ -553,28 +553,29 @@ class TStorieTerminal {
             case 'Enter': keyCode = 13; break;
             case 'Delete': keyCode = 46; break;
             
-            case 'ArrowUp': keyCode = 10000; break;
-            case 'ArrowDown': keyCode = 10001; break;
-            case 'ArrowLeft': keyCode = 10002; break;
-            case 'ArrowRight': keyCode = 10003; break;
+            case 'ArrowUp': keyCode = 1000; break;
+            case 'ArrowDown': keyCode = 1001; break;
+            case 'ArrowLeft': keyCode = 1002; break;
+            case 'ArrowRight': keyCode = 1003; break;
             
-            case 'Home': keyCode = 10004; break;
-            case 'End': keyCode = 10005; break;
-            case 'PageUp': keyCode = 10006; break;
-            case 'PageDown': keyCode = 10007; break;
+            case 'Home': keyCode = 1004; break;
+            case 'End': keyCode = 1005; break;
+            case 'PageUp': keyCode = 1006; break;
+            case 'PageDown': keyCode = 1007; break;
+            case 'Insert': keyCode = 1008; break;
             
-            case 'F1': keyCode = 10008; break;
-            case 'F2': keyCode = 10009; break;
-            case 'F3': keyCode = 10010; break;
-            case 'F4': keyCode = 10011; break;
-            case 'F5': keyCode = 10012; break;
-            case 'F6': keyCode = 10013; break;
-            case 'F7': keyCode = 10014; break;
-            case 'F8': keyCode = 10015; break;
-            case 'F9': keyCode = 10016; break;
-            case 'F10': keyCode = 10017; break;
-            case 'F11': keyCode = 10018; break;
-            case 'F12': keyCode = 10019; break;
+            case 'F1': keyCode = 1100; break;
+            case 'F2': keyCode = 1101; break;
+            case 'F3': keyCode = 1102; break;
+            case 'F4': keyCode = 1103; break;
+            case 'F5': keyCode = 1104; break;
+            case 'F6': keyCode = 1105; break;
+            case 'F7': keyCode = 1106; break;
+            case 'F8': keyCode = 1107; break;
+            case 'F9': keyCode = 1108; break;
+            case 'F10': keyCode = 1109; break;
+            case 'F11': keyCode = 1110; break;
+            case 'F12': keyCode = 1111; break;
             
             default:
                 if (e.key.length === 1) {

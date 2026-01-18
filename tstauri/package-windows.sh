@@ -46,13 +46,14 @@ fi
 # Note: Frontend files (index.html, main.js) are now bundled IN the .exe
 # No need to copy them separately
 
-# Copy WASM files (still loaded externally for now)
+# Copy WASM files from tstauri build directory
 echo "📄 Copying WASM engine..."
-cp ../docs/tstorie.js "$PACKAGE_DIR/"
-cp ../docs/tstorie.wasm.js "$PACKAGE_DIR/"
-cp ../docs/tstorie.wasm.wasm "$PACKAGE_DIR/"
-cp ../docs/tstorie-webgl.js "$PACKAGE_DIR/"
-echo "✓ WASM files copied"
+cp dist-tstauri/tstorie.js "$PACKAGE_DIR/"
+cp dist-tstauri/tstorie.wasm.js "$PACKAGE_DIR/"
+cp dist-tstauri/tstorie.wasm.wasm "$PACKAGE_DIR/"
+cp dist-tstauri/tstorie-webgl.js "$PACKAGE_DIR/"
+cp dist-tstauri/index.md "$PACKAGE_DIR/"
+echo "✓ WASM files and welcome screen copied"
 
 # Create a README for Windows users
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'

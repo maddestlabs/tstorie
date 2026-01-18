@@ -4,8 +4,10 @@ author: "Maddest Labs"
 chars: "闇雲霧雨雪月星空夢幻影光風水火土木金銀鉄石砂爆雷虫符花"
 doubleWidth: true
 theme: "neonopia"
-fontsize: 30
+fontsize: 40
 shaders: "bloom+crt"
+font: "LXGW+WenKai+Mono+TC"
+targetFPS: 60
 ---
 
 ```nim on:init
@@ -65,9 +67,8 @@ var styleUnselected = getStyle("accent2")
 # State
 var selectedIndex = 0  # Currently selected character (0-7)
 var displayChars = []  # The 8 random kanji to display at top
-var frameCount = 0  # Animation frame counter
 var colorMode = 0  # Color mode: 0=accent1, 1=accent2, 2=accent3, 3=monochrome, 4=rainbow
-var nextFireworksFrame = 30  # Next frame to auto-trigger fireworks
+var nextFireworksTime = 0.5  # Time until next auto-trigger fireworks (in seconds)
 
 # Particle systems (one per kanji character)
 var particleSystems = ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"]
@@ -156,7 +157,7 @@ var sparklesRadius = float(termHeight / 3)
 var sparklesCenterX = float(termWidth / 2)
 var sparklesCenterY = float(termHeight / 2)
 var sparklesAngularVel = 2.0  # radians per second
-var sparklesPathTimer = 0.0
+var sparklesPathChangeTime = 0.0  # Time when path should change
 var sparklesPathDuration = 5.0  # seconds before changing path
 
 # Lightning strike state
@@ -255,23 +256,23 @@ elif event.type == "text":
   return false
 
 elif event.type == "key":
-  if event.action == "press":
+  if event.action == "press" or event.action == "repeat":
     var code = event.keyCode
     
-    # Arrow keys (tstorie uses 10000-10003 for arrow keys)
-    if code == 10000:  # Up - cycle color mode forward
+    # Arrow keys using SDL3-compatible KEY_* constants
+    if code == KEY_UP:  # Up - cycle color mode forward
       colorMode = colorMode + 1
       if colorMode > 4:
         colorMode = 0
       applyColorMode(particleSystems[selectedIndex])
       return true
-    elif code == 10001:  # Down - cycle color mode backward
+    elif code == KEY_DOWN:  # Down - cycle color mode backward
       colorMode = colorMode - 1
       if colorMode < 0:
         colorMode = 4
       applyColorMode(particleSystems[selectedIndex])
       return true
-    elif code == 10002:  # Left
+    elif code == KEY_LEFT:  # Left
       selectedIndex = selectedIndex - 1
       if selectedIndex < 0:
         selectedIndex = 7
@@ -280,7 +281,7 @@ elif event.type == "key":
         triggerFireworks()
       applyColorMode(particleSystems[selectedIndex])
       return true
-    elif code == 10003:  # Right
+    elif code == KEY_RIGHT:  # Right
       selectedIndex = selectedIndex + 1
       if selectedIndex > 7:
         selectedIndex = 0
@@ -295,34 +296,19 @@ elif event.type == "key":
 return false
 ```
 
-```nim on:render
-# Clear screen
-clear()
-
-# Increment frame counter
-frameCount = frameCount + 1
-
+```nim on:update
 # Auto-trigger fireworks when system 0 is selected
-if selectedIndex == 0 and frameCount >= nextFireworksFrame:
+var currentTime = getTime()
+if selectedIndex == 0 and currentTime >= nextFireworksTime:
   triggerFireworks()
-  nextFireworksFrame = frameCount + rand(10, 70)  # Next trigger in 1-3 seconds at 30fps
+  # Next trigger in 0.3-2.3 seconds
+  nextFireworksTime = currentTime + (0.3 + float(rand(200)) / 100.0)
 
-# Fill entire background with static kanji characters
-var y = 1
-while y < termHeight - 1:
-  var x = 0
-  while x < termWidth:
-    draw(0, x, y, getRandomKanji(x, y), styleBackground)
-    x = x + charWidth
-  y = y + 1
-
-# Update and render the currently selected particle system
-var deltaTime = 1.0 / 30.0
+# Update the currently selected particle system
+# deltaTime is automatically injected by the runtime with the actual frame time
 
 # Special handling for sparkles system - move in circular paths
 if selectedIndex == 4:
-  sparklesPathTimer = sparklesPathTimer + deltaTime
-  
   # Update circular motion
   sparklesAngle = sparklesAngle + (sparklesAngularVel * deltaTime)
   
@@ -332,8 +318,7 @@ if selectedIndex == 4:
   particleSetEmitterPos(particleSystems[4], sparklesX, sparklesY)
   
   # Change to new random circular path periodically
-  if sparklesPathTimer >= sparklesPathDuration:
-    sparklesPathTimer = 0.0
+  if currentTime >= sparklesPathChangeTime:
     # Random new center point (avoiding edges)
     sparklesCenterX = float(rand(termWidth / 4, (termWidth * 3) / 4))
     sparklesCenterY = float(rand(termHeight / 4, (termHeight * 3) / 4))
@@ -345,6 +330,7 @@ if selectedIndex == 4:
       sparklesAngularVel = -sparklesAngularVel  # Random direction
     # Random duration for next path
     sparklesPathDuration = 3.0 + float(rand(40)) / 10.0  # 3-7 seconds
+    sparklesPathChangeTime = currentTime + sparklesPathDuration
 
 # Special handling for lightning system - random strikes with pulsing intensity
 if selectedIndex == 5:
@@ -384,8 +370,6 @@ if selectedIndex == 5:
   # Set emission rate based on intensity (0 to 200)
   var emitRate = lightningIntensity * 200.0
   particleSetEmitRate(particleSystems[5], emitRate)
-
-particleUpdate(particleSystems[selectedIndex], deltaTime)
 
 # Special handling for bug system - spawn bugs from edges
 if selectedIndex == 7:
@@ -433,7 +417,25 @@ if selectedIndex == 7:
     
     # Vary spawn interval
     bugSpawnInterval = 0.5 + (float(rand(20)) / 80.0)
-  
+
+# Update particle physics
+particleUpdate(particleSystems[selectedIndex], deltaTime)
+```
+
+```nim on:render
+# Clear screen
+clear()
+
+# Fill entire background with static kanji characters
+var y = 1
+while y < termHeight - 1:
+  var x = 0
+  while x < termWidth:
+    draw(0, x, y, getRandomKanji(x, y), styleBackground)
+    x = x + charWidth
+  y = y + 1
+
+# Render the currently selected particle system
 particleRender(particleSystems[selectedIndex], 0)
 
 # Draw the 8 selectable characters at top center

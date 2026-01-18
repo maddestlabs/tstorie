@@ -4,7 +4,7 @@ author: "Maddest Labs"
 minWidth: 40
 minHeight: 12
 theme: "coffee"
-shader: "notebook"
+shaders: "notebook"
 font: "Courier+Prime"
 ---
 

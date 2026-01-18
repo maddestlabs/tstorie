@@ -1,6 +1,9 @@
-# Digital Clock with Embedded Font
-
-A simple digital clock using an embedded FIGlet font.
+---
+title: "ToxiClock"
+author: "Maddest Labs"
+fontsize: 26
+---
+# Highly Toxic Digital Clock with Embedded Figlet Font
 
 ```nim on:init
 var fontLoaded = figletLoadFont("poison")

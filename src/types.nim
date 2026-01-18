@@ -10,89 +10,18 @@
 
 import tables
 import ../lib/storie_types  # Import markdown types
+import input  # All input types now come from the unified input module
 
-# ================================================================
-# INPUT SYSTEM TYPES
-# ================================================================
+# Note: Input types (InputEvent, InputEventKind, InputAction, etc.) and
+# key constants (KEY_*, ModShift, etc.) are now in src/input.nim
+# Re-export them here for backward compatibility
+export input.InputEvent, input.InputEventKind, input.InputAction
+export input.TerminalMouseButton
+export input.ModShift, input.ModAlt, input.ModCtrl, input.ModSuper
+export input.TerminalInputParser, input.newTerminalInputParser
 
-# Modifier key constants
-const
-  ModShift* = 0'u8
-  ModAlt* = 1'u8
-  ModCtrl* = 2'u8
-  ModSuper* = 3'u8
-
-# Input key constants
-const
-  INPUT_ESCAPE* = 27
-  INPUT_BACKSPACE* = 127
-  INPUT_SPACE* = 32
-  INPUT_TAB* = 9
-  INPUT_ENTER* = 13
-  INPUT_DELETE* = 46
-  INPUT_UP* = 10000
-  INPUT_DOWN* = 10001
-  INPUT_LEFT* = 10002
-  INPUT_RIGHT* = 10003
-  INPUT_HOME* = 10004
-  INPUT_END* = 10005
-  INPUT_PAGE_UP* = 10006
-  INPUT_PAGE_DOWN* = 10007
-  INPUT_F1* = 10008
-  INPUT_F2* = 10009
-  INPUT_F3* = 10010
-  INPUT_F4* = 10011
-  INPUT_F5* = 10012
-  INPUT_F6* = 10013
-  INPUT_F7* = 10014
-  INPUT_F8* = 10015
-  INPUT_F9* = 10016
-  INPUT_F10* = 10017
-  INPUT_F11* = 10018
-  INPUT_F12* = 10019
-
-type
-  InputAction* = enum
-    Press
-    Release
-    Repeat
-
-  MouseButton* = enum
-    Left
-    Middle
-    Right
-    Unknown
-    ScrollUp
-    ScrollDown
-
-  InputEventKind* = enum
-    KeyEvent
-    TextEvent
-    MouseEvent
-    MouseMoveEvent
-    ResizeEvent
-
-  InputEvent* = object
-    case kind*: InputEventKind
-    of KeyEvent:
-      keyCode*: int
-      keyMods*: set[uint8]
-      keyAction*: InputAction
-    of TextEvent:
-      text*: string
-    of MouseEvent:
-      button*: MouseButton
-      mouseX*: int
-      mouseY*: int
-      mods*: set[uint8]
-      action*: InputAction
-    of MouseMoveEvent:
-      moveX*: int
-      moveY*: int
-      moveMods*: set[uint8]
-    of ResizeEvent:
-      newWidth*: int
-      newHeight*: int
+# Type alias for simpler access to terminal mouse button enum
+type MouseButton* = input.TerminalMouseButton
 
 # ================================================================
 # COLOR AND STYLE SYSTEM
@@ -207,66 +136,11 @@ proc lerpRGB*(r1, g1, b1, r2, g2, b2: int, t: float): Color =
     b: uint8(clamp(b, 0, 255))
   )
 
-# ================================================================
-# TERMINAL INPUT PARSER TYPES
-# ================================================================
-
-const
-  INTERMED_MAX* = 16
-  CSI_ARGS_MAX* = 16
-  CSI_LEADER_MAX* = 16
-  CSI_ARG_FLAG_MORE* = 0x80000000'i64
-  CSI_ARG_MASK* = 0x7FFFFFFF'i64
-  CSI_ARG_MISSING* = 0x7FFFFFFF'i64
-
-type
-  StringCsiState* = object
-    leaderlen*: int
-    leader*: array[CSI_LEADER_MAX, char]
-    argi*: int
-    args*: array[CSI_ARGS_MAX, int64]
-
-  ParserState* = enum
-    Normal
-    CSILeader
-    CSIArgs
-    CSIIntermed
-
-  TerminalInputParser* = object
-    prevEsc*: bool
-    inEsc*: bool
-    inEscO*: bool
-    inUtf8*: bool
-    utf8Remaining*: int
-    utf8Buffer*: string
-    state*: ParserState
-    csi*: StringCsiState
-    intermedlen*: int
-    intermed*: array[INTERMED_MAX, char]
-    mouseCol*: int
-    mouseRow*: int
-    width*: int
-    height*: int
-    escTimer*: float
-    endedInEsc*: bool
-    enableEscapeTimeout*: bool
-    escapeTimeout*: int
-    mouseTrackingDisabled*: bool
-    mouseTrackingReenableTime*: float
-
-# ================================================================
-# INPUT PARSER INITIALIZATION
-# ================================================================
-
-proc newTerminalInputParser*(): TerminalInputParser =
-  ## Create a new terminal input parser with default values
-  result.state = Normal
-  result.csi.args[0] = CSI_ARG_MISSING
-  result.enableEscapeTimeout = true
-  result.escapeTimeout = 300
-  result.escTimer = 0.0  # Will be set when first used
-  result.mouseTrackingDisabled = false
-  result.mouseTrackingReenableTime = 0.0
+# Terminal input parser types are now in src/input.nim
+# Re-export for backward compatibility
+export input.StringCsiState, input.ParserState
+export input.INTERMED_MAX, input.CSI_ARGS_MAX, input.CSI_LEADER_MAX
+export input.CSI_ARG_FLAG_MORE, input.CSI_ARG_MASK, input.CSI_ARG_MISSING
 
 # ================================================================
 # RENDERING TYPES

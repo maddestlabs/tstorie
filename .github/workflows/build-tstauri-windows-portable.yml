@@ -110,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tstauri-windows-portable
-          path: tstauri/dist/tstauri-windows-portable.zip
+          path: tstauri/dist/tstauri-windows-portable
           retention-days: 30
           if-no-files-found: error
 

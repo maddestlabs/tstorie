@@ -20,7 +20,7 @@ type
   CodeBlock* = object
     ## A code block extracted from markdown with lifecycle information
     code*: string
-    lifecycle*: string  ## Lifecycle hook: "render", "update", "init", "input", "shutdown", "enter", "exit"
+    lifecycle*: string  ## Lifecycle hook: "render", "update", "init", "input", "shutdown", "enter", "exit", "ondrop"
     language*: string
   
   EmbeddedContentKind* = enum

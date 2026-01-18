@@ -8,7 +8,7 @@ chars: "岩僧石座固僧・苔霧松竹梅"
 doubleWidth: true
 theme: "stonegarden"
 font: "LXGW+WenKai+Mono+TC"
-shaders: "grid2x1+sand+gradualblur"
+shaders: "sand+clouds+gradualblur"
 ---
 
 # Stone Garden⠀
@@ -983,26 +983,26 @@ elif event.type == "key":
   if event.action == "press":
     var code = event.keyCode
     
-    # Arrow keys (tstorie uses 10000-10003 for arrow keys)
-    if code == 10000:  # Up
+    # Arrow keys - use KEY_* constants for portability
+    if code == KEY_UP:
       if tryMove(0, -1):
         return true
-    elif code == 10001:  # Down
+    elif code == KEY_DOWN:
       if tryMove(0, 1):
         return true
-    elif code == 10002:  # Left
+    elif code == KEY_LEFT:
       if tryMove(-1, 0):
         return true
-    elif code == 10003:  # Right
+    elif code == KEY_RIGHT:
       if tryMove(1, 0):
         return true
-    # Next level: Enter (13) or Return (10004)
-    elif code == 13 or code == 10004:
+    # Next level: Enter/Return
+    elif code == KEY_ENTER:
       if isLevelPack:
         loadNextLevel()
         return true
-    # Previous level: Backspace (8) or Delete (10005)
-    elif code == 8 or code == 10005:
+    # Previous level: Backspace or Delete
+    elif code == KEY_BACKSPACE or code == KEY_DELETE:
       if isLevelPack:
         loadPrevLevel()
         return true

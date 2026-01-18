@@ -2056,7 +2056,7 @@ proc inputHandler(state: AppState, event: InputEvent): bool =
   
   # Default quit behavior (Q or ESC)
   if event.kind == KeyEvent and event.keyAction == Press:
-    if event.keyCode == ord('q') or event.keyCode == ord('Q') or event.keyCode == INPUT_ESCAPE:
+    if event.keyCode == ord('q') or event.keyCode == ord('Q') or event.keyCode == 27:  # KEY_ESCAPE
       state.running = false
       return true
   

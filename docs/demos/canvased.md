@@ -45,11 +45,15 @@ editor.addNode(node3)
 editor.connectNodes(node1, node3)
 editor.connectNodes(node2, node3)
 
-# Time tracking for long-press detection
-var currentTime = 0.0
+# Variables for context menu and long-press
 var showContextMenu = false
 var contextMenuX = 0
 var contextMenuY = 0
+var longPressStartTime = 0.0
+var longPressActive = false
+var longPressThreshold = 0.5  # 500ms
+var lastMouseX = 0
+var lastMouseY = 0
 ```
 
 ```nim on:input
@@ -57,22 +61,20 @@ var contextMenuY = 0
 # The editor's built-in handlers manage most interactions
 
 if event.type == "key":
-  # Use keyCodes (as tstorie expects) and let canvased handle them
-  # Arrow keys: 1000=Up, 1001=Down, 1002=Left, 1003=Right
-  # Delete: 127 (Backspace), Escape: 27, A: 65/97
+  # Use named key constants (much clearer than magic numbers!)
   var keyStr = ""
   
-  if event.keyCode == 1000:  # Up arrow
+  if event.keyCode == KEY_UP:
     keyStr = "Up"
-  elif event.keyCode == 1001:  # Down arrow
+  elif event.keyCode == KEY_DOWN:
     keyStr = "Down"
-  elif event.keyCode == 1002:  # Left arrow
+  elif event.keyCode == KEY_LEFT:
     keyStr = "Left"
-  elif event.keyCode == 1003:  # Right arrow
+  elif event.keyCode == KEY_RIGHT:
     keyStr = "Right"
-  elif event.keyCode == 27:  # Escape
+  elif event.keyCode == KEY_ESCAPE:
     keyStr = "Escape"
-  elif event.keyCode == 127:  # Backspace/Delete
+  elif event.keyCode == KEY_DELETE or event.keyCode == KEY_BACKSPACE:
     keyStr = "Delete"
   
   # Pass to editor's key handler
@@ -111,19 +113,22 @@ elif event.type == "mouse":
     i = i + 1
   
   if event.action == "press":
-    var handled = editorHandleMouseDown(editor, event.x, event.y, buttonInt, shiftPressed, currentTime)
+    # Start long-press tracking
+    longPressStartTime = getTime()
+    longPressActive = true
+    showContextMenu = false
+    lastMouseX = event.x
+    lastMouseY = event.y
+    
+    var handled = editorHandleMouseDown(editor, event.x, event.y, buttonInt, shiftPressed, getTotalTime())
     if handled:
       return true
   
   elif event.action == "release":
-    var handled = editorHandleMouseUp(editor, event.x, event.y, buttonInt, currentTime)
-    # Check for long press after mouse up
-    if editorCheckLongPress(editor, currentTime):
-      # Long press detected!
-      showContextMenu = true
-      contextMenuX = event.x
-      contextMenuY = event.y
-      editorClearLongPress(editor)
+    # Cancel long-press tracking
+    longPressActive = false
+    
+    var handled = editorHandleMouseUp(editor, event.x, event.y, buttonInt, getTotalTime())
     if handled:
       return true
 
@@ -217,25 +222,27 @@ var selectedCount = getEditorSelectedCount(editor)
 var nodeInfo = "Nodes: " & str(nodeCount) & " | Selected: " & str(selectedCount)
 draw(0, termWidth - len(nodeInfo) - 2, 2, nodeInfo, infoStyle)
 
-# Show time for debugging long-press
-var timeInfo = "Time: " & str(int(currentTime * 1000)) & "ms"
+# Show time for debugging
+var fps = 60
+if deltaTime > 0.0:
+  fps = int(1.0 / deltaTime)
+var timeInfo = "Time: " & str(int(getTime() * 1000)) & "ms | FPS: " & str(fps)
 draw(0, 2, 1, timeInfo, infoStyle)
 ```
 
 ```nim on:update
-# Update time for long-press detection
-currentTime = currentTime + (1.0 / 60.0)  # Assume 60fps
+# Update camera position using real deltaTime (frame-independent!)
+editorUpdateCamera(editor, deltaTime)
 
-# Update camera position (no smoothing since we removed it)
-editorUpdateCamera(editor, 1.0 / 60.0)
-
-# Continuously check for long press during mouse hold
-if editorCheckLongPress(editor, currentTime) and not showContextMenu:
-  # Long press activated during hold!
-  showContextMenu = true
-  contextMenuX = getMouseX()
-  contextMenuY = getMouseY()
-  editorClearLongPress(editor)
+# Check for long-press (if mouse is still held down)
+if longPressActive:
+  var currentTime = getTime()
+  if currentTime - longPressStartTime >= longPressThreshold:
+    # Long press threshold reached!
+    showContextMenu = true
+    contextMenuX = lastMouseX
+    contextMenuY = lastMouseY
+    longPressActive = false  # Prevent retriggering
 ```
 
 # 🎨 Canvas Editor - Visual Node Graph System

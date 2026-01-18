@@ -1,9 +1,8 @@
 ---
 title: "Canvas Presentation Demo"
 author: "Maddest Labs"
-minWidth: 60
-minHeight: 12
-theme: "neotopia"
+theme: "catppuccin"
+fontsize: 24
 ---
 
 ```nim on:init

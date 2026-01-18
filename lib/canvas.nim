@@ -1588,13 +1588,14 @@ proc canvasHandleKey*(keyCode: int, mods: set[uint8]): bool =
   if canvasState.isNil:
     return false
   
-  # Arrow keys and Tab for link navigation
-  const INPUT_UP = 10000
-  const INPUT_DOWN = 10001
-  const INPUT_LEFT = 10002
-  const INPUT_RIGHT = 10003
-  const INPUT_TAB = 9
-  const INPUT_ENTER = 13
+  # Arrow keys and Tab for link navigation (using standard key codes)
+  # These match the KEY_* constants from src/input.nim
+  const INPUT_UP = 1000      # KEY_UP
+  const INPUT_DOWN = 1001    # KEY_DOWN
+  const INPUT_LEFT = 1002    # KEY_LEFT
+  const INPUT_RIGHT = 1003   # KEY_RIGHT
+  const INPUT_TAB = 9        # KEY_TAB
+  const INPUT_ENTER = 13     # KEY_ENTER
   
   # PRESENTATION MODE: Arrow keys navigate sections by heading level
   if canvasState.presentationMode:

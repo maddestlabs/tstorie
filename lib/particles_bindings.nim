@@ -414,6 +414,34 @@ proc particleSetForegroundFromStyle*(env: ref Env; args: seq[Value]): Value {.ni
         gParticleSystems[args[0].s].colorMax = Color(r: r, g: g, b: b)
   return valNil()
 
+proc particleSetColorRangeFromStyle*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set color range around a style's foreground color with deviation
+  ## Args: name (string), style (map with fg field), deviation (int, optional, default 30)
+  ## Example: var style = getStyle("heading"); particleSetColorRangeFromStyle("sparkles", style, 40)
+  ## Creates a color range around the style's foreground color ± deviation
+  if args.len >= 2 and gParticleSystems.hasKey(args[0].s):
+    let styleObj = args[1]
+    let deviation = if args.len >= 3: int(args[2].i) else: 30
+    
+    if styleObj.kind == vkMap and styleObj.map.hasKey("fg"):
+      let fgColor = styleObj.map["fg"]
+      if fgColor.kind == vkMap:
+        let baseR = if fgColor.map.hasKey("r"): int(fgColor.map["r"].i) else: 255
+        let baseG = if fgColor.map.hasKey("g"): int(fgColor.map["g"].i) else: 255
+        let baseB = if fgColor.map.hasKey("b"): int(fgColor.map["b"].i) else: 255
+        
+        # Calculate min/max with clamping to valid range [0, 255]
+        let minR = max(0, baseR - deviation)
+        let minG = max(0, baseG - deviation)
+        let minB = max(0, baseB - deviation)
+        let maxR = min(255, baseR + deviation)
+        let maxG = min(255, baseG + deviation)
+        let maxB = min(255, baseB + deviation)
+        
+        gParticleSystems[args[0].s].colorMin = Color(r: uint8(minR), g: uint8(minG), b: uint8(minB))
+        gParticleSystems[args[0].s].colorMax = Color(r: uint8(maxR), g: uint8(maxG), b: uint8(maxB))
+  return valNil()
+
 # ================================================================
 # PRESET CONFIGURATIONS
 # ================================================================
@@ -716,6 +744,7 @@ proc registerParticleBindings*(env: ref Env, appState: AppState) =
   
   env.vars["particleSetBackgroundFromStyle"] = valNativeFunc(particleSetBackgroundFromStyle)
   env.vars["particleSetForegroundFromStyle"] = valNativeFunc(particleSetForegroundFromStyle)
+  env.vars["particleSetColorRangeFromStyle"] = valNativeFunc(particleSetColorRangeFromStyle)
   
   # Presets
   env.vars["particleConfigureRain"] = valNativeFunc(particleConfigureRain)

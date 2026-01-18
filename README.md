@@ -5,12 +5,12 @@ Terminal engine in [Nim](https://nim-lang.org/). Build stuff using Markdown with
 Check it out: [Intro](https://maddestlabs.github.io/tstorie/)
 
 Demos:
-- [stonegarden.md](https://maddestlabs.github.io/tstorie/?content=demo:stonegarden&font=LXGW+WenKai+Mono+TC&shader=sand+clouds+gradualblur) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/stonegarden.md)
-- [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides&theme=catppuccin&fontsize=22) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
+- [stonegarden.md](https://maddestlabs.github.io/tstorie/) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/stonegarden.md)
+- [slides.md](https://maddestlabs.github.io/tstorie/?content=demo:slides) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=demo:her&shader=crt&fontsize=20) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
-- [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths&shader=notebook&font=Courier+Prime) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
-- [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock&fontsize=26) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
-- [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx&theme=neonopia&fontsize=40&font=LXGW+WenKai+Mono+TC&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
+- [depths.md](https://maddestlabs.github.io/tstorie/?content=demo:depths) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
+- [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
 
 Core examples:
 - [figletclock.md](https://maddestlabs.github.io/tstorie?content=figletclock&fontsize=30&shader=bloom+crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/figletclock.md)
@@ -112,6 +112,164 @@ cd tstorie
 **Terminal Cleanup:**
 
 If a t|Storie app crashes or you press CTRL-C, the terminal state is automatically restored. The engine uses multiple cleanup mechanisms (exit handlers and signal handlers) to ensure your terminal remains usable.
+
+## API Reference
+
+### Event Handling
+
+TStorie provides SDL3-compatible event constants for clean, readable code:
+
+#### Key Constants
+
+```nim
+# Control keys
+KEY_ESCAPE, KEY_ESC       # Escape key
+KEY_RETURN, KEY_ENTER     # Enter/Return
+KEY_BACKSPACE             # Backspace
+KEY_TAB                   # Tab
+KEY_DELETE                # Delete
+KEY_SPACE                 # Spacebar
+
+# Arrow keys
+KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
+KEY_HOME, KEY_END
+KEY_PAGEUP, KEY_PAGEDOWN
+KEY_INSERT
+
+# Function keys
+KEY_F1, KEY_F2, ... KEY_F12
+
+# Numbers
+KEY_0, KEY_1, ... KEY_9
+
+# Letters
+KEY_A, KEY_B, ... KEY_Z  # Works for both upper and lowercase
+```
+
+**Example Usage:**
+
+```nim
+# ❌ OLD WAY - Magic numbers
+if event.keyCode == 1000:  # What key is this?
+  echo "Up pressed"
+elif event.keyCode == 27:  # What key is this?
+  echo "Escape pressed"
+
+# ✅ NEW WAY - Named constants
+if event.keyCode == KEY_UP:
+  echo "Up pressed"
+elif event.keyCode == KEY_ESCAPE:
+  echo "Escape pressed"
+```
+
+### Time & Animation
+
+TStorie provides precise timing for smooth, frame-independent animations:
+
+#### Time Queries
+
+```nim
+getTime()         # Monotonic time in seconds since app start
+getTimeMs()       # Monotonic time in milliseconds
+getDeltaTime()    # ACTUAL seconds since last frame (varies!)
+getTotalTime()    # Total elapsed time (same as getTime)
+getFrameCount()   # Total frames rendered
+```
+
+#### Timer Callbacks
+
+```nim
+# Call function once after delay
+setTimeout(callback, seconds) -> timerId
+
+# Call function repeatedly
+setInterval(callback, seconds) -> timerId
+
+# Cancel a timer
+clearTimeout(timerId)
+clearInterval(timerId)  # Alias for clearTimeout
+```
+
+**Note:** Timer callbacks have limitations in WASM builds. For simple time-based events, use manual time tracking with `getTime()` instead:
+
+```nim
+# ✅ WORKS IN WASM - Manual time tracking
+var startTime = 0.0
+var timerActive = false
+
+# on:input (mouse press)
+startTime = getTime()
+timerActive = true
+
+# on:update
+if timerActive and (getTime() - startTime) >= 0.5:
+  # Trigger after 500ms
+  timerActive = false
+```
+
+**Example Usage:**
+
+```nim
+# ❌ BAD - Framerate dependent
+position += velocity  # Too fast at high FPS!
+
+# ✅ GOOD - Frame-independent
+position += velocity * deltaTime
+
+# ❌ BAD - Manual timing
+var currentTime = 0.0
+currentTime += 1.0/60.0  # Wrong if not 60fps!
+
+# ✅ GOOD - Use timers
+setTimeout(proc() = 
+  showMenu = true
+, 0.5)  # Show menu after 500ms
+
+# ✅ GOOD - Periodic events
+setInterval(proc() = 
+  echo "Autosave..."
+, 60.0)  # Every 60 seconds
+```
+
+### Best Practices
+
+**Frame-Independent Movement:**
+```nim
+# on:update (deltaTime is auto-injected)
+position.x += velocity.x * deltaTime
+position.y += velocity.y * deltaTime
+```
+
+**Long-Press Detection (WASM-compatible):**
+```nim
+# on:init
+var longPressStartTime = 0.0
+var longPressActive = false
+var longPressThreshold = 0.5  # 500ms
+
+# on:input
+if event.type == "mouse" and event.action == "press":
+  # Start tracking long press
+  longPressStartTime = getTime()
+  longPressActive = true
+
+if event.type == "mouse" and event.action == "release":
+  # Cancel if released early
+  longPressActive = false
+
+# on:update
+if longPressActive and (getTime() - longPressStartTime) >= longPressThreshold:
+  showContextMenu = true
+  longPressActive = false  # Prevent retriggering
+```
+
+**Periodic Updates:**
+```nim
+# on:init
+setInterval(proc() =
+  saveGameState()
+, 30.0)  # Autosave every 30 seconds
+```
 
 ## Classroom Setup
 

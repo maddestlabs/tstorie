@@ -8,12 +8,22 @@ import tables
 import times
 import strutils
 import "../nimini"
+
+# Console logging for debugging
+proc emConsoleLog(msg: cstring) {.importc: "emConsoleLog".}
 import storie_types
 import audio  # Unified audio system (includes audio_gen)
 import terminal_shaders
+import ../src/input     # Unified input system (was event_constants)
+import ../src/timing    # High-precision timing and timers (core module)
 import ../src/types
 import ../src/layers
 import ../src/appstate
+
+# Dropped file tracking (defined here so nimini can access them directly)
+var gDroppedFileName*: string = ""
+var gDroppedFileData*: string = ""
+var gDroppedFileSize*: int = 0
 
 # ================================================================
 # HELPER TEMPLATES
@@ -114,6 +124,9 @@ proc getDefaultStyleConfig(): StyleConfig =
 proc registerTstorieApis*(env: ref Env, appState: AppState) =
   ## Register all tstorie API functions in the nimini environment
   ## This makes them available to interpreted modules
+  
+  # Initialize auto-exposed timing module functions
+  timing.initTimingModule()
   
   let defaultStyle = defaultStyle() # Default style for drawing
   
@@ -454,17 +467,152 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     ## Get the current actual FPS
     return valFloat(appState.fps)
   
-  env.vars["getFrameCount"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the total frame count
-    return valInt(appState.frameCount)
+  # Note: getFrameCount, getTotalTime, getDeltaTime, getTime, getTimeMs
+  # are now auto-exposed from src/timing.nim via {.autoExpose: "timing".}
   
-  env.vars["getTotalTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the total elapsed time in seconds
-    return valFloat(appState.totalTime)
+  # Timer callbacks
+  env.vars["setTimeout"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setTimeout(callback, delay) -> int - Call function once after delay seconds
+    if args.len < 2:
+      raise newException(ValueError, "setTimeout() requires 2 arguments: callback, delay")
+    if args[0].kind != vkFunction:
+      raise newException(ValueError, "setTimeout() first argument must be a function")
+    let delayVal = case args[1].kind
+      of vkFloat: args[1].f
+      of vkInt: args[1].i.float
+      else: 0.0
+    
+    let callback = args[0]
+    let timerId = timing.setTimeout(proc() =
+      discard callback.fnVal.native(e, @[])
+    , delayVal)
+    return valInt(timerId)
   
-  env.vars["getDeltaTime"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getDeltaTime() -> float (alias for getting frame delta)
-    return valFloat(1.0 / appState.targetFps)
+  env.vars["setInterval"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setInterval(callback, interval) -> int - Call function repeatedly
+    if args.len < 2:
+      raise newException(ValueError, "setInterval() requires 2 arguments: callback, interval")
+    if args[0].kind != vkFunction:
+      raise newException(ValueError, "setInterval() first argument must be a function")
+    let intervalVal = case args[1].kind
+      of vkFloat: args[1].f
+      of vkInt: args[1].i.float
+      else: 0.0
+    
+    let callback = args[0]
+    let timerId = timing.setInterval(proc() =
+      discard callback.fnVal.native(e, @[])
+    , intervalVal)
+    return valInt(timerId)
+  
+  env.vars["clearTimeout"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## clearTimeout(timerId) - Cancel a setTimeout or setInterval
+    if args.len < 1:
+      raise newException(ValueError, "clearTimeout() requires 1 argument: timerId")
+    let timerId = case args[0].kind
+      of vkInt: args[0].i
+      else: 0
+    timing.clearTimeout(timerId)
+    return valNil()
+  
+  env.vars["clearInterval"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## clearInterval(timerId) - Cancel a setInterval (alias for clearTimeout)
+    if args.len < 1:
+      raise newException(ValueError, "clearInterval() requires 1 argument: timerId")
+    let timerId = case args[0].kind
+      of vkInt: args[0].i
+      else: 0
+    timing.clearInterval(timerId)
+    return valNil()
+  
+  # ============================================================================
+  # Event Constants (SDL3-Compatible)
+  # ============================================================================
+  
+  # Key constants - Control characters
+  env.vars["KEY_BACKSPACE"] = valInt(KEY_BACKSPACE.int)
+  env.vars["KEY_TAB"] = valInt(KEY_TAB.int)
+  env.vars["KEY_RETURN"] = valInt(KEY_RETURN.int)
+  env.vars["KEY_ENTER"] = valInt(KEY_ENTER.int)
+  env.vars["KEY_ESCAPE"] = valInt(KEY_ESCAPE.int)
+  env.vars["KEY_ESC"] = valInt(KEY_ESC.int)
+  env.vars["KEY_DELETE"] = valInt(KEY_DELETE.int)
+  env.vars["KEY_SPACE"] = valInt(KEY_SPACE.int)
+  
+  # Arrow keys
+  env.vars["KEY_UP"] = valInt(KEY_UP.int)
+  env.vars["KEY_DOWN"] = valInt(KEY_DOWN.int)
+  env.vars["KEY_LEFT"] = valInt(KEY_LEFT.int)
+  env.vars["KEY_RIGHT"] = valInt(KEY_RIGHT.int)
+  env.vars["KEY_HOME"] = valInt(KEY_HOME.int)
+  env.vars["KEY_END"] = valInt(KEY_END.int)
+  env.vars["KEY_PAGEUP"] = valInt(KEY_PAGEUP.int)
+  env.vars["KEY_PAGEDOWN"] = valInt(KEY_PAGEDOWN.int)
+  env.vars["KEY_INSERT"] = valInt(KEY_INSERT.int)
+  
+  # Function keys
+  env.vars["KEY_F1"] = valInt(KEY_F1.int)
+  env.vars["KEY_F2"] = valInt(KEY_F2.int)
+  env.vars["KEY_F3"] = valInt(KEY_F3.int)
+  env.vars["KEY_F4"] = valInt(KEY_F4.int)
+  env.vars["KEY_F5"] = valInt(KEY_F5.int)
+  env.vars["KEY_F6"] = valInt(KEY_F6.int)
+  env.vars["KEY_F7"] = valInt(KEY_F7.int)
+  env.vars["KEY_F8"] = valInt(KEY_F8.int)
+  env.vars["KEY_F9"] = valInt(KEY_F9.int)
+  env.vars["KEY_F10"] = valInt(KEY_F10.int)
+  env.vars["KEY_F11"] = valInt(KEY_F11.int)
+  env.vars["KEY_F12"] = valInt(KEY_F12.int)
+  
+  # Numbers
+  env.vars["KEY_0"] = valInt(KEY_0.int)
+  env.vars["KEY_1"] = valInt(KEY_1.int)
+  env.vars["KEY_2"] = valInt(KEY_2.int)
+  env.vars["KEY_3"] = valInt(KEY_3.int)
+  env.vars["KEY_4"] = valInt(KEY_4.int)
+  env.vars["KEY_5"] = valInt(KEY_5.int)
+  env.vars["KEY_6"] = valInt(KEY_6.int)
+  env.vars["KEY_7"] = valInt(KEY_7.int)
+  env.vars["KEY_8"] = valInt(KEY_8.int)
+  env.vars["KEY_9"] = valInt(KEY_9.int)
+  
+  # Letters (uppercase)
+  env.vars["KEY_A"] = valInt(KEY_A.int)
+  env.vars["KEY_B"] = valInt(KEY_B.int)
+  env.vars["KEY_C"] = valInt(KEY_C.int)
+  env.vars["KEY_D"] = valInt(KEY_D.int)
+  env.vars["KEY_E"] = valInt(KEY_E.int)
+  env.vars["KEY_F"] = valInt(KEY_F.int)
+  env.vars["KEY_G"] = valInt(KEY_G.int)
+  env.vars["KEY_H"] = valInt(KEY_H.int)
+  env.vars["KEY_I"] = valInt(KEY_I.int)
+  env.vars["KEY_J"] = valInt(KEY_J.int)
+  env.vars["KEY_K"] = valInt(KEY_K.int)
+  env.vars["KEY_L"] = valInt(KEY_L.int)
+  env.vars["KEY_M"] = valInt(KEY_M.int)
+  env.vars["KEY_N"] = valInt(KEY_N.int)
+  env.vars["KEY_O"] = valInt(KEY_O.int)
+  env.vars["KEY_P"] = valInt(KEY_P.int)
+  env.vars["KEY_Q"] = valInt(KEY_Q.int)
+  env.vars["KEY_R"] = valInt(KEY_R.int)
+  env.vars["KEY_S"] = valInt(KEY_S.int)
+  env.vars["KEY_T"] = valInt(KEY_T.int)
+  env.vars["KEY_U"] = valInt(KEY_U.int)
+  env.vars["KEY_V"] = valInt(KEY_V.int)
+  env.vars["KEY_W"] = valInt(KEY_W.int)
+  env.vars["KEY_X"] = valInt(KEY_X.int)
+  env.vars["KEY_Y"] = valInt(KEY_Y.int)
+  env.vars["KEY_Z"] = valInt(KEY_Z.int)
+  
+  # Helper functions for event handling
+  env.vars["keyCodeToName"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## keyCodeToName(keyCode: int) -> string - Convert keyCode to human-readable name
+    if args.len < 1:
+      raise newException(ValueError, "keyCodeToName() requires 1 argument: keyCode")
+    let keyCode = case args[0].kind
+      of vkInt: KeyCode(args[0].i)
+      else: KeyCode(0)
+    return valString(keyCodeToName(keyCode))
   
   # ============================================================================
   # Time Functions
@@ -930,3 +1078,50 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     ## resetDisplacement() - Reset displacement to frame 0
     resetDisplacement()
     return valNil()
+  
+  # ================================================================
+  # DROPPED FILE API (for dropTarget functionality)
+  # ================================================================
+  
+  env.vars["getDroppedFileName"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getDroppedFileName() -> string - Get the name of the dropped file
+    ## Available in on:ondrop lifecycle hooks when a file is dropped
+    return valString(gDroppedFileName)
+  
+  env.vars["getDroppedFileData"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getDroppedFileData() -> string - Get the raw binary data of the dropped file
+    ## Available in on:ondrop lifecycle hooks when a file is dropped
+    ## Returns binary data as a string (can be processed byte by byte)
+    return valString(gDroppedFileData)
+  
+  env.vars["getDroppedFileSize"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getDroppedFileSize() -> int - Get the size in bytes of the dropped file
+    ## Available in on:ondrop lifecycle hooks when a file is dropped
+    return valInt(gDroppedFileSize)
+  
+  env.vars["toHex"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## toHex(value: int, width: int) -> string - Convert integer to hexadecimal string
+    ## width parameter pads the output with leading zeros
+    if args.len < 2:
+      raise newException(ValueError, "toHex() requires 2 arguments: value, width")
+    let value = args[0].i
+    let width = args[1].i
+    return valString(strutils.toHex(value, width))
+  
+  env.vars["getByte"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## getByte(data: string, index: int) -> int - Get byte value at index from binary string
+    ## Returns the byte value (0-255) at the specified position
+    if args.len < 2:
+      raise newException(ValueError, "getByte() requires 2 arguments: data, index")
+    if args[0].kind != vkString:
+      raise newException(ValueError, "getByte() first argument must be a string")
+    let data = args[0].s
+    let index = args[1].i
+    if index < 0 or index >= data.len:
+      return valInt(0)  # Out of bounds returns 0
+    return valInt(data[index].ord)
+  
+  env.vars["inc"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## inc(variable) -> void - Increment an integer variable by 1
+    ## Note: In nimini, use 'variable = variable + 1' instead, as inc requires mutable references
+    raise newException(ValueError, "inc() is not supported in nimini. Use 'variable = variable + 1' instead")
