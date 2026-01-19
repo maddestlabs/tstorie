@@ -802,9 +802,10 @@
         // which is called on window resize events and properly accounts for device pixel ratio
         
         // Compression/Decompression utilities for URL sharing
+        // Uses 'deflate' (zlib format, RFC 1950) to match Nim's zippy dfDeflate
         async function compress(string) {
             const byteArray = new TextEncoder().encode(string);
-            const stream = new CompressionStream('deflate-raw');
+            const stream = new CompressionStream('deflate');
             const writer = stream.writable.getWriter();
             writer.write(byteArray);
             writer.close();
@@ -829,7 +830,7 @@
                 byteArray[i] = binaryString.charCodeAt(i);
             }
             
-            const stream = new DecompressionStream('deflate-raw');
+            const stream = new DecompressionStream('deflate');
             const writer = stream.writable.getWriter();
             writer.write(byteArray);
             writer.close();
@@ -2118,7 +2119,8 @@
                                 gl.uniform1f(shader.timeLocation, time);
                             }
                             if (shader.resolutionLocation) {
-                                gl.uniform2f(shader.resolutionLocation, webglCanvas.width, webglCanvas.height);
+                                // Use terminal canvas dimensions (not webgl canvas) so grid aligns with actual terminal cells
+                                gl.uniform2f(shader.resolutionLocation, terminalCanvas.width, terminalCanvas.height);
                             }
                             if (shader.textureLocation) {
                                 gl.uniform1i(shader.textureLocation, 0);
@@ -2129,9 +2131,10 @@
                                 let value = shader.customUniforms[name];
                                 const location = shader.uniformLocations[name];
                                 if (location) {
-                                    // Special handling for cellSize - get live values from terminal
+                                    // Special handling for cellSize - get live values from terminal (with DPR scaling)
                                     if (name === 'cellSize' && window.terminal) {
-                                        value = [window.terminal.charWidth, window.terminal.charHeight];
+                                        const dpr = window.devicePixelRatio || 1;
+                                        value = [window.terminal.charWidth * dpr, window.terminal.charHeight * dpr];
                                     }
                                     
                                     if (typeof value === 'number') {

@@ -1,8 +1,9 @@
 ---
 title: "Dungeon Generator - Native Edition"
 author: "High-performance procedural dungeon using native Nim"
-minWidth: 40
-minHeight: 14
+theme: solardark
+shader: sand+grid+paper+lightsway
+fontsize: 24
 ---
 
 # Dungeon Generator
@@ -39,6 +40,11 @@ proc initDungeon() =
 
 # Initialize on startup
 initDungeon()
+```
+
+```nim on:update
+width = termWidth - 1
+height = termHeight - 5
 ```
 
 ```nim on:render

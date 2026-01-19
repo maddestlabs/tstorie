@@ -1,7 +1,8 @@
 ---
 title: "Hex Viewer Demo"
 dropTarget: true
-theme: neotopia
+theme: "neotopia"
+shader: "invert+sand+ruledlines+paper"
 ---
 
 # Hex Viewer 🔍
@@ -84,25 +85,41 @@ else:
     
     # Hex bytes
     var hexCol = 13
-    var asciiStr = ""
+    var asciiCol = 13 + bytesPerRow * 3 + 2
     
     for i in 0..<bytesPerRow:
       let pos = byteOffset + i
       if pos < fileSize:
         let b = getByte(data, pos)
         let hexByte = toHex(b, 2)
-        draw(0, hexCol, row, hexByte)
         
-        # ASCII representation
-        if b >= 32 and b <= 126:
-          asciiStr = asciiStr & chr(b)
+        # Choose color based on byte value
+        var byteStyle = getStyle("default")
+        if b == 0:
+          # NUL character - default style
+          byteStyle = getStyle("default")
+        elif b == 9 or b == 10 or b == 13 or b == 32:
+          # ASCII whitespace (tab, LF, CR, space)
+          byteStyle = getStyle("accent2")
+        elif b >= 32 and b <= 126:
+          # Printable ASCII
+          byteStyle = getStyle("accent1")
         else:
-          asciiStr = asciiStr & "."
+          # All other chars (control chars, extended ASCII)
+          byteStyle = getStyle("accent3")
+        
+        # Draw hex byte with color
+        draw(0, hexCol, row, hexByte, byteStyle)
+        
+        # Draw ASCII character with same color
+        var asciiChar = "."
+        if b >= 32 and b <= 126:
+          asciiChar = $chr(b)
+        
+        draw(0, asciiCol, row, asciiChar, byteStyle)
         
         hexCol += 3
-    
-    # ASCII column
-    draw(0, 13 + bytesPerRow * 3 + 2, row, asciiStr)
+        asciiCol += 1
     
     row = row + 1
     byteOffset = byteOffset + bytesPerRow

@@ -449,8 +449,7 @@ tstorie-wasm-v1.0.tar.gz (2 MB)
 tstorie-native-v1.0-linux-x64.tar.gz (3 MB)
   └─ tstorie
 
-tstorie-plugins-v1.0-linux-x64.tar.gz (300 KB)
-  ├─ libcompression_plugin.so (57 KB)
+tstorie-plugins-v1.0-linux-x64.tar.gz (250 KB)
   ├─ libaudio_plugin.so (150 KB)
   └─ libgraphics_plugin.so (100 KB)
 ```
@@ -460,15 +459,13 @@ tstorie-plugins-v1.0-linux-x64.tar.gz (300 KB)
 tstorie-minimal-v1.0.tar.gz (3 MB)
   └─ tstorie (no plugins)
 
-tstorie-standard-v1.0.tar.gz (3.2 MB)
+tstorie-standard-v1.0.tar.gz (3.15 MB)
   ├─ tstorie
-  ├─ libcompression_plugin.so
   └─ libaudio_plugin.so
 
-tstorie-full-v1.0.tar.gz (3.3 MB)
+tstorie-full-v1.0.tar.gz (3.25 MB)
   ├─ tstorie
   └─ plugins/
-      ├─ compression
       ├─ audio
       └─ graphics
 ```

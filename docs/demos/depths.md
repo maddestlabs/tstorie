@@ -1,10 +1,8 @@
 ---
 title: "Depths Beckon"
 author: "Maddest Labs"
-minWidth: 40
-minHeight: 12
 theme: "coffee"
-shaders: "notebook"
+shaders: "ruledlines+sand+nightlight+gradualblur"
 font: "Courier+Prime"
 ---
 

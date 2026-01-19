@@ -42,6 +42,7 @@ if event.type == "key":
     currentThemeIndex = (currentThemeIndex + 1) % len(themes)
     var newTheme = themes[currentThemeIndex]
     switchTheme(newTheme)
+    clear()
     return true
     
     # Pass key events to canvas system

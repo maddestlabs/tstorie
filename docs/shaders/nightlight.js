@@ -85,13 +85,13 @@ function getShaderConfig() {
         `,
         
         uniforms: {
-            lightPosition: [0.3, 0.7],           // Top-left area (UV space)
+            lightPosition: [0.47, 0.6],           // Top-left area (UV space)
             lightColor: [1.0, 0.95, 0.85],       // Warm white (slightly yellow)
-            lightIntensity: 1.5,                  // Brightness multiplier
-            lightRadius: 0.4,                     // Coverage area in UV space
+            lightIntensity: 0.85,                  // Brightness multiplier
+            lightRadius: 0.95,                     // Coverage area in UV space
             falloffPower: 3.0,                    // Attenuation sharpness (2.0-5.0 realistic)
             ambientLevel: 0.3,                    // Dark dusk ambient (0.2-0.4)
-            lightHeight: 1.2                      // Simulated height (1.0-2.0)
+            lightHeight: 1.02                      // Simulated height (1.0-2.0)
         }
     };
 }
