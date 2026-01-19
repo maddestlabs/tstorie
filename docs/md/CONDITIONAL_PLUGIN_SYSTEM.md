@@ -29,8 +29,7 @@ This keeps both builds optimal: WASM stays small, native only loads what's neede
 │                  │          │                  │
 │ • Web Audio API  │          │ • Audio Plugin   │
 │ • Canvas API     │          │ • Graphics Plugin│
-│ • Compression    │          │ • Compress Plugin│
-│   Streams        │          │ (all optional)   │
+│                  │          │ (all optional)   │
 │                  │          │                  │
 │ Size: ~2MB       │          │ Size: ~3MB +     │
 │ No plugins       │          │ optional plugins │
@@ -422,10 +421,6 @@ proc showCapabilities*() =
 
 echo "Building plugins for native builds..."
 
-# Compression plugin
-nim c --app:lib -d:release lib/compression_plugin.nim
-mv lib/libcompression_plugin.so ./
-
 # Audio plugin
 nim c --app:lib -d:release lib/audio_plugin.nim
 mv lib/libaudio_plugin.so ./
@@ -441,9 +436,7 @@ ls -lh *.so
 ### Selective Build
 ```bash
 # User can build just what they need
-./build-plugin.sh compression  # Just compression
-./build-plugin.sh audio        # Just audio
-./build-plugin.sh all          # Everything
+./build-audio-plugin.sh        # Audio plugin
 ```
 
 ## Distribution Strategies

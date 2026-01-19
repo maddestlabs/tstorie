@@ -802,9 +802,10 @@
         // which is called on window resize events and properly accounts for device pixel ratio
         
         // Compression/Decompression utilities for URL sharing
+        // Uses 'deflate' (zlib format, RFC 1950) to match Nim's zippy dfDeflate
         async function compress(string) {
             const byteArray = new TextEncoder().encode(string);
-            const stream = new CompressionStream('deflate-raw');
+            const stream = new CompressionStream('deflate');
             const writer = stream.writable.getWriter();
             writer.write(byteArray);
             writer.close();
@@ -829,7 +830,7 @@
                 byteArray[i] = binaryString.charCodeAt(i);
             }
             
-            const stream = new DecompressionStream('deflate-raw');
+            const stream = new DecompressionStream('deflate');
             const writer = stream.writable.getWriter();
             writer.write(byteArray);
             writer.close();

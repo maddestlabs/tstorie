@@ -450,7 +450,7 @@ import src/layers
 2. **Zero Overhead**: Minimal builds don't allocate effect structs
 3. **Clean Architecture**: Plugins extend, don't modify core
 4. **Easy to Disable**: Just don't import the plugin
-5. **Follows Pattern**: Same as audio_plugin, compression_plugin, etc.
+5. **Follows Pattern**: Same as audio_plugin, etc.
 
 ## Performance Impact
 

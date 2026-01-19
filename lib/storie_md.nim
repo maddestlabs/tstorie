@@ -4,7 +4,7 @@
 ## This module has no file I/O or platform-specific dependencies - it only processes string content.
 
 import strutils, tables
-import storie_types, storie_themes
+import storie_types, storie_themes, magic
 export storie_types, storie_themes  # Re-export types so users get them automatically
 
 # Global table to store embedded figlet fonts from markdown
@@ -532,9 +532,16 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
       
       var headerParts = trimmed[3..^1].strip().split()
       
+      when not defined(release):
+        echo "CODE BLOCK: headerParts = ", headerParts
+      
       # Check for embedded content blocks: figlet:NAME, data:NAME, custom:NAME
       if headerParts.len > 0:
         let header = headerParts[0]
+        when not defined(release):
+          echo "  header = ", repr(header)
+          echo "  header.toLowerAscii() = ", repr(header.toLowerAscii())
+          echo "  header.toLowerAscii() == \"magic\" ? ", header.toLowerAscii() == "magic"
         
         # Check for figlet:NAME blocks
         if header.startsWith("figlet:"):
@@ -617,6 +624,121 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
             kind: AnsiArt,
             content: ansiContent
           ))
+          inc i
+          continue
+        
+        # Check for magic blocks: ```magic name="bugs" count="100"
+        elif header.toLowerAscii() == "magic":
+          when not defined(release):
+            echo "MAGIC BLOCK DETECTED!"
+          # Parse parameters from the rest of the header line
+          var params = initTable[string, string]()
+          # Find where "magic" ends in the original line and get everything after it
+          let magicPos = trimmed.toLowerAscii().find("magic")
+          let paramStr = if magicPos >= 0: trimmed[magicPos + 5..^1].strip() else: ""
+          
+          # Simple parameter parsing: name="value" count="100"
+          var j = 0
+          while j < paramStr.len:
+            # Skip whitespace
+            while j < paramStr.len and paramStr[j] in {' ', '\t'}:
+              inc j
+            
+            # Parse key
+            var key = ""
+            while j < paramStr.len and paramStr[j] notin {'=', ' ', '\t'}:
+              key.add(paramStr[j])
+              inc j
+            
+            # Skip '=' and whitespace
+            while j < paramStr.len and paramStr[j] in {'=', ' ', '\t'}:
+              inc j
+            
+            # Parse value (handle quoted strings)
+            var value = ""
+            if j < paramStr.len and paramStr[j] == '"':
+              inc j  # Skip opening quote
+              while j < paramStr.len and paramStr[j] != '"':
+                value.add(paramStr[j])
+                inc j
+              if j < paramStr.len:
+                inc j  # Skip closing quote
+            else:
+              # Unquoted value
+              while j < paramStr.len and paramStr[j] notin {' ', '\t'}:
+                value.add(paramStr[j])
+                inc j
+            
+            if key.len > 0:
+              params[key] = value
+          
+          # Extract compressed content
+          var compressedLines: seq[string] = @[]
+          inc i
+          while i < lines.len:
+            if lines[i].strip().startsWith("```"):
+              break
+            compressedLines.add(lines[i])
+            inc i
+          
+          when not defined(release):
+            echo "  Extracted ", compressedLines.len, " lines of compressed content"
+          
+          # Decompress the magic block
+          let compressed = compressedLines.join("")
+          when not defined(release):
+            echo "  Compressed content length: ", compressed.len
+            echo "  First 20 chars: ", repr(compressed[0..min(19, compressed.len-1)])
+            echo "  Last 20 chars: ", repr(compressed[max(0, compressed.len-20)..^1])
+          try:
+            var expanded = decompressString(compressed)
+            when not defined(release):
+              echo "  Decompressed successfully! Length: ", expanded.len
+            
+            # Perform parameter substitution using the safer magic module function
+            # Default to {{PARAM}} syntax for better safety
+            if params.len > 0:
+              expanded = substituteSugarParams(expanded, params, "{{PARAM}}")
+            
+            # Recursively parse the expanded markdown
+            let expandedDoc = parseMarkdownDocument(expanded)
+            
+            # Inject all code blocks from expanded content
+            for cb in expandedDoc.codeBlocks:
+              result.codeBlocks.add(cb)
+              
+              # Add to current section
+              if hasCurrentSection:
+                currentSection.blocks.add(ContentBlock(
+                  kind: CodeBlock_Content,
+                  codeBlock: cb
+                ))
+              else:
+                # Create default section if needed
+                inc sectionCounter
+                let sectionId = "section_" & $sectionCounter
+                currentSection = Section(
+                  id: sectionId,
+                  title: "",
+                  level: 1,
+                  blocks: @[],
+                  metadata: initTable[string, string]()
+                )
+                currentSection.blocks.add(ContentBlock(
+                  kind: HeadingBlock,
+                  level: 1,
+                  title: ""
+                ))
+                currentSection.blocks.add(ContentBlock(
+                  kind: CodeBlock_Content,
+                  codeBlock: cb
+                ))
+                hasCurrentSection = true
+          
+          except Exception:
+            # If decompression fails, skip this block
+            discard
+          
           inc i
           continue
       
