@@ -165,7 +165,7 @@ Modules have access to all functions registered in `lib/nimini_bridge.nim`:
 - `getInput()` → array of events
 
 **State:**
-- `getWidth()`, `getHeight()`, `getDeltaTime()`
+- `termWidth`, `termHeight`, `mouseX`, `mouseY` (globals), `getDeltaTime()`
 
 **Utilities:**
 - `echo(...)`

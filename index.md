@@ -134,8 +134,8 @@ canvasUpdate()
 # Update displacement animation for subtle grid wave effect
 updateDisplacement()
 
-mouseX = getMouseX()
-mouseY = getMouseY()
+mouseX = mouseX
+mouseY = mouseY
 
 # Move sparkles in oval path around center of screen
 sparklesAngle += deltaTime * 2.0  # Adjust speed (2.0 radians per second)

@@ -1,6 +1,6 @@
-# getMouseX() and getMouseY() Test
+# mouseX and mouseY Test
 
-This example demonstrates the new `getMouseX()` and `getMouseY()` functions.
+This example demonstrates the new `mouseX` and `mouseY` functions.
 
 These functions return the last known mouse position and can be called from anywhere in your code (render, update, etc.), not just during mouse events.
 
@@ -13,7 +13,7 @@ These functions return the last known mouse position and can be called from anyw
 clear()
 
 # Draw title  
-draw(0, 2, 2, "=== getMouseX() / getMouseY() Test ===")
+draw(0, 2, 2, "=== mouseX / mouseY Test ===")
 
 # Draw instructions
 draw(0, 2, 4, "Move your mouse around the screen")
@@ -21,8 +21,8 @@ draw(0, 2, 5, "These functions work from anywhere!")
 draw(0, 2, 6, "Press Q or ESC to quit")
 
 # Get mouse position using the new functions
-var x = getMouseX()
-var y = getMouseY()
+var x = mouseX
+var y = mouseY
 
 # Display mouse coordinates
 draw(0, 2, 8, "Mouse X: " & str(x))
@@ -55,8 +55,8 @@ while j < termHeight:
 
 ```nim on:update
 # You can access mouse position in update too!
-var x = getMouseX()
-var y = getMouseY()
+var x = mouseX
+var y = mouseY
 # Could use this for game logic, animations, etc.
 ```
 

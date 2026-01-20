@@ -101,8 +101,8 @@ var lastKeyCode = 0
 # ===================================================================
 clear()
 
-let w = getWidth()
-let h = getHeight()
+let w = termWidth
+let h = termHeight
 
 # Calculate responsive editor dimensions
 let editorX = 3
@@ -437,8 +437,8 @@ elif event.type == "mouse":
   let action = event.action
   
   # Recalculate editor dimensions
-  let w = getWidth()
-  let h = getHeight()
+  let w = termWidth
+  let h = termHeight
   let editorX = 3
   let editorY = 5
   let editorW = w - 6

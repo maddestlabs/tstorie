@@ -1,5 +1,5 @@
 ---
-title: "Drawing & Compositing Demo"
+title: "Manual Drawing & Compositing Demo"
 minWidth: 60
 minHeight: 18
 theme: "neotopia"
@@ -46,8 +46,8 @@ var message = "B: Change box style | F: Change fill pattern | Arrow keys: Move r
 # ===================================================================
 clear()
 
-let w = getWidth()
-let h = getHeight()
+let w = termWidth
+let h = termHeight
 
 # Title banner
 fillBox(0, 0, 0, w, 3, "═", getStyle("primary"))
@@ -201,7 +201,7 @@ drawLabel(0, 37, 33, "• drawPanel(layer, x, y, w, h, title, borderType)", getS
 drawLabel(0, 37, 34, "• drawLabel(layer, x, y, text, style)", getStyle("dim"))
 drawLabel(0, 37, 35, "• getStyle(name) - Get themed color style", getStyle("dim"))
 drawLabel(0, 37, 36, "• clear() - Clear the display buffer", getStyle("dim"))
-drawLabel(0, 37, 37, "• getWidth() / getHeight() - Get dimensions", getStyle("dim"))
+drawLabel(0, 37, 37, "• termWidth / termHeight - Get dimensions", getStyle("dim"))
 
 # Footer message bar
 fillBox(0, 0, h - 2, w, 2, " ", getStyle("default"))
@@ -312,7 +312,7 @@ return false
 - `drawLabel()` - Draw text and single characters at any position
 - `getStyle()` - Get themed color styles (primary, success, danger, info, warning, dim, etc.)
 - `clear()` - Clear the display buffer
-- `getWidth()` / `getHeight()` - Get terminal dimensions
+- `termWidth` / `termHeight` - Get terminal dimensions
 
 ### Box Styles
 - **Single line** (`single`) - ┌─┐│└┘

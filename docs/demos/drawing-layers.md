@@ -39,8 +39,8 @@ var message = "Space: Toggle layers | Watch the animated overlay on 'overlay' la
 # ===================================================================
 clear(0)
 
-let w = getWidth()
-let h = getHeight()
+let w = termWidth
+let h = termHeight
 
 # Title
 fillBox("default", 0, 0, w, 3, "═", getStyle("primary"))

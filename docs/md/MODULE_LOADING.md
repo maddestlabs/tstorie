@@ -119,8 +119,10 @@ When your module is loaded, it has access to these tstorie functions:
 - `getInput()` - Get array of input events
 
 ### State
-- `getWidth()` - Get terminal/canvas width
-- `getHeight()` - Get terminal/canvas height
+- `termWidth` - Terminal/canvas width (global variable)
+- `termHeight` - Terminal/canvas height (global variable)
+- `mouseX` - Last mouse X coordinate (global variable)
+- `mouseY` - Last mouse Y coordinate (global variable)
 - `getDeltaTime()` - Get frame delta time
 
 ### Utilities

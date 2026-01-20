@@ -75,8 +75,8 @@ proc sliceStr(s: string, startIdx: int, endIdx: int): string =
 # ===================================================================
 clear()
 
-let w = getWidth()
-let h = getHeight()
+let w = termWidth
+let h = termHeight
 
 # Title
 drawLabel(0, 5, 2, "Advanced TUI Widgets - Tab to cycle focus areas", getStyle("info"))

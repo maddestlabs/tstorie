@@ -384,7 +384,7 @@ proc randFloat(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # ================================================================
 # GLOBAL EVENT HANDLER MANAGEMENT
 # ================================================================
-# Note: State accessors (getTermWidth, getFps, etc.) are in tstorie.nim's
+# Note: State accessors are in tstorie.nim's
 # registerTstorieApis() and are automatically available to all nimini code.
 
 proc registerGlobalRender*(name: string, callback: Value, priority: int = 0): bool =
@@ -1392,6 +1392,8 @@ proc executeInputCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: 
     # Add state field accessors as local variables
     scriptCode.add("var termWidth = " & $state.termWidth & "\n")
     scriptCode.add("var termHeight = " & $state.termHeight & "\n")
+    scriptCode.add("var mouseX = " & $state.lastMouseX & "\n")
+    scriptCode.add("var mouseY = " & $state.lastMouseY & "\n")
     scriptCode.add("var fps = " & formatFloat(state.fps, ffDecimal, 2) & "\n")
     scriptCode.add("var frameCount = " & $state.frameCount & "\n")
     scriptCode.add("var deltaTime = 0.0\n")  # Not used in input blocks
@@ -1452,6 +1454,8 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     # Add state field accessors as local variables
     scriptCode.add("var termWidth = " & $state.termWidth & "\n")
     scriptCode.add("var termHeight = " & $state.termHeight & "\n")
+    scriptCode.add("var mouseX = " & $state.lastMouseX & "\n")
+    scriptCode.add("var mouseY = " & $state.lastMouseY & "\n")
     scriptCode.add("var fps = " & formatFloat(state.fps, ffDecimal, 2) & "\n")
     scriptCode.add("var frameCount = " & $state.frameCount & "\n")
     scriptCode.add("var deltaTime = " & formatFloat(deltaTime, ffDecimal, 6) & "\n")
@@ -2014,7 +2018,7 @@ proc inputHandler(state: AppState, event: InputEvent): bool =
   if storieCtx.isNil:
     return false
   
-  # Update mouse position tracking for getMouseX/getMouseY functions
+  # Update mouse position tracking (these values are injected as mouseX/mouseY globals)
   case event.kind
   of MouseEvent:
     state.lastMouseX = event.mouseX

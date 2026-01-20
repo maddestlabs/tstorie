@@ -25,8 +25,8 @@ particleSetVelocityRange("{name}", -5.0, -5.0, 5.0, 5.0)
 
 ```nim on:update
 # Smoothly follow mouse position
-var mx = float(getMouseX())
-var my = float(getMouseY())
+var mx = float(mouseX)
+var my = float(mouseY)
 var dx = mx - {name}_x
 var dy = my - {name}_y
 

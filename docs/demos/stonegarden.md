@@ -913,9 +913,8 @@ if event.type == "mouse":
   var mouseAction = event.action
   
   if mouseAction == "press":
-    # Get mouse position using global functions
-    var mouseX = getMouseX()
-    var mouseY = getMouseY()
+    # Mouse position is available as global variables mouseX and mouseY
+    # (they are automatically injected by the runtime)
     
     # Check if clicking on button areas at top
     var buttonY = 0

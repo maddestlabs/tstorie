@@ -9,8 +9,8 @@ This demo shows the new layout module capabilities.
 
 ```nim on:render
 # Clear screen
-var w = getTermWidth()
-var h = getTermHeight()
+var w = termWidth
+var h = termHeight
 clear()
 
 # Title bar - centered

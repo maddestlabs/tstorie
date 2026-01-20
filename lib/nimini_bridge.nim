@@ -356,34 +356,6 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     return valArray()
   
   # ============================================================================
-  # State Access
-  # ============================================================================
-  
-  env.vars["getTermWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get current terminal width
-    return valInt(appState.termWidth)
-  
-  env.vars["getTermHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get current terminal height
-    return valInt(appState.termHeight)
-  
-  env.vars["getWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getWidth() -> int (alias for getTermWidth)
-    return valInt(appState.termWidth)
-  
-  env.vars["getHeight"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## getHeight() -> int (alias for getTermHeight)
-    return valInt(appState.termHeight)
-  
-  env.vars["getMouseX"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the last known mouse X coordinate
-    return valInt(appState.lastMouseX)
-  
-  env.vars["getMouseY"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## Get the last known mouse Y coordinate
-    return valInt(appState.lastMouseY)
-  
-  # ============================================================================
   # Font Metrics and Scaling Functions (WASM only)
   # ============================================================================
   
@@ -603,6 +575,9 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
   env.vars["KEY_X"] = valInt(KEY_X.int)
   env.vars["KEY_Y"] = valInt(KEY_Y.int)
   env.vars["KEY_Z"] = valInt(KEY_Z.int)
+  
+  # Special symbols
+  env.vars["KEY_BACKQUOTE"] = valInt(KEY_BACKQUOTE.int)  # `
   
   # Helper functions for event handling
   env.vars["keyCodeToName"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =

@@ -16,6 +16,11 @@ A fully-featured text editor with Unicode support, gap buffer optimization, and 
 # State Management
 # ===================================================================
 
+# Track frame times for FPS display
+var frameStartTime = getTime()
+var lastFrameTime = frameStartTime
+var displayFps = 60
+
 # Load initial content from URL parameter if provided
 var initialContent = @[""]
 let contentParam = getParam("load")
@@ -286,7 +291,7 @@ drawLabel(0, 7, statusY + 1, posInfo, getStyle("info"))
 drawLabel(0, 7, statusY + 2, statusMessage, getStyle("default"))
 
 # Status line 3: Key stats
-let statsInfo = "Keys pressed: " & str(keyPressCount) & " | Last key: " & str(lastKeyCode)
+let statsInfo = "Keys pressed: " & str(keyPressCount) & " | Last key: " & str(lastKeyCode) & " | FPS: " & str(getFps())
 drawLabel(0, 7, statusY + 3, statsInfo, getStyle("warning"))
 
 # Check for async paste completion
@@ -587,13 +592,13 @@ if event.type == "key":
   
   # Save dialog
   if showSaveDialog:
-    if keyCode == 27:  # Esc
+    if keyCode == KEY_ESCAPE:  # Esc
       showSaveDialog = 0
       saveFileName = ""
       focusedComponent = 0
       statusMessage = "Save cancelled"
-      return 1
-    elif keyCode == 13:  # Enter
+      return true
+    elif keyCode == KEY_RETURN:  # Enter
       if saveFileName != "":
         let content = editorGetText(editor)
         let success = localStorage_setItem(saveFileName, content)
@@ -610,30 +615,30 @@ if event.type == "key":
           statusMessage = "✗ Failed to save to browser storage"
         showSaveDialog = 0
         saveFileName = ""
-        return 1
-    elif keyCode == 8:  # Backspace
+        return true
+    elif keyCode == KEY_BACKSPACE:  # Backspace
       if len(saveFileName) > 0:
         saveFileName = saveFileName[0..<len(saveFileName) - 1]
-      return 1
-    return 1
+      return true
+    return true
   
   # Load dialog
   if showLoadDialog:
-    if keyCode == 27:  # Esc
+    if keyCode == KEY_ESCAPE:  # Esc
       showLoadDialog = 0
       loadSelection = 0
       focusedComponent = 0
       statusMessage = "Load cancelled"
-      return 1
-    elif keyCode == 38:  # Up arrow
+      return true
+    elif keyCode == KEY_UP:  # Up arrow
       if loadSelection > 0:
         loadSelection = loadSelection - 1
-      return 1
-    elif keyCode == 40:  # Down arrow
+      return true
+    elif keyCode == KEY_DOWN:  # Down arrow
       if loadSelection < len(savedFiles) - 1:
         loadSelection = loadSelection + 1
-      return 1
-    elif keyCode == 13:  # Enter
+      return true
+    elif keyCode == KEY_RETURN:  # Enter
       if loadSelection >= 0 and loadSelection < len(savedFiles):
         let filename = savedFiles[loadSelection]
         statusMessage = "Loading '" & filename & "'..."
@@ -641,29 +646,29 @@ if event.type == "key":
         loadSelection = 0
         let loadUrl = "?load=browser:" & filename
         navigateTo(loadUrl)
-        return 1
-    return 1
+        return true
+    return true
   
   # Share dialog
   if showShareDialog:
-    if keyCode == 27:  # Esc
+    if keyCode == KEY_ESCAPE:  # Esc
       showShareDialog = 0
       shareUrl = ""
       shareUrlReady = 0
       focusedComponent = 0
       statusMessage = "Share dialog closed"
-      return 1
-    return 1
+      return true
+    return true
   
   # Load from Gist dialog
   if showLoadGistDialog:
-    if keyCode == 27:  # Esc
+    if keyCode == KEY_ESCAPE:  # Esc
       showLoadGistDialog = 0
       gistIdInput = ""
       focusedComponent = 0
       statusMessage = "Load from Gist cancelled"
-      return 1
-    elif keyCode == 13:  # Enter
+      return true
+    elif keyCode == KEY_RETURN:  # Enter
       if gistIdInput != "":
         # Extract gist ID from URL if needed
         var gistId = gistIdInput
@@ -707,23 +712,23 @@ if event.type == "key":
         gistIdInput = ""
         let loadUrl = "?load=gist:" & gistId
         navigateTo(loadUrl)
-        return 1
-    elif keyCode == 8:  # Backspace
+        return true
+    elif keyCode == KEY_BACKSPACE:  # Backspace
       if len(gistIdInput) > 0:
         gistIdInput = gistIdInput[0..<len(gistIdInput) - 1]
-      return 1
-    return 1
+      return true
+    return true
   
   # Save to Gist dialog
   if showSaveGistDialog:
-    if keyCode == 27:  # Esc
+    if keyCode == KEY_ESCAPE:  # Esc
       showSaveGistDialog = 0
       gistDescription = ""
       gistResultUrl = ""
       focusedComponent = 0
       statusMessage = "Save to Gist cancelled"
-      return 1
-    elif keyCode == 13 and gistResultUrl == "":  # Enter (only if not showing result)
+      return true
+    elif keyCode == KEY_RETURN and gistResultUrl == "":  # Enter (only if not showing result)
       let content = editorGetText(editor)
       let filename = currentFileName & ".md"
       let desc = if gistDescription == "": "TStorie document: " & currentFileName else: gistDescription
@@ -738,38 +743,38 @@ if event.type == "key":
         statusMessage = "✗ Failed to create gist"
         showSaveGistDialog = 0
         gistDescription = ""
-      return 1
-    elif keyCode == 8 and gistResultUrl == "":  # Backspace (only for description input)
+      return true
+    elif keyCode == KEY_BACKSPACE and gistResultUrl == "":  # Backspace (only for description input)
       if len(gistDescription) > 0:
         gistDescription = gistDescription[0..<len(gistDescription) - 1]
-      return 1
-    return 1
+      return true
+    return true
   
   # Help dialog
   if showHelp:
-    if keyCode == 112 or keyCode == 27:  # F1 or Esc
+    if keyCode == KEY_F1 or keyCode == KEY_ESCAPE:  # F1 or Esc
       showHelp = 0
       focusedComponent = 0
       statusMessage = "Help closed"
-      return 1
-    return 1
+      return true
+    return true
   
   # Menu navigation
   if activeMenu != "":
-    if keyCode == 27:  # Esc
+    if keyCode == KEY_ESCAPE:  # Esc
       activeMenu = ""
       hoveredMenuItem = -1
       focusedComponent = 0
       statusMessage = "Menu closed"
-      return 1
-    elif keyCode == 10000:  # Up arrow
+      return true
+    elif keyCode == KEY_UP:  # Up arrow
       if hoveredMenuItem > 0:
         hoveredMenuItem = hoveredMenuItem - 1
         # Skip separators
         if activeMenu == "file" and (hoveredMenuItem == 3 or hoveredMenuItem == 5):
           hoveredMenuItem = hoveredMenuItem - 1
-      return 1
-    elif keyCode == 10001:  # Down arrow
+      return true
+    elif keyCode == KEY_DOWN:  # Down arrow
       var maxItem = 0
       if activeMenu == "file":
         maxItem = 4
@@ -782,8 +787,8 @@ if event.type == "key":
         # Skip separators
         if activeMenu == "file" and (hoveredMenuItem == 3 or hoveredMenuItem == 5):
           hoveredMenuItem = hoveredMenuItem + 1
-      return 1
-    elif keyCode == 13:  # Enter - activate menu item
+      return true
+    elif keyCode == KEY_RETURN:  # Enter - activate menu item
       if hoveredMenuItem >= 0:
         # Execute menu action
         if activeMenu == "file":
@@ -832,41 +837,41 @@ if event.type == "key":
         
         activeMenu = ""
         hoveredMenuItem = -1
-        return 1
-    return 1
+        return true
+    return true
   
   # ===== Global Shortcuts (only if no menu/dialog active) =====
   
   if focusedComponent == 0:
     if ctrl:
       # Ctrl+S - Save
-      if keyCode == 83 and not shift:
+      if keyCode == KEY_S and not shift:
         showSaveDialog = 1
         focusedComponent = 2
         saveFileName = if currentFileName == "untitled": "" else: currentFileName
         statusMessage = "Enter filename to save"
-        return 1
+        return true
       
       # Ctrl+Shift+S - Save to Gist
-      elif keyCode == 83 and shift:
+      elif keyCode == KEY_S and shift:
         showSaveGistDialog = 1
         focusedComponent = 2
         gistDescription = ""
         gistResultUrl = ""
         statusMessage = "Enter description for Gist"
-        return 1
+        return true
       
       # Ctrl+O - Open
-      elif keyCode == 79:
+      elif keyCode == KEY_O:
         refreshFileList()
         showLoadDialog = 1
         focusedComponent = 2
         loadSelection = 0
         statusMessage = "Select file to load"
-        return 1
+        return true
       
       # Ctrl+E - Share
-      elif keyCode == 69:
+      elif keyCode == KEY_E:
         showShareDialog = 1
         focusedComponent = 2
         shareUrl = ""
@@ -875,18 +880,18 @@ if event.type == "key":
         let content = editorGetText(editor)
         generateAndCopyShareUrl(content)
         statusMessage = "Generating shareable URL..."
-        return 1
+        return true
       
       # Ctrl+G - Load from Gist
-      elif keyCode == 71:
+      elif keyCode == KEY_G:
         showLoadGistDialog = 1
         focusedComponent = 2
         gistIdInput = ""
         statusMessage = "Enter Gist ID or URL"
-        return 1
+        return true
       
       # Ctrl+A - Select all
-      elif keyCode == 1:
+      elif keyCode == KEY_A:
         hasSelection = 1
         selStartLine = 0
         selStartCol = 0
@@ -894,61 +899,62 @@ if event.type == "key":
         let lastLine = editorGetLine(editor, selEndLine)
         selEndCol = len(lastLine)
         statusMessage = "All text selected"
-        return 1
+        return true
       
       # Ctrl+C - Copy selection or all content to clipboard
-      elif keyCode == 3:
+      elif keyCode == KEY_C:
         let content = if hasSelection: getSelectedText() else: editorGetText(editor)
         let copied = copyToClipboard(content)
         if copied:
           statusMessage = "✓ Copied entire document to clipboard"
         else:
           statusMessage = "Failed to copy to clipboard"
-        return 1
+        return true
       
       # Ctrl+V - Paste from clipboard
-      elif keyCode == 22:
+      elif keyCode == KEY_V:
         # Trigger async clipboard read
         let triggerPaste = pasteFromClipboard()
         pasteInProgress = 1
         lastPasteCheck = ""
         statusMessage = "Reading clipboard..."
-        return 1
+        return true
     
     # F1 - Toggle help
-    if keyCode == 112:
+    if keyCode == KEY_F1:
       showHelp = 1 - showHelp
       focusedComponent = if showHelp: 2 else: 0
       statusMessage = if showHelp != 0: "Help panel opened" else: "Help panel closed"
-      return 1
+      return true
     
-    if keyCode == 192:
+    if keyCode == KEY_BACKQUOTE:
       # Trigger async clipboard read
       let triggerPaste = pasteFromClipboard()
       pasteInProgress = 1
       lastPasteCheck = ""
       statusMessage = "Reading clipboard..."
-      return 1
+      return true
   
   # ===== Special Keys =====
   
   # Delete or Backspace - delete selection if any, otherwise pass to editor
-  if keyCode == 46 or keyCode == 127 or keyCode == 8:  # Delete, forward delete, or Backspace
+  # Note: DELETE key is 127, BACKSPACE is 8
+  if keyCode == KEY_DELETE or keyCode == KEY_BACKSPACE:
     if hasSelection:
       deleteSelection()
       statusMessage = "Deleted selection"
-      return 1
+      return true
     # If no selection, let it fall through to editor handler
   
   # ===== Arrow Keys and Word Movement =====
   
   # Editor only responds when it has focus
   if focusedComponent != 0:
-    return 0
+    return false
   
   # Handle arrow keys with shift (selection) and ctrl (word movement)
-  # Arrow keys: 10000=Up, 10001=Down, 10002=Left, 10003=Right
-  if keyCode == 10000 or keyCode == 10001 or keyCode == 10002 or keyCode == 10003:
+  # Arrow keys: KEY_UP=1000, KEY_DOWN=1001, KEY_LEFT=1002, KEY_RIGHT=1003
+  if keyCode == KEY_UP or keyCode == KEY_DOWN or keyCode == KEY_LEFT or keyCode == KEY_RIGHT:
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
@@ -965,7 +971,7 @@ if event.type == "key":
     var newLine = cursorLine
     var newCol = cursorCol
     
-    if keyCode == 10002:  # Left
+    if keyCode == KEY_LEFT:  # Left
       if ctrl:
         # Ctrl+Left: Move to previous word
         let line = editorGetLine(editor, cursorLine)
@@ -978,7 +984,7 @@ if event.type == "key":
           newLine = cursorLine - 1
           let prevLine = editorGetLine(editor, newLine)
           newCol = len(prevLine)
-    elif keyCode == 10003:  # Right
+    elif keyCode == KEY_RIGHT:  # Right
       if ctrl:
         # Ctrl+Right: Move to next word
         let line = editorGetLine(editor, cursorLine)
@@ -991,12 +997,12 @@ if event.type == "key":
         elif cursorLine < editorLineCount(editor) - 1:
           newLine = cursorLine + 1
           newCol = 0
-    elif keyCode == 10000:  # Up
+    elif keyCode == KEY_UP:  # Up
       if cursorLine > 0:
         newLine = cursorLine - 1
         let upLine = editorGetLine(editor, newLine)
         newCol = min(cursorCol, len(upLine))
-    elif keyCode == 10001:  # Down
+    elif keyCode == KEY_DOWN:  # Down
       if cursorLine < editorLineCount(editor) - 1:
         newLine = cursorLine + 1
         let downLine = editorGetLine(editor, newLine)
@@ -1015,12 +1021,12 @@ if event.type == "key":
       clearSelection()
       statusMessage = "Moved to line " & str(newLine + 1) & ", col " & str(newCol + 1)
     
-    return 1
+    return true
   
   # ===== Home, End, Page Up, Page Down =====
   
-  # Home key (10004) - Move to start of line or file
-  if keyCode == 10004:
+  # Home key - Move to start of line or file
+  if keyCode == KEY_HOME:
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
@@ -1055,10 +1061,10 @@ if event.type == "key":
       clearSelection()
       statusMessage = if ctrl: "Moved to start of file" else: "Moved to line start"
     
-    return 1
+    return true
   
-  # End key (10005) - Move to end of line or file
-  if keyCode == 10005:
+  # End key - Move to end of line or file
+  if keyCode == KEY_END:
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
@@ -1095,10 +1101,10 @@ if event.type == "key":
       clearSelection()
       statusMessage = if ctrl: "Moved to end of file" else: "Moved to line end"
     
-    return 1
+    return true
   
-  # Page Up key (10006) - Scroll up one page
-  if keyCode == 10006:
+  # Page Up key - Scroll up one page
+  if keyCode == KEY_PAGEUP:
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
@@ -1128,10 +1134,10 @@ if event.type == "key":
       clearSelection()
       statusMessage = "Scrolled up one page"
     
-    return 1
+    return true
   
-  # Page Down key (10007) - Scroll down one page
-  if keyCode == 10007:
+  # Page Down key - Scroll down one page
+  if keyCode == KEY_PAGEDOWN:
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
@@ -1162,17 +1168,22 @@ if event.type == "key":
       clearSelection()
       statusMessage = "Scrolled down one page"
     
-    return 1
+    return true
   
   # ===== Editor Input (only when editor has focus) =====
   
   # Already checked focusedComponent above
   if focusedComponent != 0:
-    return 0
+    return false
   
   # Clear selection on any typing (printable characters)
   if hasSelection and keyCode >= 32 and keyCode < 127 and not ctrl:
     deleteSelection()
+  
+  # Skip printable characters in key events - they should be handled by text events
+  # This prevents double-handling in native mode where spacebar generates both key+text
+  if keyCode >= 32 and keyCode < 127 and not ctrl:
+    return false
   
   # Track if content modified
   let wasModified = editorIsModified(editor)
@@ -1190,22 +1201,19 @@ if event.type == "key":
       clearSelection()
     
     # Update status message based on action
-    if keyCode == 13:
+    if keyCode == KEY_RETURN:
       statusMessage = "Inserted new line"
-    elif keyCode == 8 or keyCode == 127:
+    elif keyCode == KEY_BACKSPACE or keyCode == KEY_DELETE:
       statusMessage = "Deleted character"
-    elif keyCode == 9:
+    elif keyCode == KEY_TAB:
       statusMessage = "Inserted tab (spaces)"
-    elif keyCode == 46:
-      statusMessage = "Deleted forward"
-    elif keyCode == 37 or keyCode == 38 or keyCode == 39 or keyCode == 40 or keyCode == 10000 or keyCode == 10001 or keyCode == 10002 or keyCode == 10003:
+    elif keyCode == KEY_LEFT or keyCode == KEY_UP or keyCode == KEY_RIGHT or keyCode == KEY_DOWN:
       let cursor = editorGetCursor(editor)
       statusMessage = "Moved to line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
-    # Note: Home, End, PgUp, PgDn (33-36) are handled above with proper selection support
     
-    return 1
+    return true
   
-  return 0
+  return false
 
 # ===================================================================
 # Text Input Handling
@@ -1218,24 +1226,24 @@ elif event.type == "text":
       let c = event.text[0]
       if (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '-' or c == '_':
         saveFileName = saveFileName & event.text
-    return 1
+    return true
   
   if showLoadGistDialog:
     # Add typed character to gist ID
     gistIdInput = gistIdInput & event.text
-    return 1
+    return true
   
   if showSaveGistDialog and gistResultUrl == "":
     # Add typed character to description
     gistDescription = gistDescription & event.text
-    return 1
+    return true
   
   # Only process if editor has focus
   if focusedComponent != 0:
-    return 0
+    return false
   
   if showLoadDialog or showShareDialog or showHelp or activeMenu != "":
-    return 0
+    return false
   
   let wasModified = editorIsModified(editor)
   editorInsertText(editor, event.text)
@@ -1245,12 +1253,12 @@ elif event.type == "text":
   
   keyPressCount = keyPressCount + 1
   statusMessage = "Ready"
-  return 1
+  return true
 
 # ===================================================================
-# Mouse Input Handling
+# Mouse/Scroll Input Handling
 # ===================================================================
-elif event.type == "mouse":
+elif event.type == "mouse" or event.type == "scroll":
   let mx = event.x
   let my = event.y
   let action = event.action
@@ -1274,7 +1282,7 @@ elif event.type == "mouse":
         saveFileName = ""
         focusedComponent = 0
         statusMessage = "Save cancelled"
-      return 1
+      return true
     
     # Check load dialog
     if showLoadDialog:
@@ -1287,7 +1295,7 @@ elif event.type == "mouse":
         loadSelection = 0
         focusedComponent = 0
         statusMessage = "Load cancelled"
-      return 1
+      return true
     
     # Check share dialog
     if showShareDialog:
@@ -1301,7 +1309,7 @@ elif event.type == "mouse":
         shareUrlReady = 0
         focusedComponent = 0
         statusMessage = "Share dialog closed"
-      return 1
+      return true
     
     # Check load gist dialog
     if showLoadGistDialog:
@@ -1314,7 +1322,7 @@ elif event.type == "mouse":
         gistIdInput = ""
         focusedComponent = 0
         statusMessage = "Load from Gist cancelled"
-      return 1
+      return true
     
     # Check save gist dialog
     if showSaveGistDialog:
@@ -1328,7 +1336,7 @@ elif event.type == "mouse":
         gistResultUrl = ""
         focusedComponent = 0
         statusMessage = "Save to Gist cancelled"
-      return 1
+      return true
     
     # Check help panel
     if showHelp:
@@ -1340,7 +1348,7 @@ elif event.type == "mouse":
         showHelp = 0
         focusedComponent = 0
         statusMessage = "Help closed"
-      return 1
+      return true
   
   # Handle menu bar clicks
   if action == "press" and my == 1:
@@ -1354,25 +1362,25 @@ elif event.type == "mouse":
       focusedComponent = if activeMenu == "file": 1 else: 0
       hoveredMenuItem = if activeMenu == "file": 0 else: -1
       statusMessage = if activeMenu == "file": "File menu opened - Use arrows + Enter or click items" else: "Menu closed"
-      return 1
+      return true
     elif mx >= editMenuX and mx < editMenuX + 4:
       activeMenu = if activeMenu == "edit": "" else: "edit"
       focusedComponent = if activeMenu == "edit": 1 else: 0
       hoveredMenuItem = -1
       statusMessage = if activeMenu == "edit": "Edit menu opened" else: "Menu closed"
-      return 1
+      return true
     elif mx >= viewMenuX and mx < viewMenuX + 4:
       activeMenu = if activeMenu == "view": "" else: "view"
       focusedComponent = if activeMenu == "view": 1 else: 0
       hoveredMenuItem = if activeMenu == "view": 0 else: -1
       statusMessage = if activeMenu == "view": "View menu opened" else: "Menu closed"
-      return 1
+      return true
     elif mx >= helpMenuX and mx < helpMenuX + 4:
       activeMenu = if activeMenu == "help": "" else: "help"
       focusedComponent = if activeMenu == "help": 1 else: 0
       hoveredMenuItem = if activeMenu == "help": 0 else: -1
       statusMessage = if activeMenu == "help": "Help menu opened" else: "Menu closed"
-      return 1
+      return true
   
   # Handle menu dropdown clicks
   if action == "press" and activeMenu != "":
@@ -1396,7 +1404,7 @@ elif event.type == "mouse":
           statusMessage = "Enter filename to save"
           activeMenu = ""
           hoveredMenuItem = -1
-          return 1
+          return true
         elif itemY == 1:  # Open
           refreshFileList()
           showLoadDialog = 1
@@ -1405,7 +1413,7 @@ elif event.type == "mouse":
           statusMessage = "Select file to load"
           activeMenu = ""
           hoveredMenuItem = -1
-          return 1
+          return true
         elif itemY == 3:  # Share URL
           showShareDialog = 1
           focusedComponent = 2
@@ -1417,7 +1425,7 @@ elif event.type == "mouse":
           activeMenu = ""
           hoveredMenuItem = -1
           statusMessage = "Generating shareable URL..."
-          return 1
+          return true
         elif itemY == 5:  # Load Gist
           showLoadGistDialog = 1
           focusedComponent = 2
@@ -1425,7 +1433,7 @@ elif event.type == "mouse":
           statusMessage = "Enter Gist ID or URL"
           activeMenu = ""
           hoveredMenuItem = -1
-          return 1
+          return true
         elif itemY == 6:  # Save as Gist
           showSaveGistDialog = 1
           focusedComponent = 2
@@ -1434,7 +1442,7 @@ elif event.type == "mouse":
           statusMessage = "Enter description for Gist"
           activeMenu = ""
           hoveredMenuItem = -1
-          return 1
+          return true
       else:
         # Clicked outside menu - close it
         activeMenu = ""
@@ -1456,7 +1464,7 @@ elif event.type == "mouse":
           statusMessage = if showHelp != 0: "Help opened" else: "Help closed"
           activeMenu = ""
           hoveredMenuItem = -1
-          return 1
+          return true
       else:
         # Clicked outside
         activeMenu = ""
@@ -1477,7 +1485,7 @@ elif event.type == "mouse":
           statusMessage = "Help opened"
           activeMenu = ""
           hoveredMenuItem = -1
-          return 1
+          return true
       else:
         # Clicked outside
         activeMenu = ""
@@ -1510,7 +1518,7 @@ elif event.type == "mouse":
         editorSetCursor(editor, newLine, newCol)
         statusMessage = "Mouse wheel: scrolled down"
       
-      return 1
+      return true
   
   # Mouse release - end any drag operation
   if action == "release":
@@ -1520,7 +1528,7 @@ elif event.type == "mouse":
       isDraggingMinimap = 0
       isDraggingText = 0
       statusMessage = "Ready"
-      return 1
+      return true
   
   # Regular mouse button press (left/right/middle buttons only)
   if action == "press":
@@ -1545,7 +1553,7 @@ elif event.type == "mouse":
         let targetLine = (relativeY * totalLines) div editorH
         editorSetCursor(editor, min(max(0, targetLine), totalLines - 1), 0)
         statusMessage = "Scrollbar: jumped to line " & str(targetLine + 1)
-        return 1
+        return true
       
       # Check if clicking on minimap (columns -6 to -2 from right edge)
       elif mx >= minimapX and mx < scrollbarX:
@@ -1554,7 +1562,7 @@ elif event.type == "mouse":
         let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 0)
         if minimapHandled:
           statusMessage = "Minimap: jumped to position"
-        return 1
+        return true
       
       # Regular click in text area
       else:
@@ -1568,9 +1576,9 @@ elif event.type == "mouse":
         if handled:
           let cursor = editorGetCursor(editor)
           statusMessage = "Clicked at line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
-        return 1
+        return true
   
-  return 0
+  return false
 
 # Handle mouse move events (separate event type)
 elif event.type == "mouse_move":
@@ -1593,7 +1601,7 @@ elif event.type == "mouse_move":
       let targetLine = (relativeY * totalLines) div editorH
       editorSetCursor(editor, min(max(0, targetLine), totalLines - 1), 0)
       statusMessage = "Scrollbar drag: line " & str(targetLine + 1)
-      return 1
+      return true
   elif mousePressed and isDraggingMinimap:
     # Allow dragging anywhere vertically within editor bounds
     if my >= editorY and my < editorY + editorH:
@@ -1601,11 +1609,11 @@ elif event.type == "mouse_move":
       let minimapHandled = editorHandleMinimapClick(editor, mx, my, editorX, editorY, editorW, editorH, 1)
       if minimapHandled:
         statusMessage = "Minimap drag"
-        return 1
+        return true
   
-  return 0
+  return false
 
-return 0
+return false
 ```
 
 ## About This Editor

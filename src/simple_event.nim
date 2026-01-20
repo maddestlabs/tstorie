@@ -13,6 +13,11 @@ type
     keyCode*: int    # Matches nimini runtime API
     mods*: seq[string]  # Matches nimini runtime API - array of modifier strings
     text*: string
+    # Canvas-relative coordinates (for mouse events, -1 if outside canvas)
+    contentX*, contentY*: int
+    bufferX*, bufferY*: int
+    # Resize event dimensions
+    width*, height*: int
 
 proc toSimpleEvent*(evt: InputEvent): SimpleEvent =
   ## Convert native InputEvent to simplified event object
@@ -45,10 +50,25 @@ proc toSimpleEvent*(evt: InputEvent): SimpleEvent =
       of Press: "press"
       of Release: "release"
       else: ""
+    # Canvas coordinates would need canvas state access - set to -1 for now
+    result.contentX = -1
+    result.contentY = -1
+    result.bufferX = -1
+    result.bufferY = -1
+    result.mods = @[]
+    if ModShift in evt.mods: result.mods.add("shift")
+    if ModAlt in evt.mods: result.mods.add("alt")
+    if ModCtrl in evt.mods: result.mods.add("ctrl")
+    if ModSuper in evt.mods: result.mods.add("super")
   of MouseMoveEvent:
     result.`type` = "mouse_move"
     result.x = evt.moveX
     result.y = evt.moveY
+    result.mods = @[]
+    if ModShift in evt.moveMods: result.mods.add("shift")
+    if ModAlt in evt.moveMods: result.mods.add("alt")
+    if ModCtrl in evt.moveMods: result.mods.add("ctrl")
+    if ModSuper in evt.moveMods: result.mods.add("super")
   of TextEvent:
     result.`type` = "text"
     result.text = evt.text
@@ -56,3 +76,5 @@ proc toSimpleEvent*(evt: InputEvent): SimpleEvent =
     result.`type` = "resize"
     result.x = evt.newWidth
     result.y = evt.newHeight
+    result.width = evt.newWidth
+    result.height = evt.newHeight

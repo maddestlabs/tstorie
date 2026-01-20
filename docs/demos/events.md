@@ -7,8 +7,6 @@ This example demonstrates comprehensive event handling including keyboard, mouse
 
 ```nim on:init
 # === MOUSE STATE ===
-var mouseX = 0
-var mouseY = 0
 var mouseButton = "none"
 var mouseAction = "none"
 var totalClicks = 0
@@ -62,8 +60,6 @@ var arrowRight = false
 ```nim on:input
 # === MOUSE EVENTS ===
 if event.type == "mouse_move":
-  mouseX = event.x
-  mouseY = event.y
   
   # Handle box dragging
   if boxDragging:
@@ -123,9 +119,12 @@ if event.type == "mouse":
     if event.button == "left":
       boxDragging = false
 
-if event.type == "scroll":
+if event.type == "mouse" and (event.button == "scroll_up" or event.button == "scroll_down"):
   # Mouse wheel event detection
-  mouseWheelDir = event.direction
+  if event.button == "scroll_up":
+    mouseWheelDir = "up"
+  else:
+    mouseWheelDir = "down"
   mouseWheelTime = getTime()
 
 # === KEYBOARD EVENTS ===

@@ -91,8 +91,8 @@ if event.type == "mouse_move":
 2. **Using getter functions** anywhere in your code:
 ```nim on:render
 # Get current mouse position from anywhere
-var x = getMouseX()
-var y = getMouseY()
+var x = mouseX
+var y = mouseY
 
 # Draw cursor follower
 draw(0, x, y, "X")
@@ -173,7 +173,7 @@ See [examples/mouse_test.md](../examples/mouse_test.md) for a complete interacti
 - `registerGlobalInput(name, callback, priority)` - Register input handler
 - `unregisterGlobalHandler(name)` - Remove handler
 - `clearGlobalHandlers()` - Remove all handlers
-- `getTermWidth()` - Get terminal width
-- `getTermHeight()` - Get terminal height
-- `getMouseX()` - Get last known mouse X coordinate
-- `getMouseY()` - Get last known mouse Y coordinate
+- `termWidth` - Terminal width (global variable)
+- `termHeight` - Terminal height (global variable)
+- `mouseX` - Last known mouse X coordinate (global variable)
+- `mouseY` - Last known mouse Y coordinate (global variable)

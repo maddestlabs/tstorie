@@ -207,8 +207,8 @@ if event.type == "mouse":
   
   if mouseAction == "press":
     # Get mouse position
-    var mouseX = getMouseX()
-    var mouseY = getMouseY()
+    var mouseX = mouseX
+    var mouseY = mouseY
     
     # Check if clicking on the character selection area (top line)
     if mouseY == 0:

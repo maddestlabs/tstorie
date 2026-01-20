@@ -468,19 +468,33 @@ proc analyzeVariableScopes*(doc: MarkdownDocument): ScopeAnalysis =
 # Code Export with Scope Analysis
 # ==============================================================================
 
-proc removeVarDeclForGlobals(code: string, globals: HashSet[string]): string =
+proc removeVarDeclForGlobals(code: string, globals: HashSet[string], ctx: ExportContext): string =
   ## Remove 'var' and 'let' keywords for global variables, converting them to assignments
-  ## This is a simple text-based approach - could be improved with AST manipulation
-  result = code
+  ## or removing bare declarations without values (they should be declared in globals section)
+  result = ""
   
-  # Simple regex-like replacements for common patterns
-  # This is a basic implementation - Phase 3 would do this properly with AST
-  for varName in globals:
-    # Pattern: var varName = value -> varName = value
-    result = result.replace("var " & varName & " =", varName & " =")
-    result = result.replace("let " & varName & " =", varName & " =")
-    # Pattern: var varName: Type = value -> varName = value
-    result = result.replace("var " & varName & ":", varName & " =").replace(": auto =", " =")
+  # Process line by line to handle bare declarations
+  for line in code.splitLines():
+    var lineToAdd = line
+    var skipLine = false
+    
+    for varName in globals:
+      # Pattern: bare var declaration without assignment (e.g., "var dungeon")
+      # Skip it - it should be properly declared in the global variables section
+      if line.strip() == "var " & varName or line.strip().startsWith("var " & varName & " #"):
+        skipLine = true
+        break
+      # Pattern: var varName = value -> varName = value
+      if "var " & varName & " =" in line:
+        lineToAdd = lineToAdd.replace("var " & varName & " =", varName & " =")
+      # Pattern: let varName = value -> varName = value
+      if "let " & varName & " =" in line:
+        lineToAdd = lineToAdd.replace("let " & varName & " =", varName & " =")
+    
+    if not skipLine:
+      if result.len > 0:
+        result &= "\n"
+      result &= lineToAdd
 
 # ==============================================================================
 # Function Extraction (Phase 3)
@@ -603,18 +617,29 @@ proc fixIntegerDivision*(code: string): string =
   result = result.strip()
 
 proc removeReturnStatements*(code: string): string =
-  ## Remove return statements from event handler code
+  ## Remove or transform return statements from event handler code
   ## In nimini runtime, event handlers can return false to not consume events,
-  ## but in exported standalone code, these return statements are invalid
+  ## but in exported standalone code, these return statements need special handling
   result = ""
   let lines = code.split('\n')
   
   for line in lines:
     let trimmed = line.strip()
-    # Skip lines that start with "return false" or "return true" (ignoring comments)
-    if trimmed.startsWith("return false") or trimmed.startsWith("return true"):
+    # Transform "return false" to quit statement (for standalone exports)
+    if trimmed.startsWith("return false"):
+      # Preserve indentation and replace with quit
+      var indent = ""
+      for ch in line:
+        if ch in {' ', '\t'}:
+          indent.add(ch)
+        else:
+          break
+      result.add(indent & "gState.running = false\n")
+    # Skip "return true" (event consumed, no action needed)
+    elif trimmed.startsWith("return true"):
       continue
-    result.add(line & "\n")
+    else:
+      result.add(line & "\n")
   
   result = result.strip()
 
@@ -936,6 +961,16 @@ proc buildExportContext*(doc: MarkdownDocument): ExportContext =
                     inferredType = "string"
                   of ekBool:
                     inferredType = "bool"
+                  of ekBinOp:
+                    # For binary operations, try to infer from operands
+                    # Most arithmetic operations on ints -> int
+                    if stmt.varValue.left.kind == ekInt or 
+                       stmt.varValue.right.kind == ekInt or
+                       stmt.varValue.left.kind == ekIdent or # termWidth, termHeight are int
+                       stmt.varValue.right.kind == ekIdent:
+                      inferredType = "int"
+                    else:
+                      inferredType = ""
                   else:
                     # For complex expressions, leave untyped
                     inferredType = ""
@@ -948,9 +983,85 @@ proc buildExportContext*(doc: MarkdownDocument): ExportContext =
       
       # Generate declaration
       if inferredType == "":
-        result.globalVars[varName] = "var " & varName
+        # No type could be inferred from declaration - try to find assignments
+        # Look for pattern: varName = something
+        for codeBlock in doc.codeBlocks:
+          try:
+            let tokens = tokenizeDsl(codeBlock.code)
+            let program = parseDsl(tokens)
+            
+            for stmt in program.stmts:
+              if stmt.kind == skAssign and stmt.assignTarget.kind == ekIdent and 
+                 stmt.assignTarget.ident == varName:
+                # Found an assignment - check if RHS is a function call
+                if not stmt.assignValue.isNil and stmt.assignValue.kind == ekCall:
+                  # Check for common constructor patterns
+                  let funcName = stmt.assignValue.funcName
+                  if funcName.startsWith("new"):
+                    # Likely a constructor - extract type name
+                    # newDungeonGenerator -> DungeonGenerator
+                    var typeName = funcName[3 .. ^1]  # Skip "new"
+                    inferredType = typeName
+                    break
+          except:
+            discard
+          
+          if inferredType != "":
+            break
+      
+      if inferredType == "":
+        # Still no type - skip explicit declaration
+        # The variable will be implicitly declared on first assignment
+        discard
       else:
         result.globalVars[varName] = "var " & varName & ": " & inferredType
+  
+  # Additional pass: find variables assigned from constructors that might not be in scope analysis
+  # This handles cases like "var dungeon" where the variable is declared bare but assigned later
+  # Also check inside procedure bodies
+  proc findConstructorAssignments(stmts: seq[Stmt], result: var Table[string, string]) =
+    for stmt in stmts:
+      if stmt.kind == skAssign and stmt.assignTarget.kind == ekIdent:
+        let varName = stmt.assignTarget.ident
+        
+        # Skip if already processed
+        if result.hasKey(varName):
+          continue
+        
+        # Check if RHS is a constructor call
+        if not stmt.assignValue.isNil and stmt.assignValue.kind == ekCall:
+          let funcName = stmt.assignValue.funcName
+          if funcName.startsWith("new"):
+            # This is a constructor - extract type name
+            var typeName = funcName[3 .. ^1]  # Skip "new"
+            result[varName] = "var " & varName & ": " & typeName
+      
+      # Recursively check nested blocks
+      case stmt.kind
+      of skIf:
+        findConstructorAssignments(stmt.ifBranch.stmts, result)
+        for elifBranch in stmt.elifBranches:
+          findConstructorAssignments(elifBranch.stmts, result)
+        findConstructorAssignments(stmt.elseStmts, result)
+      of skWhile:
+        findConstructorAssignments(stmt.whileBody, result)
+      of skFor:
+        findConstructorAssignments(stmt.forBody, result)
+      of skBlock:
+        findConstructorAssignments(stmt.stmts, result)
+      of skProc:
+        # Check inside procedure bodies
+        findConstructorAssignments(stmt.body, result)
+      else:
+        discard
+  
+  for codeBlock in doc.codeBlocks:
+    try:
+      let tokens = tokenizeDsl(codeBlock.code)
+      let program = parseDsl(tokens)
+      findConstructorAssignments(program.stmts, result.globalVars)
+    except:
+      discard
   
   # Phase 3: Extract procedures from all code blocks
   var extractedProcNames = initHashSet[string]()
@@ -966,7 +1077,7 @@ proc buildExportContext*(doc: MarkdownDocument): ExportContext =
   
   # Organize code by lifecycle, removing var/let for globals and removing proc defs
   for codeBlock in doc.codeBlocks:
-    var processedCode = removeVarDeclForGlobals(codeBlock.code, globalNames)
+    var processedCode = removeVarDeclForGlobals(codeBlock.code, globalNames, result)
     processedCode = removeProcedures(processedCode, extractedProcNames)
     # Apply export-specific transformations
     processedCode = fixIntegerDivision(processedCode)
@@ -1036,6 +1147,9 @@ proc generateSimpleEventHelpers*(): string =
   result &= "    action*: string     # \"press\", \"release\", \"repeat\"\n"
   result &= "    text*: string       # Text input\n"
   result &= "    mods*: seq[string]  # [\"shift\", \"alt\", \"ctrl\", \"super\"]\n"
+  result &= "    contentX*, contentY*: int  # Canvas-relative coordinates (-1 if outside)\n"
+  result &= "    bufferX*, bufferY*: int    # Buffer-relative coordinates (-1 if outside)\n"
+  result &= "    width*, height*: int       # Resize event dimensions\n"
   result &= "\n"
   result &= "proc toSimpleEvent(event: InputEvent): SimpleEvent =\n"
   result &= "  ## Convert native InputEvent to simplified event object\n"
@@ -1070,9 +1184,15 @@ proc generateSimpleEventHelpers*(): string =
   result &= "      of Press: \"press\"\n"
   result &= "      of Release: \"release\"\n"
   result &= "      of Repeat: \"repeat\"\n"
+  result &= "    # Canvas coordinates - set to -1 (exports don't have canvas state access)\n"
+  result &= "    result.contentX = -1\n"
+  result &= "    result.contentY = -1\n"
+  result &= "    result.bufferX = -1\n"
+  result &= "    result.bufferY = -1\n"
   result &= "    if ModShift in event.mods: result.mods.add(\"shift\")\n"
   result &= "    if ModAlt in event.mods: result.mods.add(\"alt\")\n"
   result &= "    if ModCtrl in event.mods: result.mods.add(\"ctrl\")\n"
+  result &= "    if ModSuper in event.mods: result.mods.add(\"super\")\n"
   result &= "  of MouseMoveEvent:\n"
   result &= "    result.eventType = \"mouse_move\"\n"
   result &= "    result.x = event.moveX\n"
@@ -1080,8 +1200,13 @@ proc generateSimpleEventHelpers*(): string =
   result &= "    if ModShift in event.moveMods: result.mods.add(\"shift\")\n"
   result &= "    if ModAlt in event.moveMods: result.mods.add(\"alt\")\n"
   result &= "    if ModCtrl in event.moveMods: result.mods.add(\"ctrl\")\n"
+  result &= "    if ModSuper in event.moveMods: result.mods.add(\"super\")\n"
   result &= "  of ResizeEvent:\n"
   result &= "    result.eventType = \"resize\"\n"
+  result &= "    result.x = event.newWidth\n"
+  result &= "    result.y = event.newHeight\n"
+  result &= "    result.width = event.newWidth\n"
+  result &= "    result.height = event.newHeight\n"
   result &= "\n"
   result &= "# Compatibility alias: 'event.type' works in addition to 'event.eventType'\n"
   result &= "template type*(e: SimpleEvent): string = e.eventType\n"
@@ -1153,19 +1278,31 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "\n"
   
   # Core imports
-  result &= "import times, os\n"
-  result &= "import std/[strutils, tables]  # For join and getOrDefault\n"
+  result &= "import times, os, math\n"
+  result &= "import std/[strutils, tables, random]  # For join, getOrDefault, and random\n"
   result &= "import src/types\n"
   result &= "import src/layers\n"
   result &= "import src/appstate\n"
   result &= "import src/input  # Input parsing and polling\n"
   result &= "import src/simple_event  # Simplified event API\n"
+  result &= "import lib/storie_themes  # Theme and stylesheet management\n"
   result &= "when not defined(emscripten):\n"
   result &= "  import src/platform/terminal\n"
   result &= "\n"
   
   # User imports
   result &= generateImportSection(ctx)
+  
+  # Dungeon generator (if used)
+  block dungeonCheck:
+    for varDecl in ctx.globalVars.values:
+      if "DungeonGenerator" in varDecl:
+        result &= "import lib/dungeon_gen\n"
+        result &= "# Dungeon function aliases (Nimini runtime names -> native names)\n"
+        result &= "template getCellAt(gen: DungeonGenerator, x, y: int): CellType = gen.getCell(vec2(x, y))\n"
+        result &= "template dungeonGetCellChar(cellType: CellType): string = getCellChar(cellType)\n"
+        result &= "\n"
+        break dungeonCheck
   
   # Embedded content (figlet fonts, data files, etc.)
   result &= generateEmbeddedContentSection(doc)
@@ -1175,6 +1312,9 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "var gState: AppState\n"
   result &= "var gDefaultLayer: Layer  # Single default layer (layer 0)\n"
   result &= "var gRunning {.global.} = true\n"
+  result &= "var gDeltaTime {.global.} = 0.016  # Time since last frame in seconds\n"
+  result &= "var gStartTime {.global.} = 0.0  # App start time\n"
+  result &= "var gTimeMs {.global.} = 0  # Milliseconds since start\n"
   result &= "var gInputParser: TerminalInputParser  # For input event parsing\n"
   result &= "when not defined(emscripten):\n"
   result &= "  var gTerminalState: TerminalState\n"
@@ -1254,12 +1394,28 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
   result &= "template termWidth: int = gState.termWidth\n"
   result &= "template termHeight: int = gState.termHeight\n"
-  result &= "proc getMouseX(): int = gState.lastMouseX\n"
-  result &= "proc getMouseY(): int = gState.lastMouseY\n"
+  result &= "template mouseX: int = gState.lastMouseX\n"
+  result &= "template mouseY: int = gState.lastMouseY\n"
   result &= "proc str(x: int): string = $x\n"
   result &= "proc str(x: float): string = $x\n"
   result &= "proc str(x: bool): string = $x\n"
   result &= "proc str(x: string): string = x\n"
+  result &= "# Timing functions\n"
+  result &= "proc getTime(): float = epochTime() - gStartTime\n"
+  result &= "proc getTimeMs(): float = (epochTime() - gStartTime) * 1000.0\n"
+  result &= "proc getFps(): float = gState.fps\n"
+  result &= "proc getFrameCount(): int = gState.frameCount\n"
+  result &= "proc getDeltaTime(): float = gDeltaTime\n"
+  result &= "# Param functions (stubs - no URL params in terminal builds)\n"
+  result &= "proc hasParam(name: string): bool = false\n"
+  result &= "proc getParam(name: string): string = \"\"\n"
+  result &= "proc getParamInt(name: string, default: int): int = default\n"
+  result &= "# Random number generation\n"
+  result &= "var gRng = initRand()  # Global RNG\n"
+  result &= "proc randomize() = gRng = initRand()\n"
+  result &= "proc randomize(seed: int) = gRng = initRand(seed)\n"
+  result &= "proc rand(max: int): int = random.rand(gRng, max)\n"
+  result &= "proc rand(min, max: int): int = random.rand(gRng, max - min) + min\n"
   result &= "\n"
   
   # Note: Particle functions are now provided by lib/particles_bindings
@@ -1285,6 +1441,7 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   
   # Main program with proper lifecycle
   result &= "proc main() =\n"
+  result &= "  gStartTime = epochTime()\n"
   result &= "  when not defined(emscripten):\n"
   result &= "    gTerminalState = setupRawMode()\n"
   result &= "    hideCursor()\n"
@@ -1334,6 +1491,7 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
     result &= "        let currentTime = epochTime()\n"
     result &= "        let deltaTime = currentTime - lastTime\n"
     result &= "        lastTime = currentTime\n"
+    result &= "        gDeltaTime = deltaTime\n"
     result &= "        \n"
     result &= "        # Update FPS counter\n"
     result &= "        gState.updateFpsCounter(deltaTime)\n"
@@ -1416,11 +1574,13 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "#\n"
   result &= "# IMPORTANT: Place this file in the tStorie project root directory to compile\n"
   result &= "# Or compile with: nim c --path:. <this file>\n"
+  
+  const INTEGRATED_MODE = true  # Marker for integrated export mode
   result &= "\n"
   
   # Core tStorie imports
-  result &= "import times, os\n"
-  result &= "import std/[strutils, tables]  # For join and getOrDefault\n"
+  result &= "import times, os, math\n"
+  result &= "import std/[strutils, tables, random]  # For join, getOrDefault, and random\n"
   result &= "import src/types\n"
   result &= "import src/layers\n"
   result &= "import src/appstate\n"
@@ -1441,6 +1601,9 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "var gState: AppState\n"
   result &= "var gDefaultLayer: Layer  # Single default layer (layer 0)\n"
   result &= "var gRunning {.global.} = true\n"
+  result &= "var gDeltaTime {.global.} = 0.016  # Time since last frame in seconds\n"
+  result &= "var gStartTime {.global.} = 0.0  # App start time\n"
+  result &= "var gTimeMs {.global.} = 0  # Milliseconds since start\n"
   result &= "var gInputParser: TerminalInputParser  # For input event parsing\n"
   result &= "when not defined(emscripten):\n"
   result &= "  var gTerminalState: TerminalState\n"
@@ -1523,12 +1686,28 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
   result &= "template termWidth: int = gState.termWidth\n"
   result &= "template termHeight: int = gState.termHeight\n"
-  result &= "proc getMouseX(): int = gState.lastMouseX\n"
-  result &= "proc getMouseY(): int = gState.lastMouseY\n"
+  result &= "template mouseX: int = gState.lastMouseX\n"
+  result &= "template mouseY: int = gState.lastMouseY\n"
   result &= "proc str(x: int): string = $x\n"
   result &= "proc str(x: float): string = $x\n"
   result &= "proc str(x: bool): string = $x\n"
   result &= "proc str(x: string): string = x\n"
+  result &= "# Timing functions\n"
+  result &= "proc getTime(): float = epochTime() - gStartTime\n"
+  result &= "proc getTimeMs(): float = (epochTime() - gStartTime) * 1000.0\n"
+  result &= "proc getFps(): float = gState.fps\n"
+  result &= "proc getFrameCount(): int = gState.frameCount\n"
+  result &= "proc getDeltaTime(): float = gDeltaTime\n"
+  result &= "# Param functions (stubs - no URL params in terminal builds)\n"
+  result &= "proc hasParam(name: string): bool = false\n"
+  result &= "proc getParam(name: string): string = \"\"\n"
+  result &= "proc getParamInt(name: string, default: int): int = default\n"
+  result &= "# Random number generation\n"
+  result &= "var gRng = initRand()  # Global RNG\n"
+  result &= "proc randomize() = gRng = initRand()\n"
+  result &= "proc randomize(seed: int) = gRng = initRand(seed)\n"
+  result &= "proc rand(max: int): int = random.rand(gRng, max)\n"
+  result &= "proc rand(min, max: int): int = random.rand(gRng, max - min) + min\n"
   result &= "\n"
   
   # Note: Particle functions are now provided by lib/particles_bindings
@@ -1600,6 +1779,7 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   
   # Main program with proper tStorie integration
   result &= "proc main() =\n"
+  result &= "  gStartTime = epochTime()\n"
   result &= "  ## Main entry point with tStorie runtime integration\n"
   result &= "  when not defined(emscripten):\n"
   result &= "    # Setup terminal\n"
@@ -1647,6 +1827,7 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "      while gState.running and gRunning:\n"
   result &= "        let currentTime = epochTime()\n"
   result &= "        let deltaTime = currentTime - lastTime\n"
+  result &= "        gDeltaTime = deltaTime\n"
   result &= "        lastTime = currentTime\n"
   result &= "        \n"
   result &= "        # Update FPS counter\n"
@@ -1730,6 +1911,7 @@ proc exportToNimOptimized*(doc: MarkdownDocument, filename: string = "untitled.m
   
   # Main program
   result.code &= "proc main() =\n"
+  result.code &= "  gStartTime = epochTime()\n"
   
   # Init code
   if ctx.initCode.len > 0:
@@ -1784,8 +1966,8 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "\n"
   
   # Core imports
-  result.code &= "import times, os\n"
-  result.code &= "import std/[strutils, tables]  # For join and getOrDefault\n"
+  result.code &= "import times, os, math\n"
+  result.code &= "import std/[strutils, tables, random]  # For join, getOrDefault, and random\n"
   result.code &= "import src/types\n"
   result.code &= "import src/layers\n"
   result.code &= "import src/appstate\n"
@@ -1803,6 +1985,9 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "var gState: AppState\n"
   result.code &= "var gDefaultLayer: Layer  # Single default layer (layer 0)\n"
   result.code &= "var gRunning {.global.} = true\n"
+  result.code &= "var gDeltaTime {.global.} = 0.016  # Time since last frame in seconds\n"
+  result.code &= "var gStartTime {.global.} = 0.0  # App start time\n"
+  result.code &= "var gTimeMs {.global.} = 0  # Milliseconds since start\n"
   result.code &= "var gInputParser: TerminalInputParser  # For input event parsing\n"
   result.code &= "when not defined(emscripten):\n"
   result.code &= "  var gTerminalState: TerminalState\n"
@@ -1877,12 +2062,28 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
   result.code &= "template termWidth: int = gState.termWidth\n"
   result.code &= "template termHeight: int = gState.termHeight\n"
-  result.code &= "proc getMouseX(): int = gState.lastMouseX\n"
-  result.code &= "proc getMouseY(): int = gState.lastMouseY\n"
+  result.code &= "template mouseX: int = gState.lastMouseX\n"
+  result.code &= "template mouseY: int = gState.lastMouseY\n"
   result.code &= "proc str(x: int): string = $x\n"
   result.code &= "proc str(x: float): string = $x\n"
   result.code &= "proc str(x: bool): string = $x\n"
   result.code &= "proc str(x: string): string = x\n"
+  result.code &= "# Timing functions\n"
+  result.code &= "proc getTime(): float = epochTime() - gStartTime\n"
+  result.code &= "proc getTimeMs(): float = (epochTime() - gStartTime) * 1000.0\n"
+  result.code &= "proc getFps(): float = gState.fps\n"
+  result.code &= "proc getFrameCount(): int = gState.frameCount\n"
+  result.code &= "proc getDeltaTime(): float = gDeltaTime\n"
+  result.code &= "# Param functions (stubs - no URL params in terminal builds)\n"
+  result.code &= "proc hasParam(name: string): bool = false\n"
+  result.code &= "proc getParam(name: string): string = \"\"\n"
+  result.code &= "proc getParamInt(name: string, default: int): int = default\n"
+  result.code &= "# Random number generation\n"
+  result.code &= "var gRng = initRand()  # Global RNG\n"
+  result.code &= "proc randomize() = gRng = initRand()\n"
+  result.code &= "proc randomize(seed: int) = gRng = initRand(seed)\n"
+  result.code &= "proc rand(max: int): int = random.rand(gRng, max)\n"
+  result.code &= "proc rand(min, max: int): int = random.rand(gRng, max - min) + min\n"
   result.code &= "\n"
   
   # Global variables
@@ -1948,6 +2149,7 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   
   # Main with runtime
   result.code &= "proc main() =\n"
+  result.code &= "  gStartTime = epochTime()\n"
   result.code &= "  when not defined(emscripten):\n"
   result.code &= "    gTerminalState = setupRawMode()\n"
   result.code &= "    hideCursor()\n"
@@ -1984,6 +2186,7 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "      while gState.running and gRunning:\n"
   result.code &= "        let currentTime = epochTime()\n"
   result.code &= "        let deltaTime = currentTime - lastTime\n"
+  result.code &= "        gDeltaTime = deltaTime\n"
   result.code &= "        lastTime = currentTime\n"
   result.code &= "        \n"
   result.code &= "        gState.updateFpsCounter(deltaTime)\n"
