@@ -35,27 +35,67 @@ jobs:
       - name: Verify WASM files
         run: |
           echo "Checking for required WASM files..."
-          ls -lh tstauri/dist-tstauri/tstorie*.js tstauri/dist-tstauri/tstorie.wasm.wasm
+          echo ""
+          echo "Directory listing:"
+          ls -lh tstauri/dist-tstauri/ || echo "ERROR: dist-tstauri directory not found!"
+          echo ""
+          
+          # Check each required file
           if [ ! -f "tstauri/dist-tstauri/tstorie-webgl.js" ]; then
-            echo "ERROR: tstorie-webgl.js not found!"
+            echo "❌ ERROR: tstorie-webgl.js not found!"
             exit 1
+          else
+            echo "✓ tstorie-webgl.js"
           fi
+          
+          if [ ! -f "tstauri/dist-tstauri/tstorie.wasm.js" ]; then
+            echo "❌ ERROR: tstorie.wasm.js not found!"
+            exit 1
+          else
+            echo "✓ tstorie.wasm.js"
+          fi
+          
+          if [ ! -f "tstauri/dist-tstauri/tstorie.wasm.wasm" ]; then
+            echo "❌ ERROR: tstorie.wasm.wasm not found!"
+            exit 1
+          else
+            echo "✓ tstorie.wasm.wasm"
+          fi
+          
+          if [ ! -f "tstauri/dist-tstauri/tstorie.js" ]; then
+            echo "❌ ERROR: tstorie.js not found!"
+            exit 1
+          else
+            echo "✓ tstorie.js"
+          fi
+          
           if [ ! -f "tstauri/dist-tstauri/index.md" ]; then
-            echo "ERROR: index.md (welcome screen) not found!"
+            echo "❌ ERROR: index.md (welcome screen) not found!"
+            echo "Checking if welcome.md source exists..."
+            ls -lh tstauri/welcome.md || echo "  → welcome.md source is also missing!"
             exit 1
+          else
+            echo "✓ index.md (welcome screen)"
+            echo "  Preview:" 
+            head -n 5 tstauri/dist-tstauri/index.md | sed 's/^/    /'
           fi
+          
           if [ ! -d "tstauri/dist-tstauri/shaders" ]; then
-            echo "ERROR: shaders directory not found!"
+            echo "❌ ERROR: shaders directory not found!"
             exit 1
+          else
+            SHADER_COUNT=$(ls tstauri/dist-tstauri/shaders/*.js 2>/dev/null | wc -l)
+            if [ "$SHADER_COUNT" -lt 10 ]; then
+              echo "❌ ERROR: Expected at least 10 shaders, found $SHADER_COUNT"
+              ls tstauri/dist-tstauri/shaders/
+              exit 1
+            else
+              echo "✓ Shaders directory ($SHADER_COUNT shaders)"
+            fi
           fi
-          SHADER_COUNT=$(ls tstauri/dist-tstauri/shaders/*.js 2>/dev/null | wc -l)
-          if [ "$SHADER_COUNT" -lt 10 ]; then
-            echo "ERROR: Expected at least 10 shaders, found $SHADER_COUNT"
-            exit 1
-          fi
-          echo "✓ All WASM files present"
-          echo "✓ Welcome screen installed"
-          echo "✓ Shaders directory present ($SHADER_COUNT shaders)"
+          
+          echo ""
+          echo "✅ All required files present and verified!"
 
       - name: Install Rust stable with Windows target
         uses: dtolnay/rust-toolchain@stable

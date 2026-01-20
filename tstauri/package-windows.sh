@@ -43,12 +43,47 @@ else
     echo "⚠️  WebView2Loader.dll not found at $DLL_PATH"
 fi
 
-# Note: ALL other files are now bundled IN the .exe:
-# - Frontend files (index.html, main.js) - bundled via Vite
-# - WASM engine (tstorie.wasm.wasm, tstorie.wasm.js, tstorie.js, tstorie-webgl.js) - bundled via Tauri resources
-# - Welcome screen (index.md) - bundled via Tauri resources
-# Only WebView2Loader.dll must remain external (Windows requirement)
-echo "✓ All other files bundled inside tstauri.exe"
+# Copy welcome screen (index.md) alongside the executable for portable builds
+echo "📄 Copying welcome screen..."
+if [ -f "../dist-tstauri/index.md" ]; then
+    cp "../dist-tstauri/index.md" "$PACKAGE_DIR/"
+    echo "✓ Welcome screen (index.md) copied"
+else
+    echo "⚠️  Welcome screen not found at ../dist-tstauri/index.md"
+fi
+
+# Copy WASM files alongside the executable for portable builds
+echo "📄 Copying WASM engine files..."
+if [ -f "../dist-tstauri/tstorie.wasm.wasm" ]; then
+    cp "../dist-tstauri/tstorie.wasm.wasm" "$PACKAGE_DIR/"
+    echo "✓ tstorie.wasm.wasm copied"
+fi
+if [ -f "../dist-tstauri/tstorie.wasm.js" ]; then
+    cp "../dist-tstauri/tstorie.wasm.js" "$PACKAGE_DIR/"
+    echo "✓ tstorie.wasm.js copied"
+fi
+if [ -f "../dist-tstauri/tstorie.js" ]; then
+    cp "../dist-tstauri/tstorie.js" "$PACKAGE_DIR/"
+    echo "✓ tstorie.js copied"
+fi
+if [ -f "../dist-tstauri/tstorie-webgl.js" ]; then
+    cp "../dist-tstauri/tstorie-webgl.js" "$PACKAGE_DIR/"
+    echo "✓ tstorie-webgl.js copied"
+fi
+
+# Copy shaders directory
+echo "📄 Copying shaders..."
+if [ -d "../dist-tstauri/shaders" ]; then
+    cp -r "../dist-tstauri/shaders" "$PACKAGE_DIR/"
+    SHADER_COUNT=$(ls "$PACKAGE_DIR/shaders"/*.js 2>/dev/null | wc -l)
+    echo "✓ Shaders directory copied ($SHADER_COUNT shaders)"
+else
+    echo "⚠️  Shaders directory not found at ../dist-tstauri/shaders"
+fi
+
+# Note: Frontend files (index.html, main.js) are bundled via Vite in dist-frontend
+# But WASM and welcome screen are now EXTERNAL for portable builds
+echo "✓ Portable package assembled (external WASM files + welcome screen)"
 
 # Create a README for Windows users
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
@@ -72,25 +107,31 @@ What is WebView2?
 
 Usage:
    1. Launch tstauri.exe or run-tstauri.bat
-   2. Drag and drop a .md file onto the window
-   3. Watch your tStorie document run!
+   2. The welcome screen will display automatically
+   3. Drag and drop a .md file onto the window to run it
+   4. Watch your tStorie document come to life!
 
 Keyboard Shortcuts:
-   - Escape: Return to drop zone
+   - Escape: Return to welcome screen
 
 Files in this folder:
-   - tstauri.exe                          The application
-   - WebView2Loader.dll                   Required for WebView2
-   - run-tstauri.bat                      Launcher with auto-install
-   - MicrosoftEdgeWebview2Setup.exe       WebView2 installer (if needed)
-   - tstorie.js, tstorie.wasm.*          WASM engine files
- (all-in-one!)
-   - WebView2Loader.dll                   Required WebView2 interface
-   - run-tstauri.bat                      Launcher with auto-install
-   - MicrosoftEdgeWebview2Setup.exe       WebView2 installer (if needed)
+   - tstauri.exe                  The main application (Vite frontend bundled)
+   - WebView2Loader.dll           Required for WebView2
+   - index.md                     Welcome screen with interactive content
+   - tstorie.wasm.wasm           WASM engine binary
+   - tstorie.wasm.js             WASM runtime
+   - tstorie.js                  Terminal wrapper
+   - tstorie-webgl.js            WebGL renderer
+   - shaders/                    Local shader library
+   - run-tstauri.bat             Launcher with auto-install
+   - MicrosoftEdgeWebview2Setup.exe  WebView2 installer (if needed)
 
-Note: tstauri.exe contains the entire WASM engine, UI, and welcome screen.
-      Only WebView2Loader.dll needs to stay file launcher
+Note: This is a portable build - just extract and run!
+      All files must stay in the same folder.
+
+EOF
+
+# Create the launcher bat file
 cat > "$PACKAGE_DIR/run-tstauri.bat" << 'EOF'
 @echo off
 echo Starting tStauri...
@@ -135,14 +176,21 @@ echo "   dist/tstauri-windows-portable.zip"
 echo ""
 echo "To test on Windows:"
 echo "   1. Transfer the ZIP to a Windows machine"
-echo "   2. Extract it"
-echo "   3. Run tstauri.exe or run-tstauri.bat"
+echo "   2. Extract it anywhere"
+echo "   3. Run run-tstauri.bat (recommended) or tstauri.exe"
 echo ""
 echo "Package contents:"
-echo "   - tstauri.exe (all-in-one binary with bundled WASM/UI)"
+echo "   - tstauri.exe (application with bundled Vite frontend)"
 echo "   - WebView2Loader.dll (required Windows component)"
+echo "   - index.md (welcome screen)"
+echo "   - tstorie.wasm.wasm, tstorie.wasm.js, tstorie.js, tstorie-webgl.js (WASM engine)"
+echo "   - shaders/ (local shader library)"
 echo "   - run-tstauri.bat (launcher script)"
 echo "   - MicrosoftEdgeWebview2Setup.exe (WebView2 installer)"
+echo "   - README.txt (user guide)"
+echo ""
+echo "⚠️  Note: This is a portable build - all files must stay together"
+echo ""
 echo "   - README.txt"
 echo ""
 echo "⚠️  Note: This is a portable build, not an installer"

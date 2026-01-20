@@ -31,11 +31,19 @@
             background: linear-gradient(135deg, #1e1e1e 0%, #2d2d30 100%);
             z-index: 1;
             transition: opacity 0.3s ease;
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        #drop-zone:not(.hidden) {
+            opacity: 1;
+            visibility: visible;
         }
 
         #drop-zone.hidden {
             opacity: 0;
             pointer-events: none;
+            visibility: hidden;
         }
 
         #drop-zone h1 {
@@ -98,36 +106,6 @@
             image-rendering: auto; /* WebGL renders smoothly, no pixelation needed */
         }
 
-        #controls {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 10;
-            display: none;
-            gap: 10px;
-        }
-
-        #controls.active {
-            display: flex;
-        }
-
-        button {
-            background: #00d4ff;
-            color: #1e1e1e;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.2s ease;
-        }
-
-        button:hover {
-            background: #7b2cbf;
-            color: white;
-            transform: translateY(-2px);
-        }
-
         #status {
             position: fixed;
             bottom: 10px;
@@ -153,10 +131,6 @@
         <div class="drop-area">
             📄 Drop a .md file here
         </div>
-    </div>
-
-    <div id="controls">
-        <button id="reset-btn">← Back to Drop Zone</button>
     </div>
 
     <div id="status"></div>

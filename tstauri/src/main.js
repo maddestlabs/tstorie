@@ -9,9 +9,7 @@ let tstorieInitialized = false;
 
 const dropZone = document.getElementById('drop-zone');
 const tstorieContainer = document.getElementById('tstorie-container');
-const controls = document.getElementById('controls');
 const status = document.getElementById('status');
-const resetBtn = document.getElementById('reset-btn');
 
 // Load tStorie WASM engine
 async function loadTStorieEngine() {
@@ -277,7 +275,6 @@ async function loadMarkdownContent(content, sourceName = 'content') {
     console.log('Showing container for tStorie initialization...');
     dropZone.classList.add('hidden');
     tstorieContainer.classList.add('active');
-    controls.classList.add('active');
     
     // Wait a moment for the DOM to update and canvas to be rendered
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -351,14 +348,19 @@ async function loadMarkdownContent(content, sourceName = 'content') {
 // Load welcome screen
 async function loadWelcomeScreen() {
     try {
-        console.log('Loading bundled welcome screen...');
+        console.log('Reloading welcome screen...');
+        showStatus('⏳ Loading welcome screen...', false);
         const welcomeContent = await invoke('load_bundled_welcome');
+        console.log('✓ Welcome content received, length:', welcomeContent.length);
         await loadMarkdownContent(welcomeContent, 'Welcome');
-        console.log('✓ Welcome screen loaded');
+        console.log('✓ Welcome screen reloaded');
     } catch (error) {
-        console.error('Failed to load welcome screen:', error);
-        // If welcome screen fails, just stay on drop zone
-        console.log('Staying on drop zone');
+        console.error('❌ Failed to load welcome screen:', error);
+        // If welcome fails, show the drop zone
+        tstorieContainer.classList.remove('active');
+        dropZone.classList.remove('hidden');
+        showStatus('⚠️ Welcome screen unavailable: ' + (error.message || error), true);
+        console.log('Showing drop zone due to error');
     }
 }
 
@@ -381,9 +383,6 @@ function showStatus(message, isError = false) {
         }, 3000);
     }
 }
-
-// Event listeners
-resetBtn.addEventListener('click', resetToDropZone);
 
 // Listen for file drop events from Tauri
 await listen('file-dropped', async (event) => {
@@ -421,15 +420,26 @@ console.log('✓ File drop listener registered');
 console.log('✓ CLI file argument listener registered');
 console.log('✓ tStauri ready');
 
-// Load welcome screen automatically on startup
-loadWelcomeScreen();
-
-// Keyboard shortcuts
-window.addEventListener('keydown', (e) => {
-    // Escape to return to welcome screen
-    if (e.key === 'Escape' && currentMarkdownPath && currentMarkdownPath !== 'Welcome') {
-        resetToDropZone();
+// Load welcome screen automatically on startup (before showing any UI)
+// This prevents the flash of drop zone content
+(async function() {
+    try {
+        console.log('Loading bundled welcome screen...');
+        const welcomeContent = await invoke('load_bundled_welcome');
+        console.log('✓ Welcome content received, length:', welcomeContent.length);
+        
+        // Load welcome screen directly (this will show the canvas and hide drop zone)
+        await loadMarkdownContent(welcomeContent, 'Welcome');
+        console.log('✓ Welcome screen loaded and displayed');
+    } catch (error) {
+        console.error('❌ Failed to load welcome screen:', error);
+        console.error('Error details:', JSON.stringify(error));
+        
+        // Only show drop zone if welcome screen fails
+        dropZone.classList.remove('hidden');
+        showStatus('⚠️ Welcome screen unavailable - drag and drop .md files to run them', false);
+        console.log('Showing drop zone due to welcome screen error');
     }
-});
+})();
 
 console.log('tStauri initialized');

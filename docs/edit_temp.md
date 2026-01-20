@@ -961,16 +961,6 @@ if event.type == "key":
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
     
-    # Check if there's a mouse selection we should continue
-    let mouseSelection = editorGetSelectionInfo(editor)
-    if shift and not hasSelection and mouseSelection["active"]:
-      # Convert mouse selection to keyboard selection so we can extend it
-      hasSelection = 1
-      selStartLine = mouseSelection["startLine"]
-      selStartCol = mouseSelection["startCol"]
-      selEndLine = mouseSelection["endLine"]
-      selEndCol = mouseSelection["endCol"]
-    
     # Start selection if shift is pressed and no selection exists
     if shift and not hasSelection:
       hasSelection = 1
@@ -1043,15 +1033,6 @@ if event.type == "key":
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
     
-    # Check if there's a mouse selection we should continue
-    let mouseSelection = editorGetSelectionInfo(editor)
-    if shift and not hasSelection and mouseSelection["active"]:
-      hasSelection = 1
-      selStartLine = mouseSelection["startLine"]
-      selStartCol = mouseSelection["startCol"]
-      selEndLine = mouseSelection["endLine"]
-      selEndCol = mouseSelection["endCol"]
-    
     # Start selection if shift is pressed and no selection exists
     if shift and not hasSelection:
       hasSelection = 1
@@ -1089,15 +1070,6 @@ if event.type == "key":
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
-    
-    # Check if there's a mouse selection we should continue
-    let mouseSelection = editorGetSelectionInfo(editor)
-    if shift and not hasSelection and mouseSelection["active"]:
-      hasSelection = 1
-      selStartLine = mouseSelection["startLine"]
-      selStartCol = mouseSelection["startCol"]
-      selEndLine = mouseSelection["endLine"]
-      selEndCol = mouseSelection["endCol"]
     
     # Start selection if shift is pressed and no selection exists
     if shift and not hasSelection:
@@ -1139,15 +1111,6 @@ if event.type == "key":
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
     
-    # Check if there's a mouse selection we should continue
-    let mouseSelection = editorGetSelectionInfo(editor)
-    if shift and not hasSelection and mouseSelection["active"]:
-      hasSelection = 1
-      selStartLine = mouseSelection["startLine"]
-      selStartCol = mouseSelection["startCol"]
-      selEndLine = mouseSelection["endLine"]
-      selEndCol = mouseSelection["endCol"]
-    
     # Start selection if shift is pressed and no selection exists
     if shift and not hasSelection:
       hasSelection = 1
@@ -1180,15 +1143,6 @@ if event.type == "key":
     let cursor = editorGetCursor(editor)
     let cursorLine = cursor["line"]
     let cursorCol = cursor["col"]
-    
-    # Check if there's a mouse selection we should continue
-    let mouseSelection = editorGetSelectionInfo(editor)
-    if shift and not hasSelection and mouseSelection["active"]:
-      hasSelection = 1
-      selStartLine = mouseSelection["startLine"]
-      selStartCol = mouseSelection["startCol"]
-      selEndLine = mouseSelection["endLine"]
-      selEndCol = mouseSelection["endCol"]
     
     # Start selection if shift is pressed and no selection exists
     if shift and not hasSelection:
@@ -1230,13 +1184,12 @@ if event.type == "key":
   
   # Skip printable characters in key events - they should be handled by text events
   # This prevents double-handling in native mode where spacebar generates both key+text
-  # Exception: Allow spacebar (32) through for terminal compatibility
-  if keyCode >= 33 and keyCode < 127 and not ctrl:
+  if keyCode >= 32 and keyCode < 127 and not ctrl:
     return false
   
   # Track if content modified
   let wasModified = editorIsModified(editor)
-  let handled = editorHandleKey(editor, keyCode, key, event.mods)
+  let handled = editorHandleKey(editor, keyCode, key, ctrl, shift, 0, 0)
   
   if handled:
     keyPressCount = keyPressCount + 1
@@ -1624,9 +1577,6 @@ elif event.type == "mouse" or event.type == "scroll":
         dragStartX = mx
         dragStartY = my
         
-        # Clear any existing keyboard selection when clicking (mouse takes over)
-        clearSelection()
-        
         # Start mouse selection (shift extends selection if held)
         let shiftHeld = 0  # TODO: track shift key state if needed
         let handled = editorHandleMousePress(editor, mx, my, editorX, editorY, editorW, editorH, 1, shiftHeld)
@@ -1643,6 +1593,9 @@ elif event.type == "mouse" or event.type == "scroll":
 elif event.type == "mouse_move":
   let mx = event.x
   let my = event.y
+  
+  # Debug: Show that we got a mouse_move event
+  statusMessage = "MOUSE_MOVE event at (" & str(mx) & "," & str(my) & ") pressed=" & str(mousePressed) & " isDraggingText=" & str(isDraggingText)
   
   # Calculate editor dimensions
   let w = termWidth
@@ -1673,11 +1626,16 @@ elif event.type == "mouse_move":
         return true
   elif mousePressed and isDraggingText:
     # Handle text selection drag
+    statusMessage = "DRAG: Calling editorHandleMouseDrag at (" & str(mx) & "," & str(my) & ")"
     let handled = editorHandleMouseDrag(editor, mx, my, editorX, editorY, editorW, editorH, 1)
+    statusMessage = "DRAG: returned " & str(handled)
     if handled:
       let cursor = editorGetCursor(editor)
       statusMessage = "Selecting... line " & str(cursor["line"] + 1) & ", col " & str(cursor["col"] + 1)
       return true
+    else:
+      statusMessage = "DRAG: editorHandleMouseDrag returned FALSE!"
+      return true  # Still consume the event
   
   return false
 

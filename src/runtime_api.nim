@@ -927,6 +927,12 @@ proc encodeInputEvent(event: InputEvent): Value =
       of Release: "release"
       of Repeat: "repeat")
     
+    # Set key field - for printable characters, convert keyCode to string
+    if event.keyCode >= 32 and event.keyCode < 127:
+      table["key"] = valString($char(event.keyCode))
+    else:
+      table["key"] = valString("")
+    
     # Encode modifiers
     var mods: seq[string] = @[]
     if ModShift in event.keyMods: mods.add("shift")

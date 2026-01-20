@@ -1890,7 +1890,7 @@
                 terminalCanvas.parentNode.insertBefore(webglCanvas, terminalCanvas.nextSibling);
                 
                 // Forward input events from WebGL canvas to terminal canvas
-                ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click'].forEach(eventType => {
+                ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'wheel'].forEach(eventType => {
                     webglCanvas.addEventListener(eventType, function(e) {
                         const clonedEvent = new e.constructor(e.type, e);
                         terminalCanvas.dispatchEvent(clonedEvent);

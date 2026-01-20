@@ -210,6 +210,25 @@ proc nimini_editorGetScroll*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   map["scrollY"] = valInt(state.scrollY)
   return valMap(map)
 
+proc nimini_editorGetSelectionInfo*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Get selection info. Args: editorId
+  ## Returns: map with 'active', 'startLine', 'startCol', 'endLine', 'endCol' keys
+  if args.len < 1:
+    return valNil()
+  
+  let editorId = $(args[0])
+  let state = getEditorState(editorId)
+  if state.isNil:
+    return valNil()
+  
+  var map = initTable[string, Value]()
+  map["active"] = valBool(state.selection.active)
+  map["startLine"] = valInt(state.selection.start.line)
+  map["startCol"] = valInt(state.selection.start.col)
+  map["endLine"] = valInt(state.selection.`end`.line)
+  map["endCol"] = valInt(state.selection.`end`.col)
+  return valMap(map)
+
 # ==============================================================================
 # TEXT EDITING
 # ==============================================================================
@@ -425,6 +444,7 @@ proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   
   # Parse optional selection parameters (args 7-11)
+  # Only override internal selection if explicitly provided
   if args.len >= 12:
     let hasSelection = toBool(args[7])
     if hasSelection:
@@ -433,10 +453,8 @@ proc nimini_drawEditor*(env: ref Env; args: seq[Value]): Value {.nimini.} =
       state.selection.start.col = toInt(args[9])
       state.selection.`end`.line = toInt(args[10])
       state.selection.`end`.col = toInt(args[11])
-    else:
-      state.selection.active = false
-  else:
-    state.selection.active = false
+    # Note: Don't clear selection if hasSelection=false, preserve internal state
+  # Note: Don't clear selection if no selection args provided, preserve internal state
   
   # Create config
   let showLineNumbers = if args.len > 6: toBool(args[6]) else: true
@@ -474,7 +492,7 @@ proc nimini_drawMinimap*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if state.isNil:
     return valNil()
   
-  drawMinimap(layer, x, y, w, h, state.buffer, state.scrollY, viewportHeight)
+  drawMinimap(layer, x, y, w, h, state.buffer, state.scrollY, viewportHeight, state.selection)
   
   return valNil()
 
@@ -576,6 +594,88 @@ proc nimini_editorHandleMinimapClick*(env: ref Env; args: seq[Value]): Value {.n
   
   return valBool(handled)
 
+proc nimini_editorHandleMousePress*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle mouse press for selection. Args: editorId, mouseX, mouseY, editorX, editorY, editorW, editorH, showLineNumbers, shiftHeld
+  ## Returns: true if handled
+  if args.len < 9:
+    return valBool(false)
+  
+  let editorId = $(args[0])
+  let mouseX = toInt(args[1])
+  let mouseY = toInt(args[2])
+  let editorX = toInt(args[3])
+  let editorY = toInt(args[4])
+  let editorW = toInt(args[5])
+  let editorH = toInt(args[6])
+  let showLineNumbers = toBool(args[7])
+  let shiftHeld = toBool(args[8])
+  
+  let state = getEditorState(editorId)
+  if state.isNil:
+    return valBool(false)
+  
+  let config = EditorConfig(
+    showLineNumbers: showLineNumbers,
+    lineNumberWidth: 5,
+    showScrollbar: true,
+    highlightCurrentLine: false,
+    wrapLines: false,
+    useSoftTabs: true
+  )
+  
+  let handled = state.handleEditorMousePress(mouseX, mouseY, editorX, editorY, 
+                                             editorW, editorH, config, shiftHeld)
+  
+  return valBool(handled)
+
+proc nimini_editorHandleMouseDrag*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle mouse drag for selection. Args: editorId, mouseX, mouseY, editorX, editorY, editorW, editorH, showLineNumbers
+  ## Returns: true if handled
+  if args.len < 8:
+    return valBool(false)
+  
+  let editorId = $(args[0])
+  let mouseX = toInt(args[1])
+  let mouseY = toInt(args[2])
+  let editorX = toInt(args[3])
+  let editorY = toInt(args[4])
+  let editorW = toInt(args[5])
+  let editorH = toInt(args[6])
+  let showLineNumbers = toBool(args[7])
+  
+  let state = getEditorState(editorId)
+  if state.isNil:
+    return valBool(false)
+  
+  let config = EditorConfig(
+    showLineNumbers: showLineNumbers,
+    lineNumberWidth: 5,
+    showScrollbar: true,
+    highlightCurrentLine: false,
+    wrapLines: false,
+    useSoftTabs: true
+  )
+  
+  let handled = state.handleEditorMouseDrag(mouseX, mouseY, editorX, editorY, 
+                                           editorW, editorH, config)
+  
+  return valBool(handled)
+
+proc nimini_editorHandleMouseRelease*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Handle mouse release to finalize selection. Args: editorId
+  ## Returns: true if handled
+  if args.len < 1:
+    return valBool(false)
+  
+  let editorId = $(args[0])
+  let state = getEditorState(editorId)
+  if state.isNil:
+    return valBool(false)
+  
+  let handled = state.handleEditorMouseRelease()
+  
+  return valBool(handled)
+
 # ==============================================================================
 # REGISTRATION
 # ==============================================================================
@@ -597,6 +697,7 @@ proc registerTextEditorBindings*(env: ref Env) =
   registerNative("editorGetCursor", nimini_editorGetCursor)
   registerNative("editorSetCursor", nimini_editorSetCursor)
   registerNative("editorGetScroll", nimini_editorGetScroll)
+  registerNative("editorGetSelectionInfo", nimini_editorGetSelectionInfo)
   
   # Text editing
   registerNative("editorInsertText", nimini_editorInsertText)
@@ -625,3 +726,6 @@ proc registerTextEditorBindings*(env: ref Env) =
   registerNative("editorHandleKey", nimini_editorHandleKey)
   registerNative("editorHandleClick", nimini_editorHandleClick)
   registerNative("editorHandleMinimapClick", nimini_editorHandleMinimapClick)
+  registerNative("editorHandleMousePress", nimini_editorHandleMousePress)
+  registerNative("editorHandleMouseDrag", nimini_editorHandleMouseDrag)
+  registerNative("editorHandleMouseRelease", nimini_editorHandleMouseRelease)

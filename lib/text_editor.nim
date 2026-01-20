@@ -491,11 +491,15 @@ proc insertTabAtCursor*(state: EditorState, useSoftTabs: bool = true) =
 # MINIMAP GENERATION (Using Braille characters)
 # ==============================================================================
 
-proc generateMinimap*(buffer: EditorBuffer, width, height: int): seq[string] =
+proc generateMinimap*(buffer: EditorBuffer, width, height: int, scrollY: int = 0, viewportHeight: int = 0, selection: Selection = Selection()): tuple[content: seq[string], selectionMask: seq[seq[bool]]] =
   ## Generate a minimap using braille characters
   ## Each braille character represents 2x4 pixels
-  ## This provides a foundation for minimap rendering
-  result = @[]
+  ## Supports dynamic centering for long documents
+  ## Returns both content and a selection mask for inverted rendering
+  ## 
+  ## If viewportHeight > 0 and document is long enough, centers minimap around scrollY position
+  var content: seq[string] = @[]
+  var selectionMask: seq[seq[bool]] = @[]
   
   # Braille patterns: U+2800 to U+28FF
   # Base: ⠀ (0x2800)
@@ -504,18 +508,82 @@ proc generateMinimap*(buffer: EditorBuffer, width, height: int): seq[string] =
   let linesPerBrailleRow = 4
   let charsPerBrailleCol = 2
   
+  # Calculate minimap window for dynamic centering
+  let totalMinimapLines = height * linesPerBrailleRow
+  var minimapStartLine = 0
+  var minimapEndLine = buffer.lineCount
+  
+  # Enable dynamic centering if document is significantly longer than minimap
+  # Use 3x threshold to avoid jarring transitions
+  if viewportHeight > 0 and buffer.lineCount > totalMinimapLines * 3:
+    # Center the minimap view around the current scroll position
+    let centerLine = scrollY + (viewportHeight div 2)
+    minimapStartLine = max(0, centerLine - (totalMinimapLines div 2))
+    minimapEndLine = min(buffer.lineCount, minimapStartLine + totalMinimapLines)
+    # Adjust if we hit the end
+    if minimapEndLine == buffer.lineCount:
+      minimapStartLine = max(0, minimapEndLine - totalMinimapLines)
+  
+  # Calculate selection bounds if active
+  var selStartLine, selEndLine, selStartCol, selEndCol: int
+  if selection.active:
+    selStartLine = min(selection.start.line, selection.`end`.line)
+    selEndLine = max(selection.start.line, selection.`end`.line)
+    # For columns, handle single vs multi-line selections
+    if selection.start.line == selection.`end`.line:
+      selStartCol = min(selection.start.col, selection.`end`.col)
+      selEndCol = max(selection.start.col, selection.`end`.col)
+    elif selection.start.line < selection.`end`.line:
+      selStartCol = selection.start.col
+      selEndCol = selection.`end`.col
+    else:
+      selStartCol = selection.`end`.col
+      selEndCol = selection.start.col
+  
   for row in 0 ..< height:
     var minimapLine = ""
+    var selectionRow: seq[bool] = @[]
+    
     for col in 0 ..< width:
-      let startLine = row * linesPerBrailleRow
-      let endLine = min(startLine + linesPerBrailleRow, buffer.lineCount)
+      let startLine = minimapStartLine + (row * linesPerBrailleRow)
+      let endLine = min(startLine + linesPerBrailleRow, minimapEndLine)
       
       # Simple density calculation
       var density = 0
       for lineIdx in startLine ..< endLine:
-        let lineLen = buffer.lineLength(lineIdx)
-        if lineLen > col * charsPerBrailleCol:
-          density += 1
+        if lineIdx < buffer.lineCount:
+          let lineLen = buffer.lineLength(lineIdx)
+          if lineLen > col * charsPerBrailleCol:
+            density += 1
+      
+      # Check if this braille cell overlaps with selection
+      var isSelected = false
+      if selection.active:
+        for lineIdx in startLine ..< endLine:
+          if lineIdx >= selStartLine and lineIdx <= selEndLine and lineIdx < buffer.lineCount:
+            let colStart = col * charsPerBrailleCol
+            let colEnd = (col + 1) * charsPerBrailleCol
+            
+            # Check if this column range overlaps with selection
+            if lineIdx == selStartLine and lineIdx == selEndLine:
+              # Single line selection
+              if colEnd > selStartCol and colStart < selEndCol:
+                isSelected = true
+                break
+            elif lineIdx == selStartLine:
+              # Start of multi-line selection
+              if colEnd > selStartCol:
+                isSelected = true
+                break
+            elif lineIdx == selEndLine:
+              # End of multi-line selection
+              if colStart < selEndCol:
+                isSelected = true
+                break
+            else:
+              # Middle of multi-line selection
+              isSelected = true
+              break
       
       # Map density to braille pattern
       let brailleChar = if density == 0: " "
@@ -525,7 +593,12 @@ proc generateMinimap*(buffer: EditorBuffer, width, height: int): seq[string] =
                        else: "⠿"
       
       minimapLine.add(brailleChar)
-    result.add(minimapLine)
+      selectionRow.add(isSelected)
+    
+    content.add(minimapLine)
+    selectionMask.add(selectionRow)
+  
+  result = (content: content, selectionMask: selectionMask)
 
 # ==============================================================================
 # RENDERING
@@ -651,16 +724,32 @@ proc drawEditor*(layer: int, x, y, w, h: int, state: EditorState,
   if config.showScrollbar and state.buffer.lineCount > contentHeight:
     let minimapX = x + w - minimapWidth
     let minimapH = contentHeight
-    let minimap = generateMinimap(state.buffer, minimapWidth - 1, minimapH)
+    let minimapData = generateMinimap(state.buffer, minimapWidth - 1, minimapH, state.scrollY, contentHeight, state.selection)
     
-    # Draw minimap content (no border)
-    for i, line in minimap:
-      if i < minimapH:
-        tuiDraw(layer, minimapX, y + 1 + i, line, tuiGetStyle("default"))
+    # Draw minimap content with selection highlighting (no border)
+    let defaultStyle = tuiGetStyle("default")
+    for i in 0 ..< minimapData.content.len:
+      if i < minimapH and i < minimapData.selectionMask.len:
+        let line = minimapData.content[i]
+        let selMask = minimapData.selectionMask[i]
+        let runes = toRunes(line)
+        # Draw character by character to apply selection styling
+        for j in 0 ..< runes.len:
+          if j < selMask.len:
+            let ch = $runes[j]
+            var style = defaultStyle
+            # Invert colors for selected regions
+            if selMask[j]:
+              let tempColor = style.fg
+              style.fg = style.bg
+              style.bg = tempColor
+            tuiDraw(layer, minimapX + j, y + 1 + i, ch, style)
     
-    # Draw viewport indicator on minimap
-    let minimapStartY = if state.buffer.lineCount > contentHeight:
-                          int((float(state.scrollY) / float(state.buffer.lineCount - contentHeight)) * float(minimapH - 1))
+    # Draw viewport indicator on minimap with consistent calculation
+    # Use the scroll range (lineCount - contentHeight) for proper proportional positioning
+    let maxScrollY = max(1, state.buffer.lineCount - contentHeight)
+    let minimapStartY = if maxScrollY > 0:
+                          int((float(state.scrollY) / float(maxScrollY)) * float(minimapH - 1))
                         else:
                           0
     let minimapVisibleHeight = max(1, int((float(contentHeight) / float(state.buffer.lineCount)) * float(minimapH)))
@@ -740,9 +829,10 @@ proc handleEditorKeyPress*(state: EditorState, keyCode: int, key: string,
 
 proc handleEditorMouseClick*(state: EditorState, mouseX, mouseY: int,
                             editorX, editorY, editorW, editorH: int,
-                            config: EditorConfig): bool =
+                            config: EditorConfig, clearSelection: bool = true): bool =
   ## Handle mouse click in editor
   ## Returns true if click was inside editor
+  ## If clearSelection is true, clears any existing selection
   
   if not pointInRect(mouseX, mouseY, editorX, editorY, editorW, editorH):
     return false
@@ -767,7 +857,102 @@ proc handleEditorMouseClick*(state: EditorState, mouseX, mouseY: int,
   # Move cursor
   moveCursor(state, clickedLine, clickedCol)
   
+  # Clear selection if requested
+  if clearSelection:
+    state.selection.active = false
+  
   return true
+
+proc handleEditorMousePress*(state: EditorState, mouseX, mouseY: int,
+                             editorX, editorY, editorW, editorH: int,
+                             config: EditorConfig, shiftHeld: bool = false): bool =
+  ## Handle mouse press to start selection
+  ## If shift is held, extends existing selection
+  ## Returns true if press was inside editor
+  
+  if not pointInRect(mouseX, mouseY, editorX, editorY, editorW, editorH):
+    return false
+  
+  # Calculate which line was clicked
+  let lineNumWidth = if config.showLineNumbers: config.lineNumberWidth else: 0
+  let contentX = editorX + lineNumWidth + 2
+  let contentY = editorY + 1
+  
+  if mouseX < contentX:
+    return true
+  
+  # Calculate clicked position
+  let clickedLine = state.scrollY + (mouseY - contentY)
+  if clickedLine < 0 or clickedLine >= state.buffer.lineCount:
+    return true
+  
+  let clickedCol = max(0, state.scrollX + (mouseX - contentX))
+  
+  if shiftHeld and state.selection.active:
+    # Extend existing selection
+    state.selection.`end` = CursorPos(line: clickedLine, col: clickedCol)
+    moveCursor(state, clickedLine, clickedCol)
+  else:
+    # Start new selection
+    moveCursor(state, clickedLine, clickedCol)
+    state.selection.active = true
+    state.selection.start = state.cursor
+    state.selection.`end` = state.cursor
+  
+  return true
+
+proc handleEditorMouseDrag*(state: EditorState, mouseX, mouseY: int,
+                           editorX, editorY, editorW, editorH: int,
+                           config: EditorConfig): bool =
+  ## Handle mouse drag to update selection
+  ## Returns true if handled
+  ## Note: Selection must be activated by handleEditorMousePress first
+  
+  # Don't process if no selection started
+  if not state.selection.active:
+    return false
+  
+  # Calculate which line is under the mouse
+  let lineNumWidth = if config.showLineNumbers: config.lineNumberWidth else: 0
+  let contentX = editorX + lineNumWidth + 2
+  let contentY = editorY + 1
+  let contentH = editorH - 2
+  
+  # Allow dragging slightly outside bounds for auto-scroll effect
+  var targetLine = state.scrollY + (mouseY - contentY)
+  targetLine = max(0, min(targetLine, state.buffer.lineCount - 1))
+  
+  # Calculate column
+  let targetCol = max(0, state.scrollX + (mouseX - contentX))
+  
+  # Update selection end and cursor (don't use moveCursor as it clears selection)
+  state.selection.`end` = CursorPos(line: targetLine, col: targetCol)
+  state.cursor.line = targetLine
+  state.cursor.col = targetCol
+  clampCursor(state)
+  state.desiredCol = state.cursor.col
+  
+  # Auto-scroll if dragging near edges
+  if mouseY < contentY and state.scrollY > 0:
+    state.scrollY = max(0, state.scrollY - 1)
+  elif mouseY >= contentY + contentH and state.scrollY < state.buffer.lineCount - contentH:
+    state.scrollY = min(state.buffer.lineCount - contentH, state.scrollY + 1)
+  
+  return true
+
+proc handleEditorMouseRelease*(state: EditorState): bool =
+  ## Handle mouse release to finalize selection
+  ## If start and end are the same, clear the selection
+  ## Returns true if selection state changed
+  
+  if state.selection.active:
+    # If no actual selection (start == end), clear it
+    if state.selection.start.line == state.selection.`end`.line and 
+       state.selection.start.col == state.selection.`end`.col:
+      state.selection.active = false
+      return true
+  
+  return false
 
 proc handleMinimapClick*(state: EditorState, mouseX, mouseY: int,
                         editorX, editorY, editorW, editorH: int,
@@ -833,20 +1018,40 @@ proc updateEditorScroll*(state: EditorState, viewportHeight: int, viewportWidth:
 # ==============================================================================
 
 proc drawMinimap*(layer: int, x, y, w, h: int, buffer: EditorBuffer, 
-                 scrollY: int, viewportHeight: int) =
-  ## Draw a minimap of the buffer
-  let minimap = generateMinimap(buffer, w - 2, h - 2)
+                 scrollY: int, viewportHeight: int, selection: Selection = Selection()) =
+  ## Draw a minimap of the buffer with dynamic centering support and selection highlighting
+  let contentHeight = viewportHeight - 2
+  let minimapData = generateMinimap(buffer, w - 2, h - 2, scrollY, contentHeight, selection)
   
   # Draw border
   drawBoxSingle(layer, x, y, w, h, tuiGetStyle("border"))
   
-  # Draw minimap content
-  for i, line in minimap:
-    tuiDraw(layer, x + 1, y + 1 + i, line, tuiGetStyle("default"))
+  # Draw minimap content with selection highlighting
+  let defaultStyle = tuiGetStyle("default")
+  for i in 0 ..< minimapData.content.len:
+    if i < minimapData.selectionMask.len:
+      let line = minimapData.content[i]
+      let selMask = minimapData.selectionMask[i]
+      let runes = toRunes(line)
+      # Draw character by character to apply selection styling
+      for j in 0 ..< runes.len:
+        if j < selMask.len:
+          let ch = $runes[j]
+          var style = defaultStyle
+          # Invert colors for selected regions
+          if selMask[j]:
+            let tempColor = style.fg
+            style.fg = style.bg
+            style.bg = tempColor
+          tuiDraw(layer, x + 1 + j, y + 1 + i, ch, style)
   
-  # Draw viewport indicator
-  let contentHeight = viewportHeight - 2
-  let minimapStartY = int((float(scrollY) / float(buffer.lineCount)) * float(h - 2))
+  # Draw viewport indicator with consistent calculation
+  # Use the scroll range (lineCount - contentHeight) for proper proportional positioning
+  let maxScrollY = max(1, buffer.lineCount - contentHeight)
+  let minimapStartY = if maxScrollY > 0:
+                        int((float(scrollY) / float(maxScrollY)) * float(h - 3))
+                      else:
+                        0
   let minimapHeight = max(1, int((float(contentHeight) / float(buffer.lineCount)) * float(h - 2)))
   
   for dy in 0 ..< minimapHeight:
@@ -869,5 +1074,6 @@ export insertCharAtCursor, insertTextAtCursor, deleteAtCursor, backspaceAtCursor
 export insertNewlineAtCursor, insertTabAtCursor
 export drawEditor, drawEditorSimple
 export handleEditorKeyPress, handleEditorMouseClick, handleMinimapClick
+export handleEditorMousePress, handleEditorMouseDrag, handleEditorMouseRelease
 export updateEditorScroll
 export generateMinimap, drawMinimap

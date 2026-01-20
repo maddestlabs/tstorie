@@ -86,8 +86,8 @@ function getShaderConfig() {
             
             // Softness control
             coreThickness: 0.7,          // Core line thickness in pixels (sharp)
-            softThickness: 0.5,          // Additional soft halo thickness in pixels
-            haloAlpha: 0.3               // Opacity of soft halo relative to core (0.0-1.0)
+            softThickness: 0.3,          // Additional soft halo thickness in pixels
+            haloAlpha: 0.1               // Opacity of soft halo relative to core (0.0-1.0)
         }
     };
 }

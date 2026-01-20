@@ -13,13 +13,27 @@ fn load_markdown_content(path: String) -> Result<String, String> {
 
 #[tauri::command]
 fn get_bundled_wasm_file(app: tauri::AppHandle, filename: String) -> Result<Vec<u8>, String> {
-    let resource_path = app.path()
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    // Try bundled resources first
+    if let Ok(resource_path) = app.path().resource_dir() {
+        let file_path = resource_path.join(&filename);
+        if file_path.exists() {
+            return fs::read(&file_path)
+                .map_err(|e| format!("Failed to read {}: {}", filename, e));
+        }
+    }
     
-    let file_path = resource_path.join(&filename);
-    fs::read(&file_path)
-        .map_err(|e| format!("Failed to read {}: {}", filename, e))
+    // Try current directory (portable builds)
+    let cwd_path = std::env::current_dir()
+        .ok()
+        .map(|p| p.join(&filename));
+    if let Some(file_path) = cwd_path {
+        if file_path.exists() {
+            return fs::read(&file_path)
+                .map_err(|e| format!("Failed to read {}: {}", filename, e));
+        }
+    }
+    
+    Err(format!("{} not found in resources or current directory", filename))
 }
 
 #[tauri::command]
@@ -41,24 +55,96 @@ fn get_bundled_wasm_path(app: tauri::AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 fn load_bundled_welcome(app: tauri::AppHandle) -> Result<String, String> {
-    let resource_path = app.path()
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    // Try multiple locations in order of preference
     
-    let file_path = resource_path.join("index.md");
-    fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read welcome screen: {}", e))
+    // 1. Try bundled resources directory (release builds with proper installers)
+    if let Ok(resource_path) = app.path().resource_dir() {
+        let file_path = resource_path.join("index.md");
+        eprintln!("Checking bundled resources: {:?}", file_path);
+        if file_path.exists() {
+            eprintln!("✓ Found in bundled resources");
+            return fs::read_to_string(&file_path)
+                .map_err(|e| format!("Failed to read welcome screen: {}", e));
+        } else {
+            eprintln!("  Not found in bundled resources");
+        }
+    }
+    
+    // 2. Try executable directory (portable builds - most common)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let file_path = exe_dir.join("index.md");
+            eprintln!("Checking executable directory: {:?}", file_path);
+            if file_path.exists() {
+                eprintln!("✓ Found in executable directory");
+                return fs::read_to_string(&file_path)
+                    .map_err(|e| format!("Failed to read welcome screen: {}", e));
+            } else {
+                eprintln!("  Not found in executable directory");
+            }
+        }
+    }
+    
+    // 3. Try current working directory
+    if let Ok(cwd) = std::env::current_dir() {
+        let file_path = cwd.join("index.md");
+        eprintln!("Checking current directory: {:?}", file_path);
+        if file_path.exists() {
+            eprintln!("✓ Found in current directory");
+            return fs::read_to_string(&file_path)
+                .map_err(|e| format!("Failed to read welcome screen: {}", e));
+        } else {
+            eprintln!("  Not found in current directory");
+        }
+    }
+    
+    // 4. Try dev mode location (for development)
+    if let Ok(resource_path) = app.path().resource_dir() {
+        let dev_path = resource_path.parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("dist-tstauri").join("index.md"));
+        
+        if let Some(file_path) = dev_path {
+            eprintln!("Checking dev location: {:?}", file_path);
+            if file_path.exists() {
+                eprintln!("✓ Found in dev location");
+                return fs::read_to_string(&file_path)
+                    .map_err(|e| format!("Failed to read welcome screen: {}", e));
+            } else {
+                eprintln!("  Not found in dev location");
+            }
+        }
+    }
+    
+    // Not found anywhere - provide helpful error
+    Err("Welcome screen (index.md) not found. Please ensure it's bundled in the app or in the same folder as the executable.".to_string())
 }
 
 #[tauri::command]
 fn load_bundled_shader(app: tauri::AppHandle, shader_name: String) -> Result<String, String> {
-    let resource_path = app.path()
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+    let shader_file = format!("{}.js", shader_name);
     
-    let file_path = resource_path.join("shaders").join(format!("{}.js", shader_name));
-    fs::read_to_string(&file_path)
-        .map_err(|e| format!("Shader '{}' not found: {}", shader_name, e))
+    // Try bundled resources first
+    if let Ok(resource_path) = app.path().resource_dir() {
+        let file_path = resource_path.join("shaders").join(&shader_file);
+        if file_path.exists() {
+            return fs::read_to_string(&file_path)
+                .map_err(|e| format!("Failed to read shader '{}': {}", shader_name, e));
+        }
+    }
+    
+    // Try current directory (portable builds)
+    let cwd_path = std::env::current_dir()
+        .ok()
+        .map(|p| p.join("shaders").join(&shader_file));
+    if let Some(file_path) = cwd_path {
+        if file_path.exists() {
+            return fs::read_to_string(&file_path)
+                .map_err(|e| format!("Failed to read shader '{}': {}", shader_name, e));
+        }
+    }
+    
+    Err(format!("Shader '{}' not found in resources or current directory", shader_name))
 }
 
 fn main() {
