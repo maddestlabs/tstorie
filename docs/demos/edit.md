@@ -95,6 +95,10 @@ var autoSaveTimer = 0
 var autoSaveInterval = 180  # Auto-save every 180 frames (~3 seconds at 60fps)
 var lastAutoSaveContent = ""
 
+# Statistics
+var keyPressCount = 0
+var lastKeyCode = 0
+
 # Helper: Clear selection
 proc clearSelection() =
   hasSelection = 0
@@ -264,10 +268,6 @@ proc deleteSelection() =
       editorDelete(editor)
   
   clearSelection()
-
-# Statistics
-var keyPressCount = 0
-var lastKeyCode = 0
 ```
 
 ```nim on:render
