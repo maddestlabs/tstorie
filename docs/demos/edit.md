@@ -1,10 +1,11 @@
 ---
 title: "t|Storie Editor"
-minWidth: 20
-minHeight: 10
 theme: "neotopia"
 editorX: 0
 editorY: 2
+dropTarget: true
+shaders: "invert+ruledlines+paper+nightlight"
+fontsize: 16
 ---
 
 # t|Storie Text Editor
@@ -94,6 +95,69 @@ var autoSaveTimer = 0
 var autoSaveInterval = 180  # Auto-save every 180 frames (~3 seconds at 60fps)
 var lastAutoSaveContent = ""
 
+# Helper: Clear selection
+proc clearSelection() =
+  hasSelection = 0
+
+# Helper: Find previous word boundary
+proc findPrevWord(line: string, col: int): int =
+  if col <= 0:
+    return 0
+  var pos = col - 1
+  # Skip spaces backward
+  while pos > 0 and line[pos] == ' ':
+    pos = pos - 1
+  # Skip word backward
+  while pos > 0 and line[pos] != ' ':
+    pos = pos - 1
+  if line[pos] == ' ' and pos < col - 1:
+    pos = pos + 1
+  return pos
+
+# Helper: Find next word boundary
+proc findNextWord(line: string, col: int): int =
+  if col >= len(line):
+    return len(line)
+  var pos = col
+  # Skip current word forward
+  while pos < len(line) and line[pos] != ' ':
+    pos = pos + 1
+  # Skip spaces forward
+  while pos < len(line) and line[pos] == ' ':
+    pos = pos + 1
+  return pos
+```
+
+```nim on:ondrop
+# Handle dropped files
+let droppedFileName = getDroppedFileName()
+let droppedData = getDroppedFileData()
+
+# Convert binary data to text (assuming UTF-8)
+let droppedText = droppedData
+
+# Load into editor
+editor = newEditor(droppedText)
+currentFileName = droppedFileName
+isSaved = 1
+editorClearModified(editor)
+lastAutoSaveContent = droppedText
+
+# Update status
+statusMessage = "✓ Loaded '" & droppedFileName & "' (" & str(len(droppedText)) & " bytes)"
+
+# Close any open dialogs
+showLoadDialog = 0
+showSaveDialog = 0
+showLoadGistDialog = 0
+showSaveGistDialog = 0
+showShareDialog = 0
+showHelp = 0
+activeMenu = ""
+focusedComponent = 0
+```
+
+```nim
 # Update saved files list
 proc refreshFileList() =
   let jsonStr = localStorage_list()
@@ -128,38 +192,6 @@ proc refreshFileList() =
     i = i + 1
 
 refreshFileList()
-
-# Helper: Find previous word boundary
-proc findPrevWord(line: string, col: int): int =
-  if col <= 0:
-    return 0
-  var pos = col - 1
-  # Skip spaces backward
-  while pos > 0 and line[pos] == ' ':
-    pos = pos - 1
-  # Skip word backward
-  while pos > 0 and line[pos] != ' ':
-    pos = pos - 1
-  if line[pos] == ' ' and pos < col - 1:
-    pos = pos + 1
-  return pos
-
-# Helper: Find next word boundary
-proc findNextWord(line: string, col: int): int =
-  if col >= len(line):
-    return len(line)
-  var pos = col
-  # Skip current word forward
-  while pos < len(line) and line[pos] != ' ':
-    pos = pos + 1
-  # Skip spaces forward
-  while pos < len(line) and line[pos] == ' ':
-    pos = pos + 1
-  return pos
-
-# Helper: Clear selection
-proc clearSelection() =
-  hasSelection = 0
 
 # Helper: Get selected text
 proc getSelectedText(): string =
