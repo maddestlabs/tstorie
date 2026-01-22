@@ -761,17 +761,15 @@
                     // Pass to the running app via emHandleDroppedFile
                     console.log('Sending dropped file to app:', file.name, data.length, 'bytes');
                     
-                    // Convert Uint8Array to binary string (each byte becomes a character code)
-                    let binaryString = '';
-                    for (let i = 0; i < data.length; i++) {
-                        binaryString += String.fromCharCode(data[i]);
-                    }
+                    // Decode UTF-8 text properly using TextDecoder
+                    const decoder = new TextDecoder('utf-8');
+                    const textContent = decoder.decode(data);
                     
                     window.Module.ccall(
                         'emHandleDroppedFile',
                         null,
                         ['string', 'string', 'number'],
-                        [file.name, binaryString, data.length],
+                        [file.name, textContent, textContent.length],
                         { async: false }
                     );
                     showDropStatus(`✓ File sent to app: ${file.name}`, false);
@@ -1620,6 +1618,44 @@
                 }
             }
         }
+        
+        // Prevent browser default actions for keyboard shortcuts we handle
+        // For Ctrl+A, we DON'T prevent default here - we let it reach Emscripten
+        // and the Nim code will handle it by returning true
+        document.addEventListener('keydown', function(e) {
+            // Debug logging
+            if (e.ctrlKey || e.metaKey) {
+                console.log('Ctrl/Cmd key combo detected:', e.key, 'keyCode:', e.keyCode, 'code:', e.code);
+            }
+            
+            // DON'T prevent Ctrl+A here - let it reach the application
+            // The Nim input handler will return true which tells Emscripten to preventDefault
+            
+            // Prevent Ctrl+S (save page)
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')) {
+                console.log('Preventing Ctrl+S');
+                e.preventDefault();
+                return;
+            }
+            // Prevent Ctrl+O (open file)
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'o' || e.key === 'O' || e.code === 'KeyO')) {
+                console.log('Preventing Ctrl+O');
+                e.preventDefault();
+                return;
+            }
+            // Prevent Ctrl+E (focus address bar in some browsers)
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E' || e.code === 'KeyE')) {
+                console.log('Preventing Ctrl+E');
+                e.preventDefault();
+                return;
+            }
+            // Prevent Ctrl+G (find next in some browsers)
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'g' || e.key === 'G' || e.code === 'KeyG')) {
+                console.log('Preventing Ctrl+G');
+                e.preventDefault();
+                return;
+            }
+        }, false);
         
         var Module = {
             waitingForGist: (gistId || demoName || localStorageKey || compressedContent) ? true : false,

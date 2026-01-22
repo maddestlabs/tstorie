@@ -761,17 +761,15 @@
                     // Pass to the running app via emHandleDroppedFile
                     console.log('Sending dropped file to app:', file.name, data.length, 'bytes');
                     
-                    // Convert Uint8Array to binary string (each byte becomes a character code)
-                    let binaryString = '';
-                    for (let i = 0; i < data.length; i++) {
-                        binaryString += String.fromCharCode(data[i]);
-                    }
+                    // Decode UTF-8 text properly using TextDecoder
+                    const decoder = new TextDecoder('utf-8');
+                    const textContent = decoder.decode(data);
                     
                     window.Module.ccall(
                         'emHandleDroppedFile',
                         null,
                         ['string', 'string', 'number'],
-                        [file.name, binaryString, data.length],
+                        [file.name, textContent, textContent.length],
                         { async: false }
                     );
                     showDropStatus(`✓ File sent to app: ${file.name}`, false);
@@ -1620,6 +1618,40 @@
                 }
             }
         }
+        
+        // Prevent browser default actions for keyboard shortcuts we handle
+        document.addEventListener('keydown', function(e) {
+            // Prevent Ctrl+A (select all) - always prevent to let app handle it
+            if (e.ctrlKey && (e.key === 'a' || e.key === 'A')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            // Prevent Ctrl+S (save page)
+            if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            // Prevent Ctrl+O (open file)
+            if (e.ctrlKey && (e.key === 'o' || e.key === 'O')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            // Prevent Ctrl+E (focus address bar in some browsers)
+            if (e.ctrlKey && (e.key === 'e' || e.key === 'E')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            // Prevent Ctrl+G (find next in some browsers)
+            if (e.ctrlKey && (e.key === 'g' || e.key === 'G')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true); // Use capture phase to ensure we catch it early
         
         var Module = {
             waitingForGist: (gistId || demoName || localStorageKey || compressedContent) ? true : false,

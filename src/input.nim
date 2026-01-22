@@ -741,7 +741,8 @@ proc parseInput*(vt: var TerminalInputParser, text: openArray[char]): seq[InputE
     of '\x01'..'\x07', '\x10'..'\x1a', '\x1c'..'\x1f':
       var key = c.int
       if c.int >= 1 and c.int <= 26:
-        key = (c.int - 1 + 'a'.int)
+        # Convert Ctrl+letter to uppercase letter (Ctrl+A = KEY_A, not KEY_a)
+        key = (c.int - 1 + 'A'.int)
       if vt.inEsc:
         mods.incl ModAlt
       mods.incl ModCtrl

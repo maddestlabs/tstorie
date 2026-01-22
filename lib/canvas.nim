@@ -48,16 +48,18 @@ proc getCurrentSectionIdx*(): int =
 # ================================================================
 # CONFIGURATION CONSTANTS
 # ================================================================
+# CONFIGURATION CONSTANTS
+# ================================================================
 
 const
-  SECTION_HEIGHT = 20
-  SECTION_PADDING = 10
+  SECTION_HEIGHT = 20.0  # Height in backend units (cells for terminal, pixels for SDL3)
+  SECTION_PADDING = 10.0  # Padding between sections
   MAX_SECTIONS_PER_ROW = 3
   PAN_SPEED = 5.0
   SMOOTH_SPEED = 8.0
 
 # Section width can be overridden based on front matter minWidth
-var gSectionWidth* = 60  # Default section width
+var gSectionWidth* = 60.0  # Default section width in backend units
 
 # ================================================================
 # STYLE CONVERSION HELPERS
@@ -124,8 +126,8 @@ type
   
   SectionLayout* = object
     section*: Section
-    x*, y*: int
-    width*, height*: int
+    x*, y*: float        # Float coordinates for smooth motion (Terminal: rounded to cells, SDL3: pixel-perfect)
+    width*, height*: float  # Size in backend units (cells or pixels)
     index*: int
     navigable*: bool  # Whether this section can be navigated to
     actualVisualWidth*: int  # Actual visual width of rendered content (accounting for double-width chars)
@@ -314,20 +316,21 @@ proc getSectionMetrics*(): SectionMetrics =
   let cameraY = int(canvasState.camera.y + 0.5)
   
   # Calculate screen-relative coordinates
-  let screenX = layout.x - cameraX
-  let screenY = layout.y - cameraY
+  # Convert float section positions to int for screen coordinates
+  let screenX = int(layout.x + 0.5) - cameraX
+  let screenY = int(layout.y + 0.5) - cameraY
   
   # Use actual visual dimensions if available, otherwise use layout dimensions
-  let width = if layout.actualVisualWidth > 0: layout.actualVisualWidth else: layout.width
-  let height = if layout.actualVisualHeight > 0: layout.actualVisualHeight else: layout.height
+  let width = if layout.actualVisualWidth > 0: layout.actualVisualWidth else: int(layout.width + 0.5)
+  let height = if layout.actualVisualHeight > 0: layout.actualVisualHeight else: int(layout.height + 0.5)
   
   return SectionMetrics(
     x: screenX,
     y: screenY,
     width: width,
     height: height,
-    worldX: layout.x,
-    worldY: layout.y
+    worldX: int(layout.x + 0.5),
+    worldY: int(layout.y + 0.5)
   )
 
 proc executeLifecycleHooks(section: Section, lifecycle: string) =
@@ -481,12 +484,12 @@ proc centerOnSection*(sectionIdx: int, viewportWidth, viewportHeight: int) =
   let effectiveWidth = if section.actualVisualWidth > 0: 
                          section.actualVisualWidth 
                        else: 
-                         section.width
+                         int(section.width + 0.5)
   
   let effectiveHeight = if section.actualVisualHeight > 0:
                           section.actualVisualHeight
                         else:
-                          section.height
+                          int(section.height + 0.5)
   
   # Center horizontally on actual content center (content is left-aligned at section.x)
   let contentCenterX = float(section.x) + float(effectiveWidth) / 2.0
@@ -502,10 +505,11 @@ proc centerOnSection*(sectionIdx: int, viewportWidth, viewportHeight: int) =
 
 proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
   ## Calculate spatial positions for all sections
+  ## Positions are in backend units (character cells for terminal, pixels for SDL3)
   result = @[]
-  var currentX = 0
-  var currentY = 0
-  var maxHeightInRow = 0
+  var currentX = 0.0
+  var currentY = 0.0
+  var maxHeightInRow = 0.0
   var sectionsInRow = 0
   
   for i, section in sections:
@@ -513,7 +517,7 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
     var sectionWidth = gSectionWidth
     if section.metadata.hasKey("width"):
       try:
-        sectionWidth = parseInt(section.metadata["width"])
+        sectionWidth = float(parseInt(section.metadata["width"]))
       except:
         discard
     
@@ -521,7 +525,7 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
     var sectionHeight = SECTION_HEIGHT
     if section.metadata.hasKey("height"):
       try:
-        sectionHeight = parseInt(section.metadata["height"])
+        sectionHeight = float(parseInt(section.metadata["height"]))
       except:
         discard
     
@@ -554,8 +558,8 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
     # Check for custom x,y in metadata
     if section.metadata.hasKey("x") and section.metadata.hasKey("y"):
       try:
-        layout.x = parseInt(section.metadata["x"])
-        layout.y = parseInt(section.metadata["y"])
+        layout.x = float(parseInt(section.metadata["x"]))
+        layout.y = float(parseInt(section.metadata["y"]))
       except:
         # Use grid layout
         layout.x = currentX
@@ -570,9 +574,9 @@ proc calculateSectionPositions*(sections: seq[Section]): seq[SectionLayout] =
     maxHeightInRow = max(maxHeightInRow, sectionHeight)
     
     if sectionsInRow >= MAX_SECTIONS_PER_ROW:
-      currentX = 0
+      currentX = 0.0
       currentY += maxHeightInRow + SECTION_PADDING
-      maxHeightInRow = 0
+      maxHeightInRow = 0.0
       sectionsInRow = 0
     else:
       currentX += sectionWidth + SECTION_PADDING
@@ -756,7 +760,7 @@ proc initCanvas*(sections: seq[Section], currentIdx: int = 0, presentationMode: 
   # Set section width from minWidth if provided
   if frontMatter.hasKey("minWidth"):
     try:
-      let minWidth = parseInt(frontMatter["minWidth"])
+      let minWidth = float(parseInt(frontMatter["minWidth"]))
       if minWidth > gSectionWidth:
         gSectionWidth = minWidth
     except:
@@ -1229,11 +1233,15 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
   var maxVisualWidth = 0
   let startContentY = screenY
   
+  # Convert float layout dimensions to int for terminal rendering
+  let layoutWidth = int(layout.width + 0.5)
+  let layoutHeight = int(layout.height + 0.5)
+  
   # If hidden and not current, show placeholder
   if isHidden(layout.section.title) and not isCurrent:
     let placeholder = "???"
-    let centerX = screenX + (layout.width - placeholder.len) div 2
-    let centerY = screenY + layout.height div 2
+    let centerX = screenX + (layoutWidth - placeholder.len) div 2
+    let centerY = screenY + layoutHeight div 2
     buffer.writeText(centerX, centerY, placeholder, placeholderStyle)
     return
   
@@ -1243,12 +1251,12 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
   
   var contentY = screenY
   let contentX = screenX
-  let maxContentWidth = layout.width
+  let maxContentWidth = layoutWidth
   var currentLinkIdx = 0  # Track link index across all lines
   
   # Render each line
   for line in processedContent.splitLines():
-    if contentY >= screenY + layout.height:
+    if contentY >= screenY + layoutHeight:
       break
     
     # Check for content buffer marker
@@ -1271,7 +1279,8 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
           )
         
         for bufferLine in sectionBuffer:
-          if contentY >= screenY + layout.height:
+          let layoutHeight = int(layout.height + 0.5)
+          if contentY >= screenY + layoutHeight:
             break
           
           if bufferLine.startsWith("#"):
@@ -1308,7 +1317,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
             # Line with markdown formatting
             let wrapped = wrapText(bufferLine, maxContentWidth)
             for wLine in wrapped:
-              if contentY >= screenY + layout.height:
+              if contentY >= screenY + layoutHeight:
                 break
               discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
                                           buffer, bodyStyle)
@@ -1325,7 +1334,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
             # Plain text
             let wrapped = wrapText(bufferLine, maxContentWidth)
             for wLine in wrapped:
-              if contentY >= screenY + layout.height:
+              if contentY >= screenY + layoutHeight:
                 break
               buffer.writeText(contentX, contentY, wLine, bodyStyle)
               # Track visual width of wrapped line (equals cell width for double-width chars)
@@ -1382,7 +1391,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
         let ansiBuffer = gAnsiBuffers[bufferKey]
         # Render each line of the ANSI buffer with its styled cells
         for y in 0 ..< ansiBuffer.height:
-          if contentY >= screenY + layout.height:
+          if contentY >= screenY + layoutHeight:
             break
           # Only render if contentY is within buffer bounds
           if contentY >= 0 and contentY < buffer.height:
@@ -1412,7 +1421,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
       # Line with markdown formatting - wrap it first
       let wrapped = wrapText(line, maxContentWidth)
       for wLine in wrapped:
-        if contentY >= screenY + layout.height:
+        if contentY >= screenY + layoutHeight:
           break
         discard renderInlineMarkdown(wLine, contentX, contentY, maxContentWidth,
                                     buffer, bodyStyle)
@@ -1427,7 +1436,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
       # Plain text - wrap it
       let wrapped = wrapText(line, maxContentWidth)
       for wLine in wrapped:
-        if contentY >= screenY + layout.height:
+        if contentY >= screenY + layoutHeight:
           break
         buffer.writeText(contentX, contentY, wLine, bodyStyle)
         # Track visual width of wrapped line
@@ -1485,7 +1494,9 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
   # Clear links for current frame
   canvasState.links = @[]
   
-  # Get camera position - use rounding for precise centering
+  # Get camera position
+  # Terminal backend: Round to nearest cell for character-aligned rendering
+  # SDL3 backend: Will use exact float positions for pixel-perfect placement
   let cameraX = int(canvasState.camera.x + 0.5)
   let cameraY = int(canvasState.camera.y + 0.5)
   
@@ -1501,13 +1512,16 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
       removedCount += 1
       continue
     
-    let screenX = layout.x - cameraX
-    let screenY = layout.y - cameraY
+    # Convert section positions from float to screen coordinates
+    # Terminal backend: Rounds to character cell boundaries
+    # SDL3 backend: Will use pixel-perfect positioning
+    let screenX = int(layout.x + 0.5) - cameraX
+    let screenY = int(layout.y + 0.5) - cameraY
     
     # TODO: Fix culling logic - temporarily disabled
     # Cull offscreen sections  
     #if screenX + layout.width < 0 or screenX >= vw or
-    #   screenY + layout.height < 0 or not (screenY < vh):
+    #   screenY + layoutHeight < 0 or not (screenY < vh):
     #  culledCount += 1
     #  continue
     
@@ -1541,7 +1555,7 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
       canvasState.currentContentBounds = ContentBounds(
         x: screenX,
         y: screenY,
-        width: layout.width,
+        width: int(layout.width + 0.5),
         height: visualHeight  # Use actual rendered height
       )
       

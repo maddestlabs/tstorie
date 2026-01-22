@@ -130,72 +130,6 @@ proc findNextWord(line: string, col: int): int =
   while pos < len(line) and line[pos] == ' ':
     pos = pos + 1
   return pos
-```
-
-```nim on:ondrop
-# Handle dropped files
-let droppedFileName = getDroppedFileName()
-let droppedData = getDroppedFileData()
-
-# Convert binary data to text (assuming UTF-8)
-let droppedText = droppedData
-
-# Load into editor
-editor = newEditor(droppedText)
-currentFileName = droppedFileName
-isSaved = 1
-editorClearModified(editor)
-lastAutoSaveContent = droppedText
-
-# Update status
-statusMessage = "✓ Loaded '" & droppedFileName & "' (" & str(len(droppedText)) & " bytes)"
-
-# Close any open dialogs
-showLoadDialog = 0
-showSaveDialog = 0
-showLoadGistDialog = 0
-showSaveGistDialog = 0
-showShareDialog = 0
-showHelp = 0
-activeMenu = ""
-focusedComponent = 0
-```
-
-```nim
-# Update saved files list
-proc refreshFileList() =
-  let jsonStr = localStorage_list()
-  savedFiles = @[]
-  var i = 0
-  var currentKey = ""
-  var inKey = 0
-  while i < len(jsonStr):
-    let ch = jsonStr[i]
-    if ch == '"' and i > 0 and jsonStr[i-1] != '\\':
-      if inKey:
-        if currentKey == "key":
-          i = i + 1
-          while i < len(jsonStr) and jsonStr[i] != '"':
-            i = i + 1
-          i = i + 1
-          var filename = ""
-          while i < len(jsonStr) and jsonStr[i] != '"':
-            filename = filename & $jsonStr[i]
-            i = i + 1
-          if filename != "" and filename != "__temp_run__":
-            savedFiles = savedFiles & @[filename]
-        currentKey = ""
-        inKey = 0
-      else:
-        inKey = 1
-        currentKey = ""
-        i = i + 1
-        while i < len(jsonStr) and jsonStr[i] != '"':
-          currentKey = currentKey & $jsonStr[i]
-          i = i + 1
-    i = i + 1
-
-refreshFileList()
 
 # Helper: Get selected text
 proc getSelectedText(): string =
@@ -268,6 +202,70 @@ proc deleteSelection() =
       editorDelete(editor)
   
   clearSelection()
+
+# Helper: Update saved files list
+proc refreshFileList() =
+  let jsonStr = localStorage_list()
+  savedFiles = @[]
+  var i = 0
+  var currentKey = ""
+  var inKey = 0
+  while i < len(jsonStr):
+    let ch = jsonStr[i]
+    if ch == '"' and i > 0 and jsonStr[i-1] != '\\':
+      if inKey:
+        if currentKey == "key":
+          i = i + 1
+          while i < len(jsonStr) and jsonStr[i] != '"':
+            i = i + 1
+          i = i + 1
+          var filename = ""
+          while i < len(jsonStr) and jsonStr[i] != '"':
+            filename = filename & $jsonStr[i]
+            i = i + 1
+          if filename != "" and filename != "__temp_run__":
+            savedFiles = savedFiles & @[filename]
+        currentKey = ""
+        inKey = 0
+      else:
+        inKey = 1
+        currentKey = ""
+        i = i + 1
+        while i < len(jsonStr) and jsonStr[i] != '"':
+          currentKey = currentKey & $jsonStr[i]
+          i = i + 1
+    i = i + 1
+
+refreshFileList()
+```
+
+```nim on:ondrop
+# Handle dropped files
+let droppedFileName = getDroppedFileName()
+let droppedData = getDroppedFileData()
+
+# Convert binary data to text (assuming UTF-8)
+let droppedText = droppedData
+
+# Load into editor
+editor = newEditor(droppedText)
+currentFileName = droppedFileName
+isSaved = 1
+editorClearModified(editor)
+lastAutoSaveContent = droppedText
+
+# Update status
+statusMessage = "✓ Loaded '" & droppedFileName & "' (" & str(len(droppedText)) & " bytes)"
+
+# Close any open dialogs
+showLoadDialog = 0
+showSaveDialog = 0
+showLoadGistDialog = 0
+showSaveGistDialog = 0
+showShareDialog = 0
+showHelp = 0
+activeMenu = ""
+focusedComponent = 0
 ```
 
 ```nim on:render
@@ -877,9 +875,13 @@ if event.type == "key":
   # ===== Global Shortcuts (only if no menu/dialog active) =====
   
   if focusedComponent == 0:
+    # Debug: Log all key events when Ctrl is pressed
+    if ctrl:
+      statusMessage = "Ctrl key pressed: keyCode=" & str(keyCode) & " key=" & key
+    
     if ctrl:
       # Ctrl+S - Save
-      if keyCode == KEY_S and not shift:
+      if (keyCode == KEY_S or keyCode == 83) and not shift:
         showSaveDialog = 1
         focusedComponent = 2
         saveFileName = if currentFileName == "untitled": "" else: currentFileName
@@ -887,7 +889,7 @@ if event.type == "key":
         return true
       
       # Ctrl+Shift+S - Save to Gist
-      elif keyCode == KEY_S and shift:
+      elif (keyCode == KEY_S or keyCode == 83) and shift:
         showSaveGistDialog = 1
         focusedComponent = 2
         gistDescription = ""
@@ -896,7 +898,7 @@ if event.type == "key":
         return true
       
       # Ctrl+O - Open
-      elif keyCode == KEY_O:
+      elif keyCode == KEY_O or keyCode == 79:
         refreshFileList()
         showLoadDialog = 1
         focusedComponent = 2
@@ -905,7 +907,7 @@ if event.type == "key":
         return true
       
       # Ctrl+E - Share
-      elif keyCode == KEY_E:
+      elif keyCode == KEY_E or keyCode == 69:
         showShareDialog = 1
         focusedComponent = 2
         shareUrl = ""
@@ -917,26 +919,28 @@ if event.type == "key":
         return true
       
       # Ctrl+G - Load from Gist
-      elif keyCode == KEY_G:
+      elif keyCode == KEY_G or keyCode == 71:
         showLoadGistDialog = 1
         focusedComponent = 2
         gistIdInput = ""
         statusMessage = "Enter Gist ID or URL"
         return true
       
-      # Ctrl+A - Select all
-      elif keyCode == KEY_A:
+      # Ctrl+A - Select all (check multiple keyCodes for browser/terminal compatibility)
+      # Browser sends keyCode 65 (uppercase A)
+      # Terminal sends keyCode 97 (lowercase a) after our conversion
+      elif keyCode == KEY_A or keyCode == 65 or keyCode == 97:
         hasSelection = 1
         selStartLine = 0
         selStartCol = 0
         selEndLine = editorLineCount(editor) - 1
         let lastLine = editorGetLine(editor, selEndLine)
         selEndCol = len(lastLine)
-        statusMessage = "All text selected"
+        statusMessage = "All text selected (keyCode:" & str(keyCode) & ")"
         return true
       
       # Ctrl+C - Copy selection or all content to clipboard
-      elif keyCode == KEY_C:
+      elif keyCode == KEY_C or keyCode == 67:
         let content = if hasSelection: getSelectedText() else: editorGetText(editor)
         let copied = copyToClipboard(content)
         if copied:
@@ -946,7 +950,7 @@ if event.type == "key":
         return true
       
       # Ctrl+V - Paste from clipboard
-      elif keyCode == KEY_V:
+      elif keyCode == KEY_V or keyCode == 86:
         # Trigger async clipboard read
         let triggerPaste = pasteFromClipboard()
         pasteInProgress = 1
@@ -972,8 +976,9 @@ if event.type == "key":
   # ===== Special Keys =====
   
   # Delete or Backspace - delete selection if any, otherwise pass to editor
-  # Note: DELETE key is 127, BACKSPACE is 8
-  if keyCode == KEY_DELETE or keyCode == KEY_BACKSPACE:
+  # Browser: BACKSPACE=8, DELETE=46
+  # Terminal: BACKSPACE=8, DELETE=127
+  if keyCode == KEY_DELETE or keyCode == KEY_BACKSPACE or keyCode == 46 or keyCode == 8:
     if hasSelection:
       deleteSelection()
       statusMessage = "Deleted selection"
@@ -1257,13 +1262,14 @@ if event.type == "key":
     return false
   
   # Clear selection on any typing (printable characters)
-  if hasSelection and keyCode >= 32 and keyCode < 127 and not ctrl:
+  # Exclude DELETE (46) which is a special key in browser
+  if hasSelection and keyCode >= 32 and keyCode < 127 and keyCode != 46 and not ctrl:
     deleteSelection()
   
   # Skip printable characters in key events - they should be handled by text events
   # This prevents double-handling in native mode where spacebar generates both key+text
-  # Exception: Allow spacebar (32) through for terminal compatibility
-  if keyCode >= 33 and keyCode < 127 and not ctrl:
+  # Exception: Allow spacebar (32), DELETE (46), and other special keys through
+  if keyCode >= 33 and keyCode < 127 and keyCode != 46 and not ctrl:
     return false
   
   # Track if content modified
@@ -1325,6 +1331,10 @@ elif event.type == "text":
   
   if showLoadDialog or showShareDialog or showHelp or activeMenu != "":
     return false
+  
+  # Delete selection before inserting new text
+  if hasSelection:
+    deleteSelection()
   
   let wasModified = editorIsModified(editor)
   editorInsertText(editor, event.text)

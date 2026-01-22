@@ -5,6 +5,39 @@ import nimini/auto_pointer  # For initPlugins()
 import src/params
 import src/types  # Core runtime types
 import src/charwidth  # Character display width utilities
+
+# ================================================================
+# BACKEND SELECTION (Multi-Backend Architecture Phase 2)
+# ================================================================
+# Choose rendering backend at compile time:
+#   Default (no flags):     Terminal backend (character-cell, ANSI)
+#   -d:sdl3Backend:         SDL3 backend (pixel-based, TTF fonts) [Future Phase 3]
+#
+# This allows tStorie to support:
+#   - Terminal (lightweight, fast, text-focused)
+#   - SDL3 (rich graphics, smooth animations, multimedia)
+#
+# The same high-level code (canvas, animations, etc.) works with both!
+
+when defined(sdl3Backend):
+  # SDL3 backend - pixel-based rendering (Phase 3)
+  import backends/sdl3/sdl_canvas
+  import backends/sdl3/sdl_window
+  export sdl_canvas, sdl_window
+  type RenderBackend* = SDLCanvas
+  
+  static:
+    echo "[Build] Using SDL3 backend (pixel-based, TTF fonts)"
+else:
+  # Terminal backend - character-cell rendering (Default)
+  import backends/terminal/termbuffer
+  
+  static:
+    echo "[Build] Using Terminal backend (character-cell, ANSI)"
+  type RenderBackend* = TermBuffer
+  # Backend coordinate unit: 1.0 = 1 character cell
+
+# Import layer system (uses RenderBackend internally)
 import src/layers  # Layer system and buffer operations
 import src/appstate  # Application state management
 import lib/storie_types
