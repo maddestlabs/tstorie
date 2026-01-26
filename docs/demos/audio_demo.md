@@ -68,6 +68,7 @@ if event.type == "text":
     audioPlayTone(261.63, 0.3, "sine", 0.3)  # C4
     lastSound = "C4 (261.63 Hz)"
     soundTimer = 1.0
+    echo ("1 Pressed")
   elif ch == "2":
     audioPlayTone(293.66, 0.3, "sine", 0.3)  # D4
     lastSound = "D4 (293.66 Hz)"
@@ -113,12 +114,19 @@ if event.type == "text":
     audioPlayTone(800.0, 0.3, "sawtooth", 0.4)
     lastSound = "Sawtooth tone"
     soundTimer = 1.0
+  
+  return true
 
-elif event.type == "keydown" and event.key == "Space":
-  # Play a game sound effect
-  audioPlayJump(0.4)
-  lastSound = "Jump sound"
-  soundTimer = 1.0
+elif event.type == "key":
+  # Handle special keys
+  if event.keyCode == KEY_SPACE and event.action == "press":
+    # Play a game sound effect
+    audioPlayJump(0.4)
+    lastSound = "Jump sound"
+    soundTimer = 1.0
+    return true
+
+return true
 ```
 
 ---

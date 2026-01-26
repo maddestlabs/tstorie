@@ -21,7 +21,12 @@ proc newAppState*(width, height: int): AppState =
   result.running = true
   result.layers = @[]
   result.targetFps = 60.0
-  result.inputParser = newTerminalInputParser()
+  
+  # Only create input parser for non-SDL3 builds
+  # SDL3 needs canvas reference, so it's created externally
+  when not (defined(emscripten) and defined(sdl3Backend)):
+    result.inputParser = newInputParser()
+  
   result.lastMouseX = 0
   result.lastMouseY = 0
   result.fps = 60.0
@@ -68,6 +73,9 @@ proc getTotalTime*(state: AppState): float =
 
 proc resizeState*(state: AppState, newWidth, newHeight: int) =
   ## Resize state buffers and layers to new dimensions
+  if newWidth < 0 or newHeight < 0:
+    echo "[AppState] ERROR: resizeState called with negative dimensions!"
+    quit(1)
   state.termWidth = newWidth
   state.termHeight = newHeight
   state.currentBuffer = newTermBuffer(newWidth, newHeight)

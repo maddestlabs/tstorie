@@ -28,7 +28,7 @@ when not declared(Style):
 when not declared(TermBuffer):
   import ../src/layers
 
-when defined(emscripten):
+when defined(emscripten) and not defined(sdl3Backend):
   proc emConsoleLog(msg: cstring) {.importc: "emConsoleLog".}
 
 # Global cache for parsed ANSI buffers to avoid re-parsing
@@ -48,7 +48,7 @@ proc nimini_drawAnsi*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## artName supports colon syntax: "ansi:logo" or just "logo" (assumes "ansi:" prefix)
   ## skipConversion: if true, assumes content already has proper escape sequences (for .ans files)
   if args.len < 4:
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       emConsoleLog("[drawAnsi] Not enough args".cstring)
     else:
       echo "[drawAnsi] Not enough args"

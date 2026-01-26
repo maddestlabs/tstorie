@@ -18,6 +18,9 @@ export types.TermBuffer, types.Cell
 
 proc newTermBuffer*(w, h: int): TermBuffer =
   ## Create a new terminal buffer with the given dimensions
+  if w < 0 or h < 0:
+    echo "[TermBuffer] ERROR: Negative dimensions! w=", w, " h=", h
+    quit(1)
   result.width = w
   result.height = h
   result.cells = newSeq[Cell](w * h)

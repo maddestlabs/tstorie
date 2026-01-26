@@ -1,8 +1,8 @@
 ---
 title: "Terminal Shaders Demo"
-theme: "catppuccin"
-minWidth: 40
-minHeight: 10
+theme: "alleycat"
+shaders: "border+crt"
+fontsize: 24
 ---
 
 # Terminal Shaders - Procedural Visual Effects

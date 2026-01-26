@@ -4,11 +4,13 @@ theme: "neotopia"
 editorX: 0
 editorY: 2
 dropTarget: true
-shaders: "invert+ruledlines+paper+nightlight"
+shaders: "invert+ruledlines+paper+lightnight"
 fontsize: 16
 ---
 
 # t|Storie Text Editor
+
+File size increase: use a Google font
 
 A fully-featured text editor with Unicode support, gap buffer optimization, and minimap visualization!
 

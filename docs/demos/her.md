@@ -1,14 +1,14 @@
 ---
 title: "t|HΞR Voice"
 author: "Maddest Labs"
-minWidth: 50
-minHeight: 14
 theme: "neotopia"
 hideHeadings: "true"
 hideSections: "true"
 # Border/Frame styles
 styles.lines.fg: "#ffff00"
 styles.lines.bold: "true"
+fontsize: 20
+shader: "scanlines+bloom+vignette+warpdaze"
 ---
 
 ```nim on:init

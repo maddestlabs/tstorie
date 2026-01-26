@@ -490,5 +490,5 @@ You've completed the t|Storie walkthrough!
 # Display explorer level at the bottom
 if explorerLevel > 0:
   var stats = "Explorer Level: " & str(explorerLevel)
-  draw(0, 2, getTermHeight() - 2, stats)
+  draw(0, 2, termHeight - 2, stats)
 ```

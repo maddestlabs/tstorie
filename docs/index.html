@@ -1624,10 +1624,7 @@
         // and the Nim code will handle it by returning true
         document.addEventListener('keydown', function(e) {
             // Debug logging
-            if (e.ctrlKey || e.metaKey) {
-                console.log('Ctrl/Cmd key combo detected:', e.key, 'keyCode:', e.keyCode, 'code:', e.code);
-            }
-            
+
             // DON'T prevent Ctrl+A here - let it reach the application
             // The Nim input handler will return true which tells Emscripten to preventDefault
             
@@ -1943,8 +1940,7 @@
                     if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight) {
                         webglCanvas.width = newWidth;
                         webglCanvas.height = newHeight;
-                        console.log('Resized shader canvas to viewport:', newWidth, 'x', newHeight);
-                        
+
                         // Force viewport update on next render
                         if (shaderSystem && shaderSystem.gl) {
                             shaderSystem.gl.viewport(0, 0, newWidth, newHeight);
@@ -2090,7 +2086,6 @@
                 
                 // Function to resize framebuffers
                 function resizeFramebuffers(w, h) {
-                    console.log('Resizing framebuffers to', w, 'x', h);
                     for (let i = 0; i < framebuffers.length; i++) {
                         const fb = framebuffers[i];
                         gl.bindTexture(gl.TEXTURE_2D, fb.texture);

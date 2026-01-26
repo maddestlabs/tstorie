@@ -1,7 +1,5 @@
 // Rough Sketch Shader for tStorie
-// Hand-drawn effect inspired by Rough.js
 // Features wobbly lines, double-line effects, and organic imperfections
-// No hatching - pure line work
 
 function getShaderConfig() {
     return {

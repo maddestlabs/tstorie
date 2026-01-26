@@ -1,5 +1,5 @@
-// Paper Texture Shader
-// Adds subtle paper grain/noise for realistic paper effect
+// Paper Texture Shader for t|Storie
+// Subtle paper grain/noise for realistic paper effect
 
 function getShaderConfig() {
     return {

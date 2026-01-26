@@ -12,13 +12,11 @@ import tables
 import ../lib/storie_types  # Import markdown types
 import input  # All input types now come from the unified input module
 
-# Note: Input types (InputEvent, InputEventKind, InputAction, etc.) and
-# key constants (KEY_*, ModShift, etc.) are now in src/input.nim
-# Re-export them here for backward compatibility
+# Re-export input types for backward compatibility
 export input.InputEvent, input.InputEventKind, input.InputAction
 export input.TerminalMouseButton
 export input.ModShift, input.ModAlt, input.ModCtrl, input.ModSuper
-export input.TerminalInputParser, input.newTerminalInputParser
+export input.InputParser, input.newInputParser
 
 # Type alias for simpler access to terminal mouse button enum
 type MouseButton* = input.TerminalMouseButton
@@ -136,11 +134,9 @@ proc lerpRGB*(r1, g1, b1, r2, g2, b2: int, t: float): Color =
     b: uint8(clamp(b, 0, 255))
   )
 
-# Terminal input parser types are now in src/input.nim
-# Re-export for backward compatibility
-export input.StringCsiState, input.ParserState
-export input.INTERMED_MAX, input.CSI_ARGS_MAX, input.CSI_LEADER_MAX
-export input.CSI_ARG_FLAG_MORE, input.CSI_ARG_MASK, input.CSI_ARG_MISSING
+# Note: Terminal input parser types (StringCsiState, ParserState, etc.) 
+# are available through src/input.nim and are backend-specific.
+# Import from 'input' module directly if needed.
 
 # ================================================================
 # RENDERING TYPES
@@ -182,7 +178,7 @@ type
     layers*: seq[Layer]
     layerIndexCache*: Table[string, int]  ## Cache for O(1) layer name -> index lookup
     cacheValid*: bool                      ## Whether cache is up-to-date
-    inputParser*: TerminalInputParser
+    inputParser*: InputParser
     lastMouseX*, lastMouseY*: int
     audioSystemPtr*: pointer  ## Points to AudioSystem (to avoid import issues)
     themeBackground*: tuple[r, g, b: uint8]  ## Theme's background color for terminal

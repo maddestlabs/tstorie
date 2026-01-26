@@ -103,7 +103,7 @@ proc nimini_str(env: ref Env; args: seq[Value]): Value =
   return valString("")
 
 # Print function
-when defined(emscripten):
+when defined(emscripten) and not defined(sdl3Backend):
   # JavaScript console log helper (defined in console_bridge.js)
   proc emConsoleLog(msg: cstring) {.importc: "emConsoleLog".}
 
@@ -119,7 +119,7 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
     of vkNil: output.add("nil")
     else: output.add("<value>")
   
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     # In WASM, also log to browser console
     emConsoleLog(output.cstring)
   else:
@@ -127,7 +127,179 @@ proc print(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   return valNil()
 
+# ================================================================
+# SDL3 PIXEL-BASED RENDERING API
+# ================================================================
+
+when defined(sdl3Backend):
+  # Global SDL3 rendering state
+  var gSDL3Canvas: SDLCanvas = nil
+  var gSDL3FillColor: Color = rgb(255, 255, 255)
+  
+  proc setSDL3Canvas*(canvas: SDLCanvas) =
+    ## Set the global SDL3 canvas for rendering
+    gSDL3Canvas = canvas
+  
+  proc setFillColor(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## setFillColor(r, g, b) - Set the fill color for SDL3 rendering
+    if args.len >= 3:
+      gSDL3FillColor = rgb(toInt(args[0]).uint8, toInt(args[1]).uint8, toInt(args[2]).uint8)
+    return valNil()
+  
+  proc sdl3FillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## fillRect(x, y, w, h) - Fill a rectangle with current color
+    if args.len >= 4 and not gSDL3Canvas.isNil:
+      let x = toInt(args[0])
+      let y = toInt(args[1])
+      let w = toInt(args[2])
+      let h = toInt(args[3])
+      # Create a style with the fill color as background
+      var fillStyle = defaultStyle()
+      fillStyle.bg = gSDL3FillColor
+      gSDL3Canvas.fillRect(x, y, w, h, " ", fillStyle)
+    return valNil()
+  
+  proc width(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## width() - Get canvas width in pixels
+    if not gSDL3Canvas.isNil:
+      return valInt(gSDL3Canvas.width)
+    return valInt(800)
+  
+  proc height(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## height() - Get canvas height in pixels
+    if not gSDL3Canvas.isNil:
+      return valInt(gSDL3Canvas.height)
+    return valInt(600)
+  
+  proc text(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## text(str, x, y) - Draw text (placeholder - no TTF support yet)
+    # TODO: Implement TTF text rendering when font support is added
+    return valNil()
+  
+  # ================================================================
+  # CELL-BASED TERMINAL EMULATION FOR SDL3
+  # ================================================================
+  # These functions write to the virtual terminal grid in the SDL3 canvas
+  # The grid is rendered to pixels each frame
+  
+  proc sdl3DrawCell(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## draw(layer, x, y, text, style) - Draw text to layer buffer for SDL3
+    
+    if gSDL3Canvas.isNil:
+      return valNil()
+    
+    if args.len < 4:
+      return valNil()
+    
+    # Resolve layer from first argument (string or int)
+    var layer: Layer = nil
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < gSDL3Canvas.layers.len:
+        layer = gSDL3Canvas.layers[idx]
+      elif idx == 0 and gSDL3Canvas.layers.len == 0:
+        # Auto-create default layer only if it doesn't exist
+        layer = gSDL3Canvas.getLayer("default")
+        if layer.isNil:
+          layer = gSDL3Canvas.addLayer("default", 0)
+    elif args[0].kind == vkString:
+      let layerId = args[0].s
+      layer = gSDL3Canvas.getLayer(layerId)
+      if layer.isNil and (layerId == "default" or layerId == ""):
+        # Auto-create default layer only if it doesn't exist
+        layer = gSDL3Canvas.addLayer("default", 0)
+    
+    if layer.isNil:
+      return valNil()
+    
+    let x = toInt(args[1])
+    let y = toInt(args[2])
+    let text = args[3].s
+    let style = if args.len >= 5: valueToStyle(args[4]) else: defaultStyle()
+    
+    # Write to layer buffer (not directly to canvas)
+    layer.buffer.writeText(x, y, text, style)
+    
+    return valNil()
+  
+  proc sdl3ClearCells(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## clear([layer], [transparent]) - Clear layer buffer for SDL3
+    
+    if gSDL3Canvas.isNil:
+      return valNil()
+    
+    # Determine background color
+    let bg = if not storieCtx.isNil: 
+      (storieCtx.themeBackground.r, storieCtx.themeBackground.g, storieCtx.themeBackground.b)
+    else:
+      (0'u8, 0'u8, 0'u8)
+    
+    # No args - clear all layers
+    if args.len == 0:
+      for layer in gSDL3Canvas.layers:
+        layer.buffer.clear(bg)
+      return valNil()
+    
+    # Resolve layer from first argument
+    var layer: Layer = nil
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < gSDL3Canvas.layers.len:
+        layer = gSDL3Canvas.layers[idx]
+    elif args[0].kind == vkString:
+      layer = gSDL3Canvas.getLayer(args[0].s)
+    
+    if layer.isNil:
+      return valNil()
+    
+    let transparent = if args.len >= 2: toBool(args[1]) else: false
+    
+    if transparent:
+      layer.buffer.clearTransparent()
+    else:
+      layer.buffer.clear(bg)
+    
+    return valNil()
+  
+  proc sdl3FillCellRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## fillRect(layer, x, y, w, h, char, style) - Fill cell rectangle in layer buffer
+    if args.len < 6 or gSDL3Canvas.isNil:
+      return valNil()
+    
+    # Resolve layer from first argument
+    var layer: Layer = nil
+    if args[0].kind == vkInt:
+      let idx = args[0].i
+      if idx >= 0 and idx < gSDL3Canvas.layers.len:
+        layer = gSDL3Canvas.layers[idx]
+      elif idx == 0 and gSDL3Canvas.layers.len == 0:
+        # Auto-create default layer only if it doesn't exist
+        layer = gSDL3Canvas.getLayer("default")
+        if layer.isNil:
+          layer = gSDL3Canvas.addLayer("default", 0)
+    elif args[0].kind == vkString:
+      let layerId = args[0].s
+      layer = gSDL3Canvas.getLayer(layerId)
+      if layer.isNil and (layerId == "default" or layerId == ""):
+        # Auto-create default layer only if it doesn't exist
+        layer = gSDL3Canvas.addLayer("default", 0)
+    
+    if layer.isNil:
+      return valNil()
+    
+    let x = toInt(args[1])
+    let y = toInt(args[2])
+    let w = toInt(args[3])
+    let h = toInt(args[4])
+    let ch = args[5].s
+    let style = if args.len >= 7: valueToStyle(args[6]) else: defaultStyle()
+    
+    layer.buffer.fillRect(x, y, w, h, ch, style)
+    
+    return valNil()
+
 # Style conversion functions
+
 proc styleConfigToValue(config: StyleConfig): Value =
   ## Convert StyleConfig to a nimini Value (map)
   let styleMap = valMap()
@@ -193,17 +365,22 @@ proc draw(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## draw(layer: string|int, x: int, y: int, text: string, [style])
   ## Unified drawing function that works with any layer
   ## Layer 0 is the default layer. Use addLayer() to create additional layers.
+  
   if args.len < 4:
     return valNil()
   
   # Determine layer from first arg (supports both string and int)
   let layer = if args[0].kind == vkInt:
                 let idx = args[0].i
-                if idx == 0: gDefaultLayer
-                else:
+                if idx == 0:
+                  gDefaultLayer
+                elif idx < 0:
+                  return valNil()  # Negative index is invalid
+                elif idx >= gAppState.layers.len:
                   # Auto-create layer if it doesn't exist (z-value = index)
-                  if idx >= gAppState.layers.len:
-                    discard gAppState.addLayer("layer" & $idx, idx)
+                  discard gAppState.addLayer("layer" & $idx, idx)
+                  gAppState.layers[idx]
+                else:
                   gAppState.layers[idx]
               elif args[0].kind == vkString:
                 let layerId = args[0].s
@@ -243,10 +420,14 @@ proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let layer = if args[0].kind == vkInt:
                 let idx = args[0].i
                 if idx == 0: gDefaultLayer
-                else:
-                  # Auto-create layer if it doesn't exist (z-value = index)
-                  if idx >= gAppState.layers.len:
+                elif idx < 0 or idx >= gAppState.layers.len:
+                  # Invalid index or layer doesn't exist - auto-create if positive
+                  if idx > 0:
                     discard gAppState.addLayer("layer" & $idx, idx)
+                    gAppState.layers[idx]
+                  else:
+                    return valNil()  # Negative index is invalid
+                else:
                   gAppState.layers[idx]
               elif args[0].kind == vkString:
                 let layerId = args[0].s
@@ -275,10 +456,13 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let layer = if args[0].kind == vkInt:
                 let idx = args[0].i
                 if idx == 0: gDefaultLayer
-                else:
+                elif idx < 0:
+                  return valNil()  # Negative index is invalid
+                elif idx >= gAppState.layers.len:
                   # Auto-create layer if it doesn't exist (z-value = index)
-                  if idx >= gAppState.layers.len:
-                    discard gAppState.addLayer("layer" & $idx, idx)
+                  discard gAppState.addLayer("layer" & $idx, idx)
+                  gAppState.layers[idx]
+                else:
                   gAppState.layers[idx]
               elif args[0].kind == vkString:
                 let layerId = args[0].s
@@ -319,12 +503,23 @@ proc nimini_addLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let id = args[0].s
   let z = toInt(args[1])
   
-  let layer = gAppState.addLayer(id, z)
-  if not layer.isNil:
-    # Return the array index for convenience
-    for i in 0 ..< gAppState.layers.len:
-      if gAppState.layers[i] == layer:
-        return valInt(i)
+  when defined(sdl3Backend):
+    # SDL3: Add layer to canvas
+    if not gSDL3Canvas.isNil:
+      let layer = gSDL3Canvas.addLayer(id, z)
+      if not layer.isNil:
+        # Return the array index for convenience
+        for i in 0 ..< gSDL3Canvas.layers.len:
+          if gSDL3Canvas.layers[i] == layer:
+            return valInt(i)
+  else:
+    # Terminal/Web: Add layer to AppState
+    let layer = gAppState.addLayer(id, z)
+    if not layer.isNil:
+      # Return the array index for convenience
+      for i in 0 ..< gAppState.layers.len:
+        if gAppState.layers[i] == layer:
+          return valInt(i)
   
   return valNil()
 
@@ -334,7 +529,11 @@ proc nimini_removeLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   
   let id = args[0].s
-  gAppState.removeLayer(id)
+  when defined(sdl3Backend):
+    if not gSDL3Canvas.isNil:
+      gSDL3Canvas.removeLayer(id)
+  else:
+    gAppState.removeLayer(id)
   return valNil()
 
 proc nimini_setLayerVisible(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -345,15 +544,27 @@ proc nimini_setLayerVisible(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let id = args[0].s
   let visible = toBool(args[1])
   
-  let layer = getLayer(gAppState, id)
-  if not layer.isNil:
-    layer.visible = visible
+  when defined(sdl3Backend):
+    if not gSDL3Canvas.isNil:
+      let layer = gSDL3Canvas.getLayer(id)
+      if not layer.isNil:
+        layer.visible = visible
+  else:
+    let layer = getLayer(gAppState, id)
+    if not layer.isNil:
+      layer.visible = visible
   
   return valNil()
 
 proc nimini_getLayerCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## getLayerCount() -> returns the number of layers
-  return valInt(gAppState.layers.len)
+  when defined(sdl3Backend):
+    if not gSDL3Canvas.isNil:
+      return valInt(gSDL3Canvas.getLayerCount())
+    else:
+      return valInt(0)
+  else:
+    return valInt(gAppState.layers.len)
 
 # Random number generator and functions are now in tstorie.nim
 
@@ -631,7 +842,8 @@ proc nimini_disableMouse(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # ================================================================
 
 # JavaScript interop for browser functions
-when defined(emscripten):
+when defined(emscripten) and not defined(sdl3Backend):
+  # Old WASM build JS bridge
   proc js_callFunction(funcName: cstring): cstring {.importc: "tStorie_callFunction".}
   proc js_callFunctionWithArg(funcName: cstring, arg: cstring): cstring {.importc: "tStorie_callFunctionWithArg".}
   proc js_callFunctionWith2Args(funcName: cstring, arg1: cstring, arg2: cstring): cstring {.importc: "tStorie_callFunctionWith2Args".}
@@ -641,7 +853,7 @@ proc nimini_localStorage_setItem(env: ref Env; args: seq[Value]): Value {.nimini
   if args.len >= 2:
     let key = args[0].s
     let value = args[1].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       let result = js_callFunctionWith2Args("tStorie_saveLocal".cstring, key.cstring, value.cstring)
       return valBool($result == "true")
     else:
@@ -653,7 +865,7 @@ proc nimini_localStorage_getItem(env: ref Env; args: seq[Value]): Value {.nimini
   ## Load content from browser localStorage. Args: key
   if args.len >= 1:
     let key = args[0].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       let value = js_callFunctionWithArg("tStorie_loadLocal".cstring, key.cstring)
       return valString($value)
     else:
@@ -663,7 +875,7 @@ proc nimini_localStorage_getItem(env: ref Env; args: seq[Value]): Value {.nimini
 
 proc nimini_localStorage_list(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## List all saved documents in localStorage. Returns JSON string
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let json = js_callFunction("tStorie_listLocal".cstring)
     return valString($json)
   else:
@@ -673,7 +885,7 @@ proc nimini_localStorage_delete(env: ref Env; args: seq[Value]): Value {.nimini.
   ## Delete item from localStorage. Args: key
   if args.len >= 1:
     let key = args[0].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       let result = js_callFunctionWithArg("tStorie_deleteLocal".cstring, key.cstring)
       return valBool($result == "true")
     else:
@@ -685,7 +897,7 @@ proc nimini_copyToClipboard(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Copy text to clipboard. Args: text
   if args.len >= 1:
     let text = args[0].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       let result = js_callFunctionWithArg("tStorie_copyToClipboard".cstring, text.cstring)
       return valBool($result == "true")
     else:
@@ -695,7 +907,7 @@ proc nimini_copyToClipboard(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc nimini_pasteFromClipboard(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Paste text from clipboard. Returns empty string on native builds.
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let text = js_callFunction("tStorie_pasteFromClipboard".cstring)
     return valString($text)
   else:
@@ -707,7 +919,7 @@ proc nimini_compressToUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Note: This is async in JS, so the URL may not be immediately available
   if args.len >= 1:
     let content = args[0].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       let url = js_callFunctionWithArg("tStorie_compressToUrl".cstring, content.cstring)
       return valString($url)
     else:
@@ -719,7 +931,7 @@ proc nimini_generateAndCopyShareUrl(env: ref Env; args: seq[Value]): Value {.nim
   ## Returns immediately. Check with checkShareUrlReady() for completion.
   if args.len >= 1:
     let content = args[0].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       discard js_callFunctionWithArg("tStorie_generateAndCopyShareUrl".cstring, content.cstring)
     else:
       echo "generateAndCopyShareUrl: ", content.len, " bytes"
@@ -727,7 +939,7 @@ proc nimini_generateAndCopyShareUrl(env: ref Env; args: seq[Value]): Value {.nim
 
 proc nimini_checkShareUrlReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Check if async URL generation is complete. Returns "true" or "false"
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let ready = js_callFunction("tStorie_checkShareUrlReady".cstring)
     return valString($ready)
   else:
@@ -735,7 +947,7 @@ proc nimini_checkShareUrlReady(env: ref Env; args: seq[Value]): Value {.nimini.}
 
 proc nimini_getShareUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get the generated share URL (call after checkShareUrlReady returns true)
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let url = js_callFunction("tStorie_getShareUrl".cstring)
     return valString($url)
   else:
@@ -743,7 +955,7 @@ proc nimini_getShareUrl(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc nimini_checkShareUrlCopied(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Check if URL was successfully copied to clipboard. Returns "true" or "false"
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let copied = js_callFunction("tStorie_checkShareUrlCopied".cstring)
     return valString($copied)
   else:
@@ -756,7 +968,7 @@ proc nimini_exportToPNG(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if args.len >= 1:
     let content = args[0].s
     let filename = if args.len >= 2: args[1].s else: "tstorie-workflow"
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       discard js_callFunctionWith2Args("tStorie_exportToPNG".cstring, content.cstring, filename.cstring)
     else:
       echo "exportToPNG: ", content.len, " bytes -> ", filename, ".png"
@@ -764,7 +976,7 @@ proc nimini_exportToPNG(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc nimini_checkPngExportReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Check if PNG export is complete. Returns "true" or "false"
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let ready = js_callFunction("tStorie_checkPngExportReady".cstring)
     return valString($ready)
   else:
@@ -772,7 +984,7 @@ proc nimini_checkPngExportReady(env: ref Env; args: seq[Value]): Value {.nimini.
 
 proc nimini_getPngExportError(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get PNG export error message if export failed. Returns empty string if no error.
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let error = js_callFunction("tStorie_getPngExportError".cstring)
     return valString($error)
   else:
@@ -781,7 +993,7 @@ proc nimini_getPngExportError(env: ref Env; args: seq[Value]): Value {.nimini.} 
 proc nimini_importFromPNG(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Trigger file picker to import workflow from PNG. Returns immediately.
   ## Check with checkPngImportReady() and get content with getPngImportContent()
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     discard js_callFunction("tStorie_importFromPNG".cstring)
   else:
     echo "importFromPNG: file picker opened"
@@ -789,7 +1001,7 @@ proc nimini_importFromPNG(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc nimini_checkPngImportReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Check if PNG import has content ready. Returns "true" or "false"
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let ready = js_callFunction("tStorie_checkPngImportReady".cstring)
     return valString($ready)
   else:
@@ -798,7 +1010,7 @@ proc nimini_checkPngImportReady(env: ref Env; args: seq[Value]): Value {.nimini.
 proc nimini_getPngImportContent(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get imported workflow content from PNG. Returns empty string if none available.
   ## This clears the imported content, so call only once per import.
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     let content = js_callFunction("tStorie_getPngImportContent".cstring)
     return valString($content)
   else:
@@ -808,7 +1020,7 @@ proc nimini_navigateTo(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Navigate to a URL (useful for loading saved documents)
   if args.len >= 1:
     let url = args[0].s
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       discard js_callFunctionWithArg("tStorie_navigate".cstring, url.cstring)
     else:
       echo "navigateTo: ", url
@@ -820,16 +1032,16 @@ proc nimini_window_open(env: ref Env; args: seq[Value]): Value {.nimini.} =
     let url = args[0].s
     let target = if args.len >= 2: args[1].s else: "_blank"
     when false: # disabled
-      when defined(emscripten):
+      when defined(emscripten) and not defined(sdl3Backend):
         discard js_callFunctionWith2Args("tStorie_windowOpen".cstring, url.cstring, target.cstring)
     # Stub - window.open temporarily disabled
 
-when defined(emscripten):
+when defined(emscripten) and not defined(sdl3Backend):
   proc setDocumentTitleJS(title: cstring) {.importc: "tStorie_setDocumentTitle".}
 
 proc setDocumentTitle(title: string) =
   ## Set the browser tab title (emscripten only)
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     setDocumentTitleJS(title.cstring)
 
 proc registerBrowserApiFuncs*(env: ref Env) =
@@ -916,6 +1128,7 @@ proc initCanvas(env: ref Env; args: seq[Value]): Value {.nimini.} =
 
 proc encodeInputEvent(event: InputEvent): Value =
   ## Convert InputEvent to a Nimini Value table
+  ## Note: Events should be normalized before encoding for consistent behavior
   var table = initTable[string, Value]()
   
   case event.kind
@@ -950,6 +1163,18 @@ proc encodeInputEvent(event: InputEvent): Value =
     table["text"] = valString(event.text)
     # Include character code for first character (useful for key handling)
     table["keyCode"] = if event.text.len > 0: valInt(int(event.text[0])) else: valInt(0)
+    
+    # Encode modifiers for text events
+    var mods: seq[string] = @[]
+    if ModShift in event.textMods: mods.add("shift")
+    if ModAlt in event.textMods: mods.add("alt")
+    if ModCtrl in event.textMods: mods.add("ctrl")
+    if ModSuper in event.textMods: mods.add("super")
+    
+    var modsArray: seq[Value] = @[]
+    for m in mods:
+      modsArray.add(valString(m))
+    table["mods"] = valArray(modsArray)
   
   of MouseEvent:
     table["type"] = valString("mouse")
@@ -1239,14 +1464,62 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerParamFuncs(runtimeEnv)  # Register parameter functions (getParam, hasParam, etc.)
   registerBrowserApiFuncs(runtimeEnv)  # Register browser API functions (localStorage, clipboard, etc.)
   
+  # Register KEY_* constants for input event handling
+  defineVar(runtimeEnv, "KEY_ESCAPE", valInt(KEY_ESCAPE.int))
+  defineVar(runtimeEnv, "KEY_RETURN", valInt(KEY_RETURN.int))
+  defineVar(runtimeEnv, "KEY_ENTER", valInt(KEY_ENTER.int))
+  defineVar(runtimeEnv, "KEY_SPACE", valInt(KEY_SPACE.int))
+  defineVar(runtimeEnv, "KEY_TAB", valInt(KEY_TAB.int))
+  defineVar(runtimeEnv, "KEY_BACKSPACE", valInt(KEY_BACKSPACE.int))
+  defineVar(runtimeEnv, "KEY_DELETE", valInt(KEY_DELETE.int))
+  defineVar(runtimeEnv, "KEY_UP", valInt(KEY_UP.int))
+  defineVar(runtimeEnv, "KEY_DOWN", valInt(KEY_DOWN.int))
+  defineVar(runtimeEnv, "KEY_LEFT", valInt(KEY_LEFT.int))
+  defineVar(runtimeEnv, "KEY_RIGHT", valInt(KEY_RIGHT.int))
+  defineVar(runtimeEnv, "KEY_HOME", valInt(KEY_HOME.int))
+  defineVar(runtimeEnv, "KEY_END", valInt(KEY_END.int))
+  defineVar(runtimeEnv, "KEY_PAGEUP", valInt(KEY_PAGEUP.int))
+  defineVar(runtimeEnv, "KEY_PAGEDOWN", valInt(KEY_PAGEDOWN.int))
+  defineVar(runtimeEnv, "KEY_F1", valInt(KEY_F1.int))
+  defineVar(runtimeEnv, "KEY_F2", valInt(KEY_F2.int))
+  defineVar(runtimeEnv, "KEY_F3", valInt(KEY_F3.int))
+  defineVar(runtimeEnv, "KEY_F4", valInt(KEY_F4.int))
+  defineVar(runtimeEnv, "KEY_F5", valInt(KEY_F5.int))
+  defineVar(runtimeEnv, "KEY_F6", valInt(KEY_F6.int))
+  defineVar(runtimeEnv, "KEY_F7", valInt(KEY_F7.int))
+  defineVar(runtimeEnv, "KEY_F8", valInt(KEY_F8.int))
+  defineVar(runtimeEnv, "KEY_F9", valInt(KEY_F9.int))
+  defineVar(runtimeEnv, "KEY_F10", valInt(KEY_F10.int))
+  defineVar(runtimeEnv, "KEY_F11", valInt(KEY_F11.int))
+  defineVar(runtimeEnv, "KEY_F12", valInt(KEY_F12.int))
+  
   # Register core framework APIs (state accessors, colors, etc.) from lib/nimini_bridge.nim
   registerTstorieApis(runtimeEnv, state)
   
-  # Create DrawProc wrapper for ASCII art bindings
+  # Create DrawProc wrapper for ASCII/ANSI art bindings
   proc drawWrapper(layer, x, y: int, char: string, style: Style) =
-    # For now, just write to default layer
-    # Later can be enhanced to support multiple layers
-    if not gDefaultLayer.isNil:
+    when defined(sdl3Backend):
+      # SDL3: Write to layer buffer (auto-create default layer if needed)
+      if not gSDL3Canvas.isNil:
+        var targetLayer: Layer = nil
+        if layer >= 0 and layer < gSDL3Canvas.layers.len:
+          targetLayer = gSDL3Canvas.layers[layer]
+        elif layer == 0 and gSDL3Canvas.layers.len == 0:
+          # Auto-create default layer only if it doesn't exist
+          targetLayer = gSDL3Canvas.getLayer("default")
+          if targetLayer.isNil:
+            targetLayer = gSDL3Canvas.addLayer("default", 0)
+        
+        if not targetLayer.isNil:
+          targetLayer.buffer.write(x, y, char, style)
+    else:
+      # Regular WASM/Terminal: Use layer buffer system
+      if gDefaultLayer.isNil:
+        echo "[drawWrapper] ERROR: gDefaultLayer is NIL at ", x, ",", y
+        return
+      if gDefaultLayer.buffer.cells.len == 0:
+        echo "[drawWrapper] ERROR: gDefaultLayer.buffer has no cells"
+        return
       gDefaultLayer.buffer.write(x, y, char, style)
   
   # Register ASCII art bindings and dungeon generator
@@ -1261,8 +1534,12 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerTUIHelperBindings(runtimeEnv)
   
   # Register figlet bindings with font cache references and layer system
-  registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
-                        addr gDefaultLayer, addr gAppState)
+  when defined(sdl3Backend):
+    registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
+                          addr gDefaultLayer, addr gAppState, gSDL3Canvas)
+  else:
+    registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
+                          addr gDefaultLayer, addr gAppState)
   
   # Explicitly initialize plugin modules BEFORE calling initPlugins()
   # This ensures registration functions are queued properly in WASM
@@ -1282,15 +1559,29 @@ proc createNiminiContext(state: AppState): NiminiContext =
   # Auto-register all {.nimini.} pragma functions from runtime_api.nim
   # Note: Functions that need clean script-facing names (without nimini_ prefix)
   # are registered manually below with registerNative("cleanName", nimini_function)
-  exportNiminiProcs(
-    print,
-    draw, clear, fillRect, writeTextBox,
-    randInt, randFloat,
-    initCanvas,
-    getEmbeddedContent
-    # Note: Layer management, section management, code blocks, styles, browser API,
-    # animation, and figlet functions are registered separately below
-  )
+  when defined(sdl3Backend):
+    # SDL3 rendering API - both pixel and cell-based
+    exportNiminiProcs(
+      print,
+      randInt, randFloat,
+      initCanvas,
+      getEmbeddedContent,
+      setFillColor, width, height, text,
+      writeTextBox
+    )
+    # Register cell-based terminal functions for SDL3
+    registerNative("draw", sdl3DrawCell)
+    registerNative("clear", sdl3ClearCells)
+    registerNative("fillRect", sdl3FillCellRect)
+  else:
+    # Terminal character-based rendering API
+    exportNiminiProcs(
+      print,
+      draw, clear, fillRect, writeTextBox,
+      randInt, randFloat,
+      initCanvas,
+      getEmbeddedContent
+    )
   
   # Register layer management functions
   registerNative("addLayer", nimini_addLayer)
@@ -1414,9 +1705,15 @@ proc executeInputCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: 
     # Input blocks run in child scope
     let execEnv = newEnv(context.env)
     
-    # Expose the event object
-    let eventValue = encodeInputEvent(event)
-    defineVar(execEnv, "event", eventValue)
+    # Normalize and expose the event object
+    # This ensures consistent behavior across all backends (terminal, WASM, SDL3)
+    let normalized = normalizeEvents(@[event])
+    if normalized.len > 0:
+      let eventValue = encodeInputEvent(normalized[0])
+      defineVar(execEnv, "event", eventValue)
+    else:
+      # Event was filtered out (e.g., duplicate KeyEvent for printable char)
+      return (true, false)
     
     # Execute and capture return value
     let returnValue = execProgramWithResult(program, execEnv)
@@ -1436,7 +1733,7 @@ proc executeInputCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: 
   except Exception as e:
     when not defined(emscripten):
       echo "Error in input block: ", e.msg
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       lastError = "Error in on:input - " & e.msg
     return (false, false)
 
@@ -1489,8 +1786,14 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     
     # For input blocks, expose the event object
     if codeBlock.lifecycle == "input":
-      let eventValue = encodeInputEvent(event)
-      defineVar(execEnv, "event", eventValue)
+      # Normalize event for consistent behavior across backends
+      let normalized = normalizeEvents(@[event])
+      if normalized.len > 0:
+        let eventValue = encodeInputEvent(normalized[0])
+        defineVar(execEnv, "event", eventValue)
+      else:
+        # Event filtered out - skip execution
+        return true
     
     execProgram(program, execEnv)
     
@@ -1499,7 +1802,7 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     when not defined(emscripten):
       echo "Error in ", codeBlock.lifecycle, " block: ", e.msg
     # In WASM, we can't echo, so we'll just fail silently but return false
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       lastError = "Error in on:" & codeBlock.lifecycle & " - " & e.msg
     return false
 
@@ -1564,27 +1867,27 @@ proc expandVariablesInSections(sections: var seq[Section], frontMatter: FrontMat
 proc loadAndParseMarkdown(): MarkdownDocument =
   ## Load markdown file and parse it for code blocks and front matter
   when defined(emscripten):
-    # Check if we're waiting for gist content
-    if gWaitingForGist:
-      # Return empty document - gist content will be loaded via JavaScript
-      return MarkdownDocument()
+    # Emscripten builds (both old WASM and SDL3): check for runtime content first
+    when not defined(sdl3Backend):
+      # Old WASM backend specific checks
+      if gWaitingForGist:
+        return MarkdownDocument()
     
-    # In WASM, embed the markdown at compile time
-    # Use staticRead with the markdown content
+    # Fallback: Use staticRead to embed index.md in the WASM binary
     const mdContent = staticRead("../index.md")
-    const mdLines = mdContent.splitLines()
-    const mdLineCount = mdLines.len
+    static:
+      echo "[Compile-time] Embedding index.md: ", mdContent.len, " bytes"
     
-    # Debug: detailed parsing info
-    when defined(emscripten):
-      lastError = "MD:" & $mdContent.len & "ch," & $mdLineCount & "ln"
-      
     let doc = parseMarkdownDocument(mdContent)
     
-    when defined(emscripten):
+    when not defined(sdl3Backend):
+      # Old WASM backend: additional debug info
+      const mdLines = mdContent.splitLines()
+      const mdLineCount = mdLines.len
+      lastError = "MD:" & $mdContent.len & "ch," & $mdLineCount & "ln"
+      
       if doc.codeBlocks.len == 0:
         lastError = lastError & "|0blocks"
-        # Show first few lines of markdown to debug
         var preview = ""
         for i in 0 ..< min(3, mdLineCount):
           if i > 0: preview.add(";")
@@ -1592,7 +1895,8 @@ proc loadAndParseMarkdown(): MarkdownDocument =
           preview.add(if line.len > 20: line[0..19] else: line)
         lastError = lastError & "|" & preview
       else:
-        lastError = "" # Success!
+        lastError = ""
+    
     return doc
   else:
     # In native builds, read from filesystem
@@ -1694,7 +1998,7 @@ proc initStorieContext(state: AppState) =
     storieCtx.themeBackground = (0'u8, 0'u8, 0'u8)
     state.themeBackground = (0'u8, 0'u8, 0'u8)
   
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:
       lastError = "No code blocks parsed"
   
@@ -1715,7 +2019,7 @@ proc initStorieContext(state: AppState) =
   if storieCtx.frontMatter.hasKey("minWidth"):
     try:
       storieCtx.minWidth = parseInt(storieCtx.frontMatter["minWidth"])
-      when defined(emscripten):
+      when defined(emscripten) and not defined(sdl3Backend):
         globalMinWidth = storieCtx.minWidth
       when not defined(emscripten):
         echo "Minimum width set from front matter: ", storieCtx.minWidth
@@ -1725,7 +2029,7 @@ proc initStorieContext(state: AppState) =
   if storieCtx.frontMatter.hasKey("minHeight"):
     try:
       storieCtx.minHeight = parseInt(storieCtx.frontMatter["minHeight"])
-      when defined(emscripten):
+      when defined(emscripten) and not defined(sdl3Backend):
         globalMinHeight = storieCtx.minHeight
       when not defined(emscripten):
         echo "Minimum height set from front matter: ", storieCtx.minHeight
@@ -1734,7 +2038,24 @@ proc initStorieContext(state: AppState) =
         echo "Warning: Invalid minHeight value in front matter"
   
   # Create single default layer (layer 0)
-  gDefaultLayer = state.addLayer("default", 0)
+  when defined(sdl3Backend):
+    # SDL3: Create layer on canvas AND state
+    if not gSDL3Canvas.isNil:
+      gDefaultLayer = gSDL3Canvas.getLayer("default")
+      if gDefaultLayer.isNil:
+        gDefaultLayer = gSDL3Canvas.addLayer("default", 0)
+      # Also add to state for backwards compatibility
+      if state.getLayer("default").isNil:
+        discard state.addLayer("default", 0)
+    else:
+      gDefaultLayer = state.getLayer("default")
+      if gDefaultLayer.isNil:
+        gDefaultLayer = state.addLayer("default", 0)
+  else:
+    # Terminal/Web: Create layer on state only
+    gDefaultLayer = state.getLayer("default")
+    if gDefaultLayer.isNil:
+      gDefaultLayer = state.addLayer("default", 0)
   
   # Set TUI helper default layer reference immediately
   tui_helpers.gDefaultLayerRef = gDefaultLayer
@@ -1785,7 +2106,7 @@ proc initStorieContext(state: AppState) =
   exposeFrontMatterVariables()
   
   # Update browser tab title if title is defined in frontmatter (emscripten only)
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     if storieCtx.frontMatter.hasKey("title"):
       setDocumentTitle(storieCtx.frontMatter["title"])
   
@@ -1835,7 +2156,7 @@ proc initStorieContext(state: AppState) =
       when not defined(emscripten):
         echo "Init block execution result: ", success
       if not success:
-        when defined(emscripten):
+        when defined(emscripten) and not defined(sdl3Backend):
           if lastError.len == 0:
             lastError = "init block failed"
         when not defined(emscripten):
@@ -1845,6 +2166,12 @@ proc checkMinimumDimensions*(state: AppState): bool =
   ## Check if current terminal dimensions meet minimum requirements.
   ## Returns true if dimensions are OK, false if too small.
   ## When false, renders a centered warning message.
+  
+  when defined(emscripten) and defined(sdl3Backend):
+    # Skip dimension checks for SDL3 - it's pixel-based not character-based
+    gShowingDimensionWarning = false
+    return true
+  
   if storieCtx.isNil:
     gShowingDimensionWarning = false
     return true  # No requirements if context not initialized
@@ -1927,7 +2254,7 @@ onRender = proc(state: AppState) =
     return
   
   if storieCtx.isNil:
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       lastRenderExecutedCount = 0
       # Write error directly to currentBuffer so it's visible
       var errStyle = defaultStyle()
@@ -1955,17 +2282,25 @@ onRender = proc(state: AppState) =
   
   # Check if we have any render blocks
   var hasRenderBlocks = false
-  var renderBlockCount = 0
+  
+  when defined(emscripten):
+    var renderBlockCount = 0
+  
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "render":
       hasRenderBlocks = true
-      renderBlockCount += 1
+      when defined(emscripten):
+        renderBlockCount += 1
+      break
+  
+  # Debug logging removed
   
   if not hasRenderBlocks and storieCtx.globalRenderHandlers.len == 0:
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       lastRenderExecutedCount = 0
       if lastError.len == 0:
         lastError = "No on:render blocks"
+    # No render blocks
     # Fallback if no render blocks found
     state.currentBuffer.clear()
     let msg = "No render blocks found in " & gMarkdownFile
@@ -1976,7 +2311,7 @@ onRender = proc(state: AppState) =
     state.currentBuffer.writeText(x, y, msg, fallbackInfoStyle)
     
     # Show what blocks we DO have
-    when defined(emscripten):
+    when defined(emscripten) and not defined(sdl3Backend):
       var debugStyle = defaultStyle()
       debugStyle.fg = cyan()
       var debugY = y + 2
@@ -1988,15 +2323,20 @@ onRender = proc(state: AppState) =
   
   # 2. Execute section-specific on:render code blocks
   var executedCount = 0
+  
   for codeBlock in storieCtx.codeBlocks:
     if codeBlock.lifecycle == "render":
-      let success = executeCodeBlock(storieCtx.niminiContext, codeBlock, state)
-      if success:
-        executedCount += 1
+      try:
+        let success = executeCodeBlock(storieCtx.niminiContext, codeBlock, state)
+        if success:
+          executedCount += 1
+      except Exception as e:
+        discard  # Silent error handling
+  
   
   # Debug: Show execution status in WASM
   # Write to foreground layer so user code renders, then we overlay debug on layers
-  when defined(emscripten):
+  when defined(emscripten) and not defined(sdl3Backend):
     var debugStyle = defaultStyle()
     debugStyle.fg = green()
     debugStyle.bold = true
@@ -2040,8 +2380,12 @@ proc inputHandler(state: AppState, event: InputEvent): bool =
     try:
       if handler.callback.kind == vkFunction and handler.callback.fnVal.isNative:
         let env = storieCtx.niminiContext.env
-        # Encode input event as a Nimini Value
-        let eventValue = encodeInputEvent(event)
+        # Normalize and encode input event as a Nimini Value
+        let normalized = normalizeEvents(@[event])
+        if normalized.len == 0:
+          # Event filtered out
+          continue
+        let eventValue = encodeInputEvent(normalized[0])
         let result = handler.callback.fnVal.native(env, @[eventValue])
         # If handler returns true, it consumed the event
         if result.kind == vkBool and result.b:

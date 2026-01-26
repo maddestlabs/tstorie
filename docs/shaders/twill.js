@@ -1,7 +1,5 @@
-// Zen Garden Sand Shader for tStorie
-// Creates a subtle raked sand texture with very fine grain displacement
-// Upload this to a GitHub Gist and use: ?shader=YOUR_GIST_ID
-// Or use locally: ?shader=sand
+// Twill Pattern Shader for tStorie
+// Subtle twill-like texture
 
 function getShaderConfig() {
     return {

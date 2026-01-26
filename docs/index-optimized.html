@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TStorie - Optimized Progressive Loading</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #000000 0%, #1a1a2e 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            max-width: 100vw;
+            max-height: 100vh;
+            box-shadow: 0 10px 50px rgba(0, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        
+        /* Optimized loading overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.3s;
+        }
+        
+        #loading-overlay.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loader-content {
+            text-align: center;
+            max-width: 600px;
+            padding: 20px;
+        }
+        
+        .logo {
+            font-size: 56px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ffff, #ff00ff, #ffff00);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient 3s ease infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes gradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .loading-text {
+            color: #00ffff;
+            font-size: 18px;
+            margin-bottom: 30px;
+            min-height: 27px;
+        }
+        
+        .progress-container {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #ff00ff);
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .progress-text {
+            color: #888;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+        }
+        
+        .stat-box {
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .stat-label {
+            color: #888;
+            font-size: 11px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .stat-value {
+            color: #0ff;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .stat-unit {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        /* Enhanced metrics */
+        #perf-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #0ff;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 250px;
+            z-index: 1000;
+            font-size: 11px;
+        }
+        
+        .perf-header {
+            color: #0ff;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .perf-badge {
+            background: #0f0;
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .perf-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .perf-label {
+            color: #888;
+        }
+        
+        .perf-value {
+            color: #0f0;
+            font-weight: bold;
+        }
+        
+        .perf-value.warning {
+            color: #ff0;
+        }
+        
+        .perf-value.error {
+            color: #f00;
+        }
+        
+        /* Spinner */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #00ffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        /* Offline indicator */
+        .offline-indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: none;
+            z-index: 2000;
+        }
+        
+        .offline-indicator.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    
+    <!-- Enhanced loading overlay -->
+    <div id="loading-overlay">
+        <div class="loader-content">
+            <div class="logo">TStorie</div>
+            <div class="loading-text" id="loading-text">Initializing optimized core...</div>
+            
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="progress-label">Loading...</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+            </div>
+            
+            <div class="spinner"></div>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Downloaded</div>
+                    <div class="stat-value">
+                        <span id="loaded-size">0</span>
+                        <span class="stat-unit">KB</span>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Time</div>
+                    <div class="stat-value">
+                        <span id="load-time">0</span>
+                        <span class="stat-unit">ms</span>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Modules</div>
+                    <div class="stat-value">
+                        <span id="modules-loaded">0</span>
+                        <span class="stat-unit">/2</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance panel -->
+    <div id="perf-panel">
+        <div class="perf-header">
+            Performance
+            <span class="perf-badge" id="perf-grade">A+</span>
+        </div>
+        <div id="perf-metrics"></div>
+    </div>
+    
+    <!-- Offline indicator -->
+    <div class="offline-indicator" id="offline-indicator">
+        ⚠️ You're offline. Using cached version.
+    </div>
+    
+    <!-- Load modules -->
+    <script src="performance-monitor.js"></script>
+    <script src="asset-loader.js"></script>
+    <script src="progressive-loader.js"></script>
+    
+    <script type="module">
+        const appStartTime = performance.now();
+        const perfMonitor = new PerformanceMonitor();
+        const assetLoader = new AssetLoader();
+        
+        perfMonitor.mark('app-start');
+        
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').then(reg => {
+                console.log('[App] Service worker registered');
+            }).catch(err => {
+                console.warn('[App] Service worker registration failed:', err);
+            });
+        }
+        
+        // Offline/online detection
+        window.addEventListener('offline', () => {
+            document.getElementById('offline-indicator').classList.add('show');
+        });
+        
+        window.addEventListener('online', () => {
+            document.getElementById('offline-indicator').classList.remove('show');
+        });
+        
+        // UI update helpers
+        function updateProgress(percent, label = '') {
+            document.getElementById('progress-fill').style.width = `${percent}%`;
+            document.getElementById('progress-percent').textContent = `${percent}%`;
+            if (label) {
+                document.getElementById('progress-label').textContent = label;
+            }
+        }
+        
+        function updateLoadingText(text) {
+            document.getElementById('loading-text').textContent = text;
+        }
+        
+        function updateStats(sizeKB, timeMs, modulesLoaded) {
+            document.getElementById('loaded-size').textContent = sizeKB.toFixed(0);
+            document.getElementById('load-time').textContent = timeMs.toFixed(0);
+            document.getElementById('modules-loaded').textContent = modulesLoaded;
+        }
+        
+        function updatePerfMetrics() {
+            const metrics = perfMonitor.getMetrics();
+            const html = Object.entries(metrics)
+                .filter(([key]) => !key.startsWith('_'))
+                .map(([key, value]) => {
+                    const val = typeof value === 'number' ? value.toFixed(0) + 'ms' : value;
+                    const className = value < 1000 ? 'perf-value' : 
+                                    value < 2000 ? 'perf-value warning' : 
+                                    'perf-value error';
+                    return `
+                        <div class="perf-item">
+                            <span class="perf-label">${key}:</span>
+                            <span class="${className}">${val}</span>
+                        </div>
+                    `;
+                })
+                .join('');
+            
+            document.getElementById('perf-metrics').innerHTML = html;
+            
+            // Update grade
+            const elapsed = perfMonitor.elapsed();
+            const grade = elapsed < 1000 ? 'A+' :
+                         elapsed < 2000 ? 'A' :
+                         elapsed < 3000 ? 'B' : 'C';
+            document.getElementById('perf-grade').textContent = grade;
+            document.getElementById('perf-grade').style.background = 
+                elapsed < 1000 ? '#0f0' :
+                elapsed < 2000 ? '#ff0' : '#f00';
+        }
+        
+        function hideLoadingOverlay() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.add('fade-out');
+            setTimeout(() => overlay.style.display = 'none', 300);
+        }
+        
+        // Main initialization
+        async function init() {
+            try {
+                const loader = new ProgressiveLoader();
+                
+                // Step 1: Load core
+                updateLoadingText('Loading optimized core...');
+                updateProgress(10, 'Core module');
+                
+                perfMonitor.mark('core-start');
+                await loader.loadCore();
+                perfMonitor.mark('core-end');
+                perfMonitor.measure('coreLoad', 'core-start', 'core-end');
+                
+                updateProgress(40, 'Core ready');
+                updateStats(loader.getStats().loadedSize, perfMonitor.elapsed(), 1);
+                
+                // Step 2: Start rendering
+                perfMonitor.mark('render-start');
+                if (loader.coreModule && loader.coreModule._main) {
+                    loader.coreModule._main();
+                }
+                perfMonitor.mark('render-end');
+                perfMonitor.measure('firstRender', 'app-start', 'render-end');
+                
+                updateProgress(60, 'Rendering');
+                updatePerfMetrics();
+                
+                // Step 3: Load content
+                const urlParams = new URLSearchParams(window.location.search);
+                const demoName = urlParams.get('demo') || urlParams.get('content') || 'minimal';
+                
+                updateLoadingText(`Analyzing: ${demoName}...`);
+                
+                // Try to load from cache first
+                let markdown = '';
+                try {
+                    markdown = await assetLoader.preloadDemo(demoName);
+                } catch (e) {
+                    console.warn('[App] Demo not cached, fetching...');
+                    const response = await fetch(`demos/${demoName}.md`);
+                    markdown = await response.text();
+                }
+                
+                updateProgress(70, 'Content loaded');
+                
+                // Step 4: Analyze and load modules
+                const neededModules = loader.analyzeContent(markdown);
+                console.log(`[App] Required modules:`, neededModules);
+                
+                if (neededModules.length > 0) {
+                    updateLoadingText(`Loading: ${neededModules.join(', ')}...`);
+                    updateProgress(80, 'Loading features');
+                    
+                    perfMonitor.mark('ttf-start');
+                    await loader.loadModules(neededModules);
+                    perfMonitor.mark('ttf-end');
+                    perfMonitor.measure('ttfLoad', 'ttf-start', 'ttf-end');
+                    
+                    updateStats(loader.getStats().loadedSize, perfMonitor.elapsed(), 2);
+                } else {
+                    console.log('[App] No additional modules needed');
+                }
+                
+                updateProgress(100, 'Complete');
+                updatePerfMetrics();
+                
+                // Step 5: Hide overlay
+                setTimeout(() => {
+                    hideLoadingOverlay();
+                    perfMonitor.report();
+                }, 800);
+                
+            } catch (error) {
+                console.error('[App] Initialization failed:', error);
+                updateLoadingText(`Error: ${error.message}`);
+                updateProgress(0, 'Failed');
+            }
+        }
+        
+        // Start!
+        init();
+        
+        // Update metrics every second
+        setInterval(updatePerfMetrics, 1000);
+    </script>
+</body>
+</html>

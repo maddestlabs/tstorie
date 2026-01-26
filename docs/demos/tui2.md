@@ -1,8 +1,8 @@
 ---
 title: "TUI Demo v2 - Using Built-in Helpers"
-minWidth: 60
-minHeight: 35
-theme: "neotopia"
+theme: "coffee"
+shaders: "ruledlines+paper+lightnight"
+fontsize: 16
 styles.highlight.fg: "#FFFF00"
 styles.highlight.bold: "true"
 ---

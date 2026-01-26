@@ -1,8 +1,8 @@
 ---
 title: "Dungeon Generator - Native Edition"
 author: "High-performance procedural dungeon using native Nim"
-theme: solardark
-shader: sand+grid+paper+lightsway
+theme: "coffee"
+shader: grid+grid2x1+dirt+paper+lightsway+vignette
 fontsize: 24
 ---
 

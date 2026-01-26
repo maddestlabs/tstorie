@@ -60,7 +60,7 @@ proc getRandomKanji(x: int, y: int): string =
   return kanjiChars[idx]
 
 # Get style objects
-var styleBackground = brightness(getStyle("default"), 0.2)
+var styleBackground = brightness(getStyle("default"), 0.1)
 var styleSelected = getStyle("accent1")
 var styleUnselected = getStyle("accent2")
 
@@ -430,7 +430,7 @@ clear()
 var y = 1
 while y < termHeight - 1:
   var x = 0
-  while x < termWidth:
+  while x < termWidth - 1:
     draw(0, x, y, getRandomKanji(x, y), styleBackground)
     x = x + charWidth
   y = y + 1

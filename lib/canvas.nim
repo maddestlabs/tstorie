@@ -17,7 +17,7 @@ else:
   when not declared(getCharDisplayWidth):
     import src/charwidth
 
-import std/[tables, strutils, sequtils, math, sets, sugar, algorithm]
+import std/[tables, strutils, sequtils, math, sets, algorithm]
 import section_manager, ansi_parser
 
 # Import nimini for binding registration

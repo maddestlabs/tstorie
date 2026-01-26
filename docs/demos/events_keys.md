@@ -3,7 +3,10 @@ title: "Keyboard & Timing Events Demo"
 theme: "catppuccin"
 ---
 
-This example demonstrates modern keyboard event handling using SDL3-compatible KEY_* constants and frame-independent animations.
+This example demonstrates modern keyboard event handling using the optimal input system approach:
+- **TextEvent** for printable characters (letters, numbers, symbols)
+- **KeyEvent** for special keys (arrows, escape, function keys)
+- Event-local modifiers (not global state)
 
 ```nim on:init
 # Track keyboard state
@@ -11,10 +14,7 @@ var lastKey = "none"
 var lastKeyCode = 0
 var lastAction = "none"
 var keyPressCount = 0
-var shiftPressed = false
-var ctrlPressed = false
-var altPressed = false
-var superPressed = false
+var lastModifiers = ""
 
 # Animation state (frame-independent)
 var keyPressFlashPhase = 0.0
@@ -30,38 +30,67 @@ var arrowRightHeld = false
 ```
 
 ```nim on:input
-# Handle keyboard events through the normal input lifecycle
-if event.type == "key":
+# Handle keyboard events - use TextEvent for printable characters, KeyEvent for special keys
+if event.type == "text":
+  # Handle printable characters via TextEvent (optimal approach)
+  lastKey = "'" & event.text & "'"
+  lastKeyCode = 0
+  lastAction = "text"
+  keyPressCount = keyPressCount + 1
+  lastKeyTime = getTime()
+  typingBarWidth = 0.0
+  keyPressFlashPhase = 0.0
+  
+  # Read modifiers directly from event (TextEvent now has mods field!)
+  lastModifiers = ""
+  var i = 0
+  while i < len(event.mods):
+    if i > 0:
+      lastModifiers = lastModifiers & ", "
+    lastModifiers = lastModifiers & event.mods[i]
+    i = i + 1
+  if lastModifiers == "":
+    lastModifiers = "(none)"
+  
+  # Example: Detect specific characters with modifiers
+  if event.text == "T":
+    lastKey = "'T' (uppercase - Shift was pressed)"
+  elif event.text == "t":
+    lastKey = "'t' (lowercase)"
+  
+  # Check for quit (q or Q)
+  if event.text == "q" or event.text == "Q":
+    return false  # Allow default quit behavior
+  
+  return true
+
+elif event.type == "key":
+  # Handle special keys (arrows, escape, function keys, etc.)
   lastKeyCode = event.keyCode
   lastAction = event.action
   lastKeyTime = getTime()
   
+  # Read modifiers directly from event (only available in KeyEvent)
+  lastModifiers = ""
+  var i = 0
+  while i < len(event.mods):
+    if i > 0:
+      lastModifiers = lastModifiers & ", "
+    lastModifiers = lastModifiers & event.mods[i]
+    i = i + 1
+  if lastModifiers == "":
+    lastModifiers = "(none)"
+  
   # Reset typing bar animation on new key press
   if event.action == "press":
     typingBarWidth = 0.0
-  
-  # Update modifier states from event.mods array
-  # mods is an array of strings: ["shift", "alt", "ctrl", "super"]
-  shiftPressed = false
-  altPressed = false
-  ctrlPressed = false
-  superPressed = false
-  
-  var i = 0
-  while i < len(event.mods):
-    if event.mods[i] == "shift":
-      shiftPressed = true
-    elif event.mods[i] == "alt":
-      altPressed = true
-    elif event.mods[i] == "ctrl":
-      ctrlPressed = true
-    elif event.mods[i] == "super":
-      superPressed = true
-    i = i + 1
+    keyPressCount = keyPressCount + 1
+    keyPressFlashPhase = 0.0
   
   # Convert keyCode to readable name using KEY_* constants
   if lastKeyCode == KEY_ESCAPE:
     lastKey = "ESC"
+    return false  # Quit on escape
   elif lastKeyCode == KEY_RETURN:
     lastKey = "ENTER"
   elif lastKeyCode == KEY_SPACE:
@@ -84,9 +113,6 @@ if event.type == "key":
   elif lastKeyCode == KEY_RIGHT:
     lastKey = "RIGHT"
     arrowRightHeld = (event.action == "press" or event.action == "repeat")
-  elif lastKeyCode >= 32 and lastKeyCode < 127:
-    # Printable ASCII character
-    lastKey = "'" & str(lastKeyCode) & "'"
   else:
     lastKey = "KEY_" & str(lastKeyCode)
   
@@ -100,31 +126,6 @@ if event.type == "key":
       arrowLeftHeld = false
     elif lastKeyCode == KEY_RIGHT:
       arrowRightHeld = false
-
-  if event.action == "press":
-    keyPressCount = keyPressCount + 1
-    keyPressFlashPhase = 0.0  # Start flash animation
-  
-  # Use KEY_Q constant for quit
-  if event.keyCode == KEY_Q or event.keyCode == KEY_ESCAPE:
-    return false  # Allow default quit behavior
-  
-  return true
-
-elif event.type == "text":
-  # Handle text input (actual characters typed)
-  lastKey = "'" & event.text & "'"
-  lastKeyCode = 0
-  lastAction = "text"
-  keyPressCount = keyPressCount + 1
-  lastKeyTime = getTime()
-  typingBarWidth = 0.0
-  
-  # Example: Check for specific character
-  if event.text == "T":
-    lastKey = "'T' (uppercase detected!)"
-  elif event.text == "t":
-    lastKey = "'t' (lowercase detected!)"
   
   return true
 
@@ -151,38 +152,33 @@ draw(0, 2, 3, "Delta: " & str(int(getDeltaTime() * 1000000.0)) & "us (microsecon
 
 # === INSTRUCTIONS ===
 draw(0, 2, 5, "Press any key to test keyboard input")
-draw(0, 2, 6, "Press Q or ESC to quit (using KEY_Q and KEY_ESCAPE constants)")
+draw(0, 2, 6, "Press Q or ESC to quit")
+draw(0, 2, 7, "Try modifiers: Shift+T, Ctrl+Arrow, etc.")
 
 # === KEYBOARD STATE ===
-draw(0, 2, 8, "Last Key: " & lastKey)
-draw(0, 2, 9, "Key Code: " & str(lastKeyCode))
-draw(0, 2, 10, "Action: " & lastAction)
-draw(0, 2, 11, "Press Count: " & str(keyPressCount))
+draw(0, 2, 9, "Last Key: " & lastKey)
+draw(0, 2, 10, "Key Code: " & str(lastKeyCode))
+draw(0, 2, 11, "Action: " & lastAction)
+draw(0, 2, 12, "Press Count: " & str(keyPressCount))
 
 # === MODIFIER STATES ===
 var modStr = "Modifiers: "
-if shiftPressed:
-  modStr = modStr & "[SHIFT] "
-if ctrlPressed:
-  modStr = modStr & "[CTRL] "
-if altPressed:
-  modStr = modStr & "[ALT] "
-if superPressed:
-  modStr = modStr & "[SUPER] "
-if not (shiftPressed or ctrlPressed or altPressed or superPressed):
+if len(lastModifiers) > 0:
+  modStr = modStr & lastModifiers
+else:
   modStr = modStr & "(none)"
-draw(0, 2, 12, modStr)
+draw(0, 2, 13, modStr)
 
 # Draw a visual keyboard hint
-draw(0, 2, 14, "Common Keys:")
-draw(0, 4, 15, "Arrows: UP/DOWN/LEFT/RIGHT (try holding them!)")
-draw(0, 4, 16, "Special: ESC, ENTER, SPACE, TAB, BACKSPACE, DELETE")
-draw(0, 4, 17, "Letters: a-z, A-Z")
-draw(0, 4, 18, "Numbers: 0-9")
-draw(0, 4, 19, "Try: Press 'T' or 'Shift+T' to see character detection!")
+draw(0, 2, 15, "Common Keys:")
+draw(0, 4, 16, "Arrows: UP/DOWN/LEFT/RIGHT (try holding them!)")
+draw(0, 4, 17, "Special: ESC, ENTER, SPACE, TAB, BACKSPACE, DELETE")
+draw(0, 4, 18, "Letters: a-z, A-Z (TextEvents)")
+draw(0, 4, 19, "Numbers: 0-9 (TextEvents)")
+draw(0, 4, 20, "Try: Press 'T' or 'Shift+T' to see character detection!")
 
 # === PRESS COUNTER BOX (with animation) ===
-var boxY = 8
+var boxY = 9
 draw(0, 50, boxY - 1, "+-------------------+")
 draw(0, 50, boxY, "| Total Key Presses |")
 draw(0, 50, boxY + 1, "|                   |")
@@ -212,19 +208,19 @@ if keyPressFlashPhase < 6.28:  # One flash cycle (2*PI)
     draw(0, 50, boxY + 4, "   *** FLASH! ***   ")
 
 # === TYPING ACTIVITY BAR ===
-draw(0, 2, 21, "Typing Activity:")
-draw(0, 2, 22, "[")
+draw(0, 2, 22, "Typing Activity:")
+draw(0, 2, 23, "[")
 var barFilled = int(typingBarWidth)
 i = 0
 while i < barFilled:
-  draw(0, 3 + i, 22, "=")
+  draw(0, 3 + i, 23, "=")
   i = i + 1
-draw(0, 23, 22, "]")
+draw(0, 23, 23, "]")
 
 # === ARROW KEY VISUAL ===
-draw(0, 50, 14, "Arrow Keys Status:")
+draw(0, 50, 15, "Arrow Keys Status:")
 var arrowCenterX = 60
-var arrowCenterY = 17
+var arrowCenterY = 18
 
 # Draw arrow key indicators
 if arrowUpHeld:
@@ -251,23 +247,24 @@ if arrowUpHeld or arrowDownHeld or arrowLeftHeld or arrowRightHeld:
     draw(0, rotX, rotY, "*")
 
 # === VISUAL FEEDBACK FOR LAST ACTION ===
-draw(0, 2, 24, "Last Action:")
+draw(0, 2, 25, "Last Action:")
 if lastAction == "press":
-  draw(0, 15, 24, ">>> KEY PRESSED <<<")
+  draw(0, 15, 25, ">>> KEY PRESSED <<<")
 elif lastAction == "release":
-  draw(0, 15, 24, ">>> KEY RELEASED <<<")
+  draw(0, 15, 25, ">>> KEY RELEASED <<<")
 elif lastAction == "repeat":
-  draw(0, 15, 24, ">>> KEY REPEATING <<<")
+  draw(0, 15, 25, ">>> KEY REPEATING <<<")
 elif lastAction == "text":
-  draw(0, 15, 24, ">>> TEXT INPUT <<<")
+  draw(0, 15, 25, ">>> TEXT INPUT <<<")
 
 # Show time since last key
 var timeSinceKey = getTime() - lastKeyTime
 if timeSinceKey < 2.0:
-  draw(0, 2, 25, "Time since last key: " & str(int(timeSinceKey * 1000)) & "ms")
+  draw(0, 2, 26, "Time since last key: " & str(int(timeSinceKey * 1000)) & "ms")
 
-# === KEY CONSTANTS INFO ===
-draw(0, 2, termHeight - 3, "Using SDL3-compatible KEY_* constants:")
-draw(0, 3, termHeight - 2, "KEY_ESCAPE, KEY_RETURN, KEY_SPACE, KEY_TAB, KEY_BACKSPACE")
-draw(0, 3, termHeight - 1, "KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_DELETE, KEY_Q")
+# === INPUT SYSTEM INFO ===
+draw(0, 2, termHeight - 4, "Input System: Unified event normalization across backends")
+draw(0, 3, termHeight - 3, "TextEvent: Printable characters with event.mods array")
+draw(0, 3, termHeight - 2, "KeyEvent: Special keys with event.mods array (shift, ctrl, alt, super)")
+draw(0, 3, termHeight - 1, "Modifiers work on BOTH text and key events!")
 ```

@@ -1,6 +1,8 @@
 ---
 title: "Timing & Events Demo"
 theme: "catppuccin"
+shaders: "invert+ruledlines+paper+lightnight"
+fontsize: 16
 ---
 
 This example demonstrates comprehensive event handling including keyboard, mouse, and timing systems with SDL3-compatible constants.
@@ -19,9 +21,7 @@ var lastKey = "none"
 var lastKeyCode = 0
 var lastKeyAction = "none"
 var keyPressCount = 0
-var shiftPressed = false
-var ctrlPressed = false
-var altPressed = false
+var lastModifiers = ""
 
 # === ANIMATION STATE (frame-independent) ===
 var clickRippleTime = 0.0
@@ -58,8 +58,102 @@ var arrowRight = false
 ```
 
 ```nim on:input
+# === KEYBOARD EVENTS (TextEvent first for printable characters) ===
+if event.type == "text":
+  lastKey = "'" & event.text & "'"
+  lastKeyAction = "text"
+  keyPressCount = keyPressCount + 1
+  
+  # Read modifiers from event
+  lastModifiers = ""
+  var i = 0
+  while i < len(event.mods):
+    if i > 0:
+      lastModifiers = lastModifiers & ", "
+    lastModifiers = lastModifiers & event.mods[i]
+    i = i + 1
+  
+  # SPECIAL: Shift+Q detection using event modifiers
+  if event.text == "Q":
+    var hasShift = false
+    var j = 0
+    while j < len(event.mods):
+      if event.mods[j] == "shift":
+        hasShift = true
+      j = j + 1
+    if hasShift:
+      shiftQDetected = true
+  
+  return true
+
+elif event.type == "key":
+  lastKeyCode = event.keyCode
+  lastKeyAction = event.action
+  
+  # Read modifiers from event
+  lastModifiers = ""
+  var i = 0
+  while i < len(event.mods):
+    if i > 0:
+      lastModifiers = lastModifiers & ", "
+    lastModifiers = lastModifiers & event.mods[i]
+    i = i + 1
+  
+  # Track arrow key states
+  if lastKeyCode == KEY_UP:
+    arrowUp = (event.action == "press" or event.action == "repeat")
+  elif lastKeyCode == KEY_DOWN:
+    arrowDown = (event.action == "press" or event.action == "repeat")
+  elif lastKeyCode == KEY_LEFT:
+    arrowLeft = (event.action == "press" or event.action == "repeat")
+  elif lastKeyCode == KEY_RIGHT:
+    arrowRight = (event.action == "press" or event.action == "repeat")
+  
+  # Clear arrow states on release
+  if event.action == "release":
+    if lastKeyCode == KEY_UP:
+      arrowUp = false
+    elif lastKeyCode == KEY_DOWN:
+      arrowDown = false
+    elif lastKeyCode == KEY_LEFT:
+      arrowLeft = false
+    elif lastKeyCode == KEY_RIGHT:
+      arrowRight = false
+  
+  # Convert keyCode to readable name
+  if lastKeyCode == KEY_ESCAPE:
+    lastKey = "ESC"
+  elif lastKeyCode == KEY_RETURN:
+    lastKey = "ENTER"
+  elif lastKeyCode == KEY_SPACE:
+    lastKey = "SPACE"
+  elif lastKeyCode == KEY_TAB:
+    lastKey = "TAB"
+  elif lastKeyCode == KEY_BACKSPACE:
+    lastKey = "BACKSPACE"
+  elif lastKeyCode == KEY_UP:
+    lastKey = "UP"
+  elif lastKeyCode == KEY_DOWN:
+    lastKey = "DOWN"
+  elif lastKeyCode == KEY_LEFT:
+    lastKey = "LEFT"
+  elif lastKeyCode == KEY_RIGHT:
+    lastKey = "RIGHT"
+  else:
+    lastKey = "KEY_" & str(lastKeyCode)
+  
+  if event.action == "press":
+    keyPressCount = keyPressCount + 1
+    keyFlashPhase = 0.0  # Start flash animation
+  
+  # Quit on ESC only
+  if event.keyCode == KEY_ESCAPE:
+    return false
+  
+  return true
+
 # === MOUSE EVENTS ===
-if event.type == "mouse_move":
+elif event.type == "mouse_move":
   
   # Handle box dragging
   if boxDragging:
@@ -111,108 +205,29 @@ if event.type == "mouse":
       boxClickTime = getTime()
     
     # SPECIAL: CTRL + Mouse click detection
-    if ctrlPressed:
+    var ctrlHeld = false
+    var j = 0
+    while j < len(event.mods):
+      if event.mods[j] == "ctrl":
+        ctrlHeld = true
+      j = j + 1
+    if ctrlHeld:
       ctrlMouseDetected = true
   
   elif event.action == "release":
     # Stop dragging on mouse release
     if event.button == "left":
       boxDragging = false
+  
+  return true
 
-if event.type == "mouse" and (event.button == "scroll_up" or event.button == "scroll_down"):
+elif event.type == "mouse" and (event.button == "scroll_up" or event.button == "scroll_down"):
   # Mouse wheel event detection
   if event.button == "scroll_up":
     mouseWheelDir = "up"
   else:
     mouseWheelDir = "down"
   mouseWheelTime = getTime()
-
-# === KEYBOARD EVENTS ===
-if event.type == "key":
-  lastKeyCode = event.keyCode
-  lastKeyAction = event.action
-  
-  # Update modifier states
-  shiftPressed = false
-  ctrlPressed = false
-  altPressed = false
-  
-  var i = 0
-  while i < len(event.mods):
-    if event.mods[i] == "shift":
-      shiftPressed = true
-    elif event.mods[i] == "ctrl":
-      ctrlPressed = true
-    elif event.mods[i] == "alt":
-      altPressed = true
-    i = i + 1
-  
-  # Track arrow key states
-  if lastKeyCode == KEY_UP:
-    arrowUp = (event.action == "press" or event.action == "repeat")
-  elif lastKeyCode == KEY_DOWN:
-    arrowDown = (event.action == "press" or event.action == "repeat")
-  elif lastKeyCode == KEY_LEFT:
-    arrowLeft = (event.action == "press" or event.action == "repeat")
-  elif lastKeyCode == KEY_RIGHT:
-    arrowRight = (event.action == "press" or event.action == "repeat")
-  
-  # Clear arrow states on release
-  if event.action == "release":
-    if lastKeyCode == KEY_UP:
-      arrowUp = false
-    elif lastKeyCode == KEY_DOWN:
-      arrowDown = false
-    elif lastKeyCode == KEY_LEFT:
-      arrowLeft = false
-    elif lastKeyCode == KEY_RIGHT:
-      arrowRight = false
-  
-  # Convert keyCode to readable name
-  if lastKeyCode == KEY_ESCAPE:
-    lastKey = "ESC"
-  elif lastKeyCode == KEY_RETURN:
-    lastKey = "ENTER"
-  elif lastKeyCode == KEY_SPACE:
-    lastKey = "SPACE"
-  elif lastKeyCode == KEY_TAB:
-    lastKey = "TAB"
-  elif lastKeyCode == KEY_BACKSPACE:
-    lastKey = "BACKSPACE"
-  elif lastKeyCode == KEY_UP:
-    lastKey = "UP"
-  elif lastKeyCode == KEY_DOWN:
-    lastKey = "DOWN"
-  elif lastKeyCode == KEY_LEFT:
-    lastKey = "LEFT"
-  elif lastKeyCode == KEY_RIGHT:
-    lastKey = "RIGHT"
-  elif lastKeyCode >= 32 and lastKeyCode < 127:
-    lastKey = "'" & str(lastKeyCode) & "'"
-  else:
-    lastKey = "KEY_" & str(lastKeyCode)
-  
-  if event.action == "press":
-    keyPressCount = keyPressCount + 1
-    keyFlashPhase = 0.0  # Start flash animation
-    
-    # SPECIAL: SHIFT + Q detection
-    if event.keyCode == KEY_Q and shiftPressed:
-      shiftQDetected = true
-  
-  # Quit on ESC (but not Q alone, since we want to detect SHIFT+Q)
-  if event.keyCode == KEY_ESCAPE:
-    return false
-  # Quit on Q only if shift is NOT pressed
-  if event.keyCode == KEY_Q and not shiftPressed:
-    return false
-  
-  return true
-
-elif event.type == "text":
-  lastKey = "'" & event.text & "'"
-  lastKeyAction = "text"
-  keyPressCount = keyPressCount + 1
   return true
 
 return true
@@ -267,15 +282,11 @@ draw(0, 2, 10, "=== KEYBOARD ===")
 draw(0, 2, 11, "Last Key: " & lastKey & " (code: " & str(lastKeyCode) & ")")
 draw(0, 2, 12, "Action: " & lastKeyAction & " | Total: " & str(keyPressCount))
 
-# Modifiers
+# Modifiers (read from last event)
 var modStr = "Modifiers: "
-if shiftPressed:
-  modStr = modStr & "[SHIFT] "
-if ctrlPressed:
-  modStr = modStr & "[CTRL] "
-if altPressed:
-  modStr = modStr & "[ALT] "
-if not (shiftPressed or ctrlPressed or altPressed):
+if len(lastModifiers) > 0:
+  modStr = modStr & lastModifiers
+else:
   modStr = modStr & "(none)"
 draw(0, 2, 13, modStr)
 
@@ -382,12 +393,12 @@ draw(0, mouseX, mouseY, "+")
 # === SPECIAL EVENT DETECTIONS ===
 draw(0, 50, 16, "=== SPECIAL EVENTS ===")
 
-# SHIFT + Q detection
+# Q detection (simplified)
 if shiftQDetected:
-  draw(0, 50, 17, ">>> SHIFT + Q <<<")
-  draw(0, 50, 18, "   DETECTED!   ")
+  draw(0, 50, 17, ">>> Q KEY <<<")
+  draw(0, 50, 18, "  DETECTED!  ")
 else:
-  draw(0, 50, 17, "Try: SHIFT + Q")
+  draw(0, 50, 17, "Try: Press Q")
 
 # CTRL + Mouse detection
 if ctrlMouseDetected:

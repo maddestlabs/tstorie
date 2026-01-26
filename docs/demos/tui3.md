@@ -1,8 +1,8 @@
 ---
 title: "Advanced TUI Widgets Demo"
-minWidth: 80
-minHeight: 40
-theme: "neotopia"
+theme: "coffee"
+shaders: "ruledlines+paper+lightnight"
+fontsize: 16
 ---
 
 # Advanced TUI Widgets Showcase
@@ -141,9 +141,35 @@ drawTextArea(0, 7, 38, 36, 5, textLines, textCursorLine, textCursorCol, textScro
 
 ```nim on:input
 # ===================================================================
+# Text Input Handling (process text events first)
+# ===================================================================
+if event.type == "text":
+  if focusArea == 3:  # Form
+    if formFocusIndex == 0:
+      let result = handleTextInput(event.text, formNameCursor, formName)
+      formNameCursor = result[0]
+      formName = result[1]
+    else:
+      let result = handleTextInput(event.text, formEmailCursor, formEmail)
+      formEmailCursor = result[0]
+      formEmail = result[1]
+    return true
+  
+  elif focusArea == 4:  # Text area
+    # Insert text at cursor position
+    let currentLine = textLines[textCursorLine]
+    let beforeCursor = sliceStr(currentLine, 0, textCursorCol - 1)
+    let afterCursor = sliceStr(currentLine, textCursorCol, len(currentLine) - 1)
+    textLines[textCursorLine] = beforeCursor & event.text & afterCursor
+    textCursorCol = textCursorCol + len(event.text)
+    return true
+  
+  return false
+
+# ===================================================================
 # Key Input Handling
 # ===================================================================
-if event.type == "key":
+elif event.type == "key":
   let keyCode = event.keyCode
   let isShift = contains(event.mods, "shift")
   
@@ -315,32 +341,6 @@ if event.type == "key":
       textCursorLine = textCursorLine + 1
       textCursorCol = 0
       return true
-  
-  return false
-
-# ===================================================================
-# Text Input Handling
-# ===================================================================
-elif event.type == "text":
-  if focusArea == 3:  # Form
-    if formFocusIndex == 0:
-      let result = handleTextInput(event.text, formNameCursor, formName)
-      formNameCursor = result[0]
-      formName = result[1]
-    else:
-      let result = handleTextInput(event.text, formEmailCursor, formEmail)
-      formEmailCursor = result[0]
-      formEmail = result[1]
-    return true
-  
-  elif focusArea == 4:  # Text area
-    # Insert text at cursor position
-    let currentLine = textLines[textCursorLine]
-    let beforeCursor = sliceStr(currentLine, 0, textCursorCol - 1)
-    let afterCursor = sliceStr(currentLine, textCursorCol, len(currentLine) - 1)
-    textLines[textCursorLine] = beforeCursor & event.text & afterCursor
-    textCursorCol = textCursorCol + len(event.text)
-    return true
   
   return false
 

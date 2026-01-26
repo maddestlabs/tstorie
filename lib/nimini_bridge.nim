@@ -20,6 +20,10 @@ import ../src/types
 import ../src/layers
 import ../src/appstate
 
+# SDL3 canvas support (for shader rendering)
+when defined(sdl3Backend):
+  import ../backends/sdl3/sdl_canvas
+
 # Dropped file tracking (defined here so nimini can access them directly)
 var gDroppedFileName*: string = ""
 var gDroppedFileData*: string = ""
@@ -360,12 +364,22 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
   # ============================================================================
   
   when defined(emscripten):
-    proc emGetCharPixelWidth(): float {.importc.}
-    proc emGetCharPixelHeight(): float {.importc.}
-    proc emGetViewportPixelWidth(): int {.importc.}
-    proc emGetViewportPixelHeight(): int {.importc.}
-    proc emSetFontSize(size: int) {.importc.}
-    proc emSetFontScale(scale: float) {.importc.}
+    when not defined(sdl3Backend):
+      # Old WASM build with custom JS bridge
+      proc emGetCharPixelWidth(): float {.importc.}
+      proc emGetCharPixelHeight(): float {.importc.}
+      proc emGetViewportPixelWidth(): int {.importc.}
+      proc emGetViewportPixelHeight(): int {.importc.}
+      proc emSetFontSize(size: int) {.importc.}
+      proc emSetFontScale(scale: float) {.importc.}
+    else:
+      # SDL3 web build - stub functions  
+      proc emGetCharPixelWidth(): float = 8.0
+      proc emGetCharPixelHeight(): float = 12.0
+      proc emGetViewportPixelWidth(): int = 1024
+      proc emGetViewportPixelHeight(): int = 768
+      proc emSetFontSize(size: int) = discard
+      proc emSetFontScale(scale: float) = discard
   
   env.vars["getCharPixelWidth"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
     ## Get the pixel width of a character in the current font
@@ -579,16 +593,6 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
   # Special symbols
   env.vars["KEY_BACKQUOTE"] = valInt(KEY_BACKQUOTE.int)  # `
   
-  # Helper functions for event handling
-  env.vars["keyCodeToName"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## keyCodeToName(keyCode: int) -> string - Convert keyCode to human-readable name
-    if args.len < 1:
-      raise newException(ValueError, "keyCodeToName() requires 1 argument: keyCode")
-    let keyCode = case args[0].kind
-      of vkInt: KeyCode(args[0].i)
-      else: KeyCode(0)
-    return valString(keyCodeToName(keyCode))
-  
   # ============================================================================
   # Time Functions
   # ============================================================================
@@ -785,18 +789,45 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     if args.len < 1:
       raise newException(ValueError, "drawShader() requires 1 argument: layerId")
     
-    var layer: Layer = nil
-    if args[0].kind == vkInt:
-      let idx = args[0].i
-      # Access layer by index in layers array
-      if idx >= 0 and idx < appState.layers.len:
-        layer = appState.layers[idx]
-    elif args[0].kind == vkString:
-      let layerId = args[0].s
-      layer = getLayer(appState, layerId)
-    
-    if not layer.isNil:
-      drawShader(layer.buffer)
+    when defined(sdl3Backend):
+      # SDL3: Use canvas layer system
+      # Get global SDL3 canvas from runtime_api
+      var gSDL3Canvas {.importc, nodecl.}: SDLCanvas
+      
+      if not gSDL3Canvas.isNil:
+        var layer: Layer = nil
+        if args[0].kind == vkInt:
+          let idx = args[0].i
+          if idx >= 0 and idx < gSDL3Canvas.layers.len:
+            layer = gSDL3Canvas.layers[idx]
+          elif idx == 0 and gSDL3Canvas.layers.len == 0:
+            # Auto-create default layer only if it doesn't exist
+            layer = gSDL3Canvas.getLayer("default")
+            if layer.isNil:
+              layer = gSDL3Canvas.addLayer("default", 0)
+        elif args[0].kind == vkString:
+          let layerId = args[0].s
+          layer = gSDL3Canvas.getLayer(layerId)
+          if layer.isNil and (layerId == "default" or layerId == ""):
+            # Check if layer exists before creating
+            layer = gSDL3Canvas.addLayer("default", 0)
+        
+        if not layer.isNil:
+          drawShader(layer.buffer)
+    else:
+      # Terminal/Web: Use appState layer system
+      var layer: Layer = nil
+      if args[0].kind == vkInt:
+        let idx = args[0].i
+        # Access layer by index in layers array
+        if idx >= 0 and idx < appState.layers.len:
+          layer = appState.layers[idx]
+      elif args[0].kind == vkString:
+        let layerId = args[0].s
+        layer = getLayer(appState, layerId)
+      
+      if not layer.isNil:
+        drawShader(layer.buffer)
     
     return valNil()
   

@@ -1,6 +1,5 @@
-// Gradual Blur Shader for Stone Garden
-// Applies increasing blur from center to edges (tilt-shift effect)
-// Optimized: reduces samples near center, increases at edges
+// Gradual Blur Shader for t|Storie
+// Increasing blur from center to edges (tilt-shift like effect)
 
 function getShaderConfig() {
     return {

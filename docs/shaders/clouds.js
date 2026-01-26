@@ -1,6 +1,5 @@
 // Clouds Shader for tStorie
-// Procedural cloud/fog effect inspired by classic JRPGs like Chrono Trigger
-// Smooth, billowy clouds with controllable density and movement
+// Procedural cloud/fog effect inspired by Chrono Trigger
 
 function getShaderConfig() {
     return {

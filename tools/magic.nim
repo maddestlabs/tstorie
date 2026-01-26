@@ -49,11 +49,11 @@ proc validatePreset*(filePath: string): tuple[ok: bool, warnings: seq[string], d
   
   let content = readFile(filePath)
   
-  # Extract declared parameters from <!-- SUGAR_PARAMS: name, count --> 
+  # Extract declared parameters from <!-- MAGIC_PARAMS: name, count --> 
   for line in content.splitLines():
     let trimmed = line.strip()
-    if trimmed.startsWith("<!--") and trimmed.contains("SUGAR_PARAMS:"):
-      let startPos = trimmed.find("SUGAR_PARAMS:") + 13
+    if trimmed.startsWith("<!--") and trimmed.contains("MAGIC_PARAMS:"):
+      let startPos = trimmed.find("MAGIC_PARAMS:") + 13
       let endPos = trimmed.find("-->", startPos)
       if endPos > startPos:
         let paramList = trimmed[startPos..<endPos].strip()
@@ -113,14 +113,14 @@ proc validatePreset*(filePath: string): tuple[ok: bool, warnings: seq[string], d
     # Check for undeclared parameters
     for param in result.found:
       if param notin result.declared:
-        result.warnings.add("Warning: Parameter '" & param & "' used but not declared in SUGAR_PARAMS")
+        result.warnings.add("Warning: Parameter '" & param & "' used but not declared in MAGIC_PARAMS")
     
     # Check for unused declarations
     for param in result.declared:
       if param notin result.found:
         result.warnings.add("Warning: Parameter '" & param & "' declared but never used")
   elif result.found.len > 0:
-    result.warnings.add("Recommendation: Add <!-- SUGAR_PARAMS: " & result.found.join(", ") & " --> to explicitly declare parameters")
+    result.warnings.add("Recommendation: Add <!-- MAGIC_PARAMS: " & result.found.join(", ") & " --> to explicitly declare parameters")
 
 
 when isMainModule:
@@ -146,13 +146,13 @@ Examples:
   tstorie magic validate presets/particles-bugs.md
   
   # Save compressed output to file
-  tstorie sugar pack presets/particles-bugs.md -o bugs.sugar
+  tstorie magic pack presets/particles-bugs.md -o bugs.magic
   
   # Decompress and view
-  tstorie sugar unpack "eJyNVE1v2zAM..."
+  tstorie magic unpack "eJyNVE1v2zAM..."
   
   # Decompress file to file
-  tstorie sugar unpack bugs.sugar -o output.md
+  tstorie magic unpack bugs.magic -o output.md
 """
   
   var command = ""

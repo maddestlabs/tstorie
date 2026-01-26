@@ -1,5 +1,5 @@
-// Ruled Lines Shader
-// Adds notebook-style ruled lines
+// Ruled Lines Shader for t|Storie
+// Notebook-style ruled lines for real paper effect
 
 function getShaderConfig() {
     return {
@@ -38,23 +38,26 @@ function getShaderConfig() {
                 // Calculate base line number
                 float lineNumber = floor(yScreen / lineHeight);
                 
-                // Light lines - use step to create a mask (1.0 when on line, 0.0 otherwise)
+                // Light lines - use multiply blend mode
                 float lightLineMask = step(lightLineSpacing, 0.001) * 0.0 + 
                                      (1.0 - step(lightLineSpacing, 0.001)) * 
                                      step(mod(yScreen, lineHeight * lightLineSpacing), 1.0);
-                color.rgb = mix(color.rgb, lightLineColor, lineOpacity * lightLineMask);
+                vec3 lightBlend = mix(vec3(1.0), lightLineColor, lineOpacity);
+                color.rgb *= mix(vec3(1.0), lightBlend, lightLineMask);
                 
-                // Alternating line tint (every other line)
+                // Alternating line tint - also using multiply
                 float altLineMask = step(alternatingLineSpacing, 0.001) * 0.0 + 
                                    (1.0 - step(alternatingLineSpacing, 0.001)) * 
                                    (1.0 - step(1.0, mod(lineNumber, alternatingLineSpacing)));
-                color.rgb = mix(color.rgb, alternatingTint, lineOpacity * altLineMask);
+                vec3 altBlend = mix(vec3(1.0), alternatingTint, 1.0);
+                color.rgb *= mix(vec3(1.0), altBlend, altLineMask);
                 
-                // Dark lines
+                // Dark lines - multiply blend
                 float darkLineMask = step(darkLineSpacing, 0.001) * 0.0 + 
                                     (1.0 - step(darkLineSpacing, 0.001)) * 
                                     step(mod(yScreen, lineHeight * darkLineSpacing), 1.0);
-                color.rgb = mix(color.rgb, darkLineColor, lineOpacity * darkLineMask);
+                vec3 darkBlend = mix(vec3(1.0), darkLineColor, lineOpacity);
+                color.rgb *= mix(vec3(1.0), darkBlend, darkLineMask);
                 
                 gl_FragColor = vec4(color.rgb, 1.0);
             }
@@ -64,17 +67,17 @@ function getShaderConfig() {
             cellSize: [10.0, 20.0],
 
             // Line opacity
-            lineOpacity: 0.2,
+            lineOpacity: 0.6,
             
             // Line spacing (relative to cellSize.y)
             lightLineSpacing: 0.2,      // Light lines every 20% of line height
             darkLineSpacing: 1.0,       // Dark lines every 100% of line height
             alternatingLineSpacing: 2.0, // Alternating tint every 2 lines
             
-            // Line colors
-            lightLineColor: [0.8, 0.9, 1.0],  // Light blue
-            darkLineColor: [0.4, 0.5, 0.8],   // Dark blue
-            alternatingTint: [0.75, 0.75, 0.75] // Slight darkening
+            // Line colors (for multiply blend - values < 1.0 darken)
+            lightLineColor: [0.92, 0.94, 0.96],  // Subtle gray-blue
+            darkLineColor: [0.7, 0.75, 0.8],     // Medium gray-blue
+            alternatingTint: [0.96, 0.96, 0.96]  // Very subtle darkening
         }
     };
 }

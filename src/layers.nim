@@ -71,15 +71,18 @@ proc resolveLayerIndex*(state: AppState, layerId: int): int =
     return -1
 
 proc addLayer*(state: AppState, id: string, z: int): Layer =
+  echo "[Layer] Adding layer '", id, "' with dimensions: ", state.termWidth, "x", state.termHeight
   let layer = Layer(
     id: id,
     z: z,
     visible: true,
     buffer: newTermBuffer(state.termWidth, state.termHeight)
   )
+  echo "[Layer] Layer '", id, "' buffer created successfully"
   layer.buffer.clearTransparent()
   state.layers.add(layer)
   invalidateLayerCache(state)  # Cache is now stale
+  echo "[Layer] Layer '", id, "' added to state"
   return layer
 
 proc getLayer*(state: AppState, id: string): Layer =

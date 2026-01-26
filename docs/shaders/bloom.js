@@ -1,6 +1,5 @@
-// Bloom Shader for tStorie (Optimized)
-// Beautiful Gaussian bloom with excellent performance
-// 48 samples total instead of 80
+// Bloom Shader for tStorie
+// Subtle Gaussian bloom with focus on performance
 
 function getShaderConfig() {
     return {

@@ -26,6 +26,12 @@ when defined(sdl3Backend):
   export sdl_canvas, sdl_window
   type RenderBackend* = SDLCanvas
   
+  # Emscripten support for main loop
+  when defined(emscripten):
+    {.emit: """/*INCLUDESECTION*/
+    #include <emscripten/emscripten.h>
+    """.}
+  
   static:
     echo "[Build] Using SDL3 backend (pixel-based, TTF fonts)"
 else:
@@ -60,7 +66,7 @@ import lib/canvas             # Canvas navigation system (now proper module!)
 import lib/canvased           # Canvas editor - visual node graph editor
 import lib/layerfx            # Layer effects plugin (parallax, depth cueing, etc.)
 import src/timing             # High-precision timing and timers
-
+include lib/audio             # Audio system
 # Explicitly initialize plugin modules to ensure registration happens
 initDungeonGenModule()
 initPrimitivesModule()
@@ -71,10 +77,6 @@ when not defined(emscripten):
   when not defined(noGistLoading):
     import std/httpclient
   import src/export_command  # Export command support
-
-# These modules work directly with tstorie's core types (Layer, TermBuffer, Style, etc.)
-# so they must be included to share the same namespace
-include lib/audio             # Audio system
 
 const version = "0.1.0"
 
@@ -594,6 +596,12 @@ when defined(emscripten):
   var globalMinWidth*: int = 0  # Minimum required width (0 = no requirement)
   var globalMinHeight*: int = 0  # Minimum required height (0 = no requirement)
   
+  # SDL3 backend globals (when using SDL3 with emscripten)
+  when defined(sdl3Backend):
+    var globalCanvas: SDLCanvas
+    import src/input/sdl3input
+    var globalInputHandler: SDL3InputHandler
+  
   # Store URL params locally until runtime is initialized
   var wasmPendingParams: seq[(string, string)] = @[]
   var gEmSetUrlParamCalls: int = 0
@@ -625,6 +633,7 @@ when defined(emscripten):
   # Direct render caller for WASM
   proc renderStorie(state: AppState) =
     if storieCtx.isNil:
+      echo "[renderStorie] storieCtx is NIL"
       return
     
     # Check if we have any render blocks
@@ -657,6 +666,44 @@ when defined(emscripten):
     if not onShutdown.isNil:
       onShutdown(state)
   
+  # SDL3 main loop for emscripten
+  when defined(sdl3Backend):
+    proc sdl3MainLoop() {.cdecl, exportc: "sdl3MainLoop".} =
+      # Poll and convert events using SDL3 input handler
+      let inputEvents = globalInputHandler.pollInput()
+      
+      # Process input events and pass to handler
+      for event in inputEvents:
+        if event.kind == ResizeEvent:
+          globalState.resizeState(event.newWidth, event.newHeight)
+        else:
+          # Pass event to input handler (defined in runtime_api.nim)
+          let consumed = inputHandler(globalState, event)
+          if not globalState.running:
+            return
+      
+      # Update timing
+      let deltaTime = 1.0 / 60.0  # Fixed for now
+      globalState.updateFpsCounter(deltaTime)
+      
+      # Call update lifecycle
+      if not onUpdate.isNil:
+        onUpdate(globalState, deltaTime)
+      
+      # Check if storieCtx exists
+      if storieCtx.isNil:
+        return
+      
+      # Call render - this writes to layers for both backends
+      renderStorie(globalState)
+      
+      # For SDL3: Composite layers, then render cells to pixels
+      let themeBg = globalState.themeBackground
+      globalCanvas.clear((themeBg.r, themeBg.g, themeBg.b))
+      globalCanvas.compositeLayers()  # Composite layer buffers to canvas.cells[]
+      globalCanvas.renderCellsToPixels()  # Render cells[] to pixels
+      globalCanvas.present()
+  
   proc flushWasmParams() =
     ## Flush pending WASM params to the nimini runtime
     gFlushWasmParamsCalls.inc
@@ -681,6 +728,7 @@ when defined(emscripten):
     defineVar(runtimeEnv, "_flush_status", valString("flushed_" & $wasmPendingParams.len))
   
   # JavaScript bridge functions for font and shader loading
+  # JS bridge declarations for web builds (defined in font_metrics_bridge.js)
   proc emLoadFont(fontName: cstring) {.importc.}
   proc emLoadShaders(shadersStr: cstring) {.importc.}
   proc emSetFontSize(size: int) {.importc.}
@@ -1441,7 +1489,139 @@ proc main() =
       # Will be applied when storieCtx is initialized
       discard  # Theme will be checked after markdown loads
   
-  when not defined(emscripten):
+  when defined(sdl3Backend):
+    # SDL3 backend - pixel-based rendering
+    echo "[main] Initializing SDL3 backend..."
+    echo "[main] storieCtx before init: ", (if storieCtx.isNil: "NIL" else: "OK")
+    
+    # Create SDL canvas (global for emscripten main loop)
+    when defined(emscripten):
+      globalCanvas = newSDLCanvas(800, 600)
+      if globalCanvas.isNil:
+        echo "[main] ERROR: Failed to create SDL canvas"
+        quit(1)
+      echo "[main] SDL canvas created: ", globalCanvas.width, "x", globalCanvas.height
+      
+      # Initialize SDL3 input handler
+      globalInputHandler = newSDL3InputHandler(addr globalCanvas, globalCanvas.cellWidth, globalCanvas.cellHeight)
+      
+      # Create application state
+      var state = newAppState(globalCanvas.cellWidth, globalCanvas.cellHeight)
+      state.targetFps = 60.0
+      globalState = state
+      gAppState = state  # Set global for runtime API functions
+    else:
+      let canvas = newSDLCanvas(800, 600)
+      if canvas.isNil:
+        echo "[main] ERROR: Failed to create SDL canvas"
+        quit(1)
+      echo "[main] SDL canvas created: ", canvas.width, "x", canvas.height
+      
+      var state = newAppState(canvas.cellWidth, canvas.cellHeight)
+      state.targetFps = 60.0
+      gAppState = state  # Set global for runtime API functions
+    
+    # Initialize plugins
+    initLayerFxPlugin()
+    
+    # Set SDL3 canvas for runtime API functions
+    when defined(emscripten):
+      setSDL3Canvas(globalCanvas)
+    else:
+      setSDL3Canvas(canvas)
+    
+    # Initialize storie context (parses embedded markdown, sets up nimini, etc.)
+    when defined(emscripten):
+      echo "[main] Calling initStorieContext..."
+      initStorieContext(globalState)
+      echo "[main] storieCtx after init: ", (if storieCtx.isNil: "NIL" else: "OK")
+      if not storieCtx.isNil:
+        echo "[main] Number of code blocks: ", storieCtx.codeBlocks.len
+    else:
+      initStorieContext(state)
+      echo "[main] storieCtx after init: ", (if storieCtx.isNil: "NIL" else: "OK")
+    
+    # Call setup lifecycle
+    if not onInit.isNil:
+      when defined(emscripten):
+        onInit(globalState)
+      else:
+        onInit(state)
+    
+    echo "[main] Entering SDL3 main loop..."
+    
+    # Main loop (for native or Emscripten)
+    when defined(emscripten):
+      # Start the emscripten main loop (proc defined at top level)
+      {.emit: """
+        emscripten_set_main_loop(sdl3MainLoop, 0, 1);
+      """.}
+    else:
+      # Native: Regular while loop
+      var lastTime = epochTime()
+      
+      while state.running:
+        let currentTime = epochTime()
+        let deltaTime = currentTime - lastTime
+        lastTime = currentTime
+        
+        # Poll events
+        let events = canvas.pollEvents()
+        for event in events:
+          case event.kind
+          of SDLQuit:
+            state.running = false
+            break
+          of SDLResize:
+            state.resizeState(canvas.cellWidth, canvas.cellHeight)
+          else:
+            discard
+        
+        if not state.running:
+          break
+        
+        # Update FPS counter
+        state.updateFpsCounter(deltaTime)
+        
+        # Call update lifecycle
+        if not onUpdate.isNil:
+          onUpdate(state, deltaTime)
+        
+        # Clear canvas
+        canvas.clear((0'u8, 0'u8, 0'u8))
+        
+        # Call render
+        if not onRender.isNil:
+          onRender(state)
+        
+        # Composite layers onto canvas cells
+        for layer in state.layers:
+          if layer.visible:
+            let buffer = layer.buffer
+            for y in 0 ..< min(buffer.height, canvas.cellHeight):
+              for x in 0 ..< min(buffer.width, canvas.cellWidth):
+                let cell = buffer.getCell(x, y)
+                canvas.writeCell(x, y, cell.ch, cell.style)
+        
+        # Convert cells to pixels and present
+        canvas.renderCellsToPixels()
+        canvas.present()
+        
+        # Frame timing
+        if state.targetFps > 0.0:
+          let frameTime = epochTime() - currentTime
+          let targetFrameTime = 1.0 / state.targetFps
+          let sleepTime = targetFrameTime - frameTime
+          if sleepTime > 0:
+            sleep(int(sleepTime * 1000))
+      
+      # Cleanup
+      if not onShutdown.isNil:
+        onShutdown(state)
+      canvas.shutdown()
+  
+  elif not defined(emscripten):
+    # Terminal backend - character-cell rendering  
     let (w, h) = getTermSize()
     var state = newAppState(w, h)
     state.colorSupport = detectColorSupport()
@@ -1539,3 +1719,55 @@ proc main() =
 
 when isMainModule:
   main()
+# ================================================================
+# EMSCRIPTEN EXPORTS (SDL3 Web)
+# ================================================================
+
+when defined(emscripten) and defined(sdl3Backend):
+  import backends/sdl3/web_interop
+  
+  proc setMarkdownContent*(content: cstring) {.exportc.} =
+    ## Load markdown content from JavaScript (matches old WASM build pattern)
+    try:
+      # Convert cstring to string safely
+      if content.isNil:
+        echo "[setMarkdownContent] ERROR: content is nil"
+        return
+      
+      let contentStr = $content
+      echo "[setMarkdownContent] Received ", contentStr.len, " bytes"
+      
+      # Ensure content is valid
+      if contentStr.len == 0:
+        echo "[setMarkdownContent] ERROR: content is empty"
+        return
+      
+      # Parse the markdown document
+      let doc = parseMarkdownDocument(contentStr)
+      
+      # Check if we got any blocks
+      if doc.codeBlocks.len == 0:
+        echo "[setMarkdownContent] WARNING: no code blocks parsed from ", contentStr.len, " bytes"
+      
+      # Update the storie context with new code blocks and sections
+      if not storieCtx.isNil and not storieCtx.niminiContext.isNil:
+        # Replace the code blocks and sections
+        storieCtx.codeBlocks = doc.codeBlocks
+        storieCtx.sectionMgr = newSectionManager(doc.sections)
+        storieCtx.frontMatter = doc.frontMatter
+        storieCtx.styleSheet = doc.styleSheet
+        storieCtx.embeddedContent = doc.embeddedContent
+        
+        # Also update globalState styleSheet for API access
+        globalState.styleSheet = doc.styleSheet
+        
+        # Execute init blocks
+        for codeBlock in storieCtx.codeBlocks:
+          if codeBlock.lifecycle == "init":
+            discard executeCodeBlock(storieCtx.niminiContext, codeBlock, globalState)
+        
+        echo "[setMarkdownContent] Content loaded successfully"
+      else:
+        echo "[setMarkdownContent] ERROR: storieCtx or niminiContext is nil"
+    except Exception as e:
+      echo "[setMarkdownContent] ERROR: ", e.msg

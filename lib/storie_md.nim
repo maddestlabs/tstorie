@@ -400,6 +400,10 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
   ##   
   ##   # Next Section
   ##   More content here.
+  
+  # Clear embedded figlet fonts before parsing new content
+  gEmbeddedFigletFonts.clear()
+  
   result.frontMatter = parseFrontMatter(content)
   result.styleSheet = parseStyleSheet(result.frontMatter)
   result.codeBlocks = @[]
@@ -698,7 +702,7 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
             # Perform parameter substitution using the safer magic module function
             # Default to {{PARAM}} syntax for better safety
             if params.len > 0:
-              expanded = substituteSugarParams(expanded, params, "{{PARAM}}")
+              expanded = substituteMagicParams(expanded, params, "{{PARAM}}")
             
             # Recursively parse the expanded markdown
             let expandedDoc = parseMarkdownDocument(expanded)

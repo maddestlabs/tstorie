@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tStorie - SDL3 (NEW)</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: monospace;
+            overflow: hidden;
+        }
+        #canvas {
+            /* Use smooth rendering for anti-aliased TTF fonts */
+            image-rendering: auto;
+            image-rendering: -webkit-optimize-contrast;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #0f0;
+            font-size: 14px;
+            background: rgba(0,0,0,0.8);
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        #version {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            color: #00ffff;
+            font-size: 16px;
+            font-weight: bold;
+            background: rgba(0,100,100,0.9);
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: 2px solid #00ffff;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="version">🚀 SDL3 BUILD (NEW)</div>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <div id="status">Loading...</div>
+    
+    <script type="text/javascript">
+        // SDL3 will automatically use the canvas with id="canvas"
+        var Module = {
+            canvas: document.getElementById('canvas'),
+            printErr: function(text) {
+                console.error('[tStorie]', text);
+            },
+            print: function(text) {
+                console.log('[tStorie]', text);
+            },
+            onRuntimeInitialized: function() {
+                console.log('[tStorie] Runtime initialized, canvas ready');
+                document.getElementById('status').textContent = 'Ready';
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 2000);
+            },
+            // Ensure canvas exists before SDL tries to use it
+            preRun: [function() {
+                console.log('[tStorie] PreRun: Canvas element exists:', !!document.getElementById('canvas'));
+            }]
+        };
+    </script>
+    <script src="tstorie-sdl3.js"></script>
+    <script>
+        // MODULARIZE requires us to call the exported function
+        TStorieModule(Module).then(function(instance) {
+            console.log('[tStorie] Module initialized');
+        });
+    </script>
+</body>
+</html>

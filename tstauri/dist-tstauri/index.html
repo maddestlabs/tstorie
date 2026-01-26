@@ -1939,8 +1939,7 @@
                     if (webglCanvas.width !== newWidth || webglCanvas.height !== newHeight) {
                         webglCanvas.width = newWidth;
                         webglCanvas.height = newHeight;
-                        console.log('Resized shader canvas to viewport:', newWidth, 'x', newHeight);
-                        
+
                         // Force viewport update on next render
                         if (shaderSystem && shaderSystem.gl) {
                             shaderSystem.gl.viewport(0, 0, newWidth, newHeight);
@@ -2086,7 +2085,6 @@
                 
                 // Function to resize framebuffers
                 function resizeFramebuffers(w, h) {
-                    console.log('Resizing framebuffers to', w, 'x', h);
                     for (let i = 0; i < framebuffers.length; i++) {
                         const fb = framebuffers[i];
                         gl.bindTexture(gl.TEXTURE_2D, fb.texture);

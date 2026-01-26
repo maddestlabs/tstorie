@@ -1,5 +1,5 @@
-// Simple Box Blur Shader
-// Can be chained with other effects: ?shader=blur+crt or ?shader=invert+blur
+// Simple Box Blur Shader for t|Storie
+// Made for dulling sharp edges
 
 function getShaderConfig() {
     return {

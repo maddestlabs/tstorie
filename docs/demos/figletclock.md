@@ -1,3 +1,10 @@
+---
+name: "FigletClock"
+theme: "neotopia"
+fontsize: 30
+shaders: "outline+scanlines+vignette+crt"
+---
+
 # Digital Clock with Embedded Font
 
 A simple digital clock using an embedded FIGlet font.

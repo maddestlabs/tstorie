@@ -1,5 +1,5 @@
-// Simple Invert Shader for Testing
-// Upload this to a GitHub Gist and use: ?shader=YOUR_GIST_ID
+// Simple Invert Shader for t|Storie
+// Handy negative effect for inverting dark/light themes
 
 function getShaderConfig() {
     return {

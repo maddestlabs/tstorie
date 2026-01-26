@@ -24,8 +24,8 @@ proc decompressString*(input: string): string =
       echo "Decompression error: ", e.msg
     result = ""
 
-proc parseSugarParams*(paramString: string): Table[string, string] =
-  ## Parse parameters from sugar block header
+proc parseMagicParams*(paramString: string): Table[string, string] =
+  ## Parse parameters from magic block header
   ## Example: name="bugs" count="100" speed="3.0"
   ## Returns: {"name": "bugs", "count": "100", "speed": "3.0"}
   result = initTable[string, string]()
@@ -89,7 +89,7 @@ proc extractDeclaredParams*(content: string): seq[string] =
             result.add(cleaned)
       break
 
-proc substituteSugarParams*(content: string, params: Table[string, string], 
+proc substituteMagicParams*(content: string, params: Table[string, string], 
                            syntax: string = "{{PARAM}}"): string =
   ## Replace parameter placeholders in content with actual values
   ## 

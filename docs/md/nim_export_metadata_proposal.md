@@ -182,10 +182,6 @@ proc registerTStorieLibs*() =
     storieLibs = @["canvas"],
     description = "Draw rectangle on current layer")
   
-  registerNative("drawLine", niminiDrawLine,
-    storieLibs = @["canvas"],
-    description = "Draw line on current layer")
-  
   registerNative("fill", niminiFill,
     storieLibs = @["canvas"],
     description = "Fill region with character")

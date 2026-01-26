@@ -1,13 +1,11 @@
 ---
 title: "Scripted TUI Demo"
-minWidth: 60
-minHeight: 35
-# Theme-aware demo - works with any theme!
-# Try: neotopia (default), catppuccin, nord, dracula, miami-vice, outrun, etc.
-theme: "neotopia"
+theme: "coffee"
 # Custom highlight style inherits background from theme
-styles.highlight.fg: "#FFFF00"
+styles.highlight.fg: "#FF0000"
 styles.highlight.bold: "true"
+shaders: "ruledlines+paper+lightnight"
+fontsize: 16
 ---
 
 # Comprehensive TUI System

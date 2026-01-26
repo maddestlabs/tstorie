@@ -6,7 +6,7 @@ targetFPS: 60
 
 # 🪄 Welcome to Magic!
 
-This demo shows how **sugar blocks** eliminate boilerplate code by compressing and parameterizing reusable snippets.
+This demo shows how **magic blocks** eliminate boilerplate code by compressing and parameterizing reusable snippets.
 
 Each particle system below is created with a single line of code!
 
@@ -68,14 +68,14 @@ Quick start:
 
 2. **Compress it:**
    ```bash
-   nim c -r tools/sugar.nim pack my-preset.md
+   nim c -r tools/magic.nim pack my-preset.md
    ```
 
 3. **Use it anywhere:**
    ```markdown
-   ```sugar name="myThing" startX="10"
+   ```magic name="myThing" startX="10"
    <compressed-base64-here>
    ```
    ```
 
-4. **Share it!** Sugar blocks are perfect for GitHub Gists.
+4. **Share it!** Magic blocks are perfect for GitHub Gists.
