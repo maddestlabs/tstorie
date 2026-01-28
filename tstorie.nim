@@ -694,14 +694,20 @@ when defined(emscripten):
       if storieCtx.isNil:
         return
       
-      # Call render - this writes to layers for both backends
+      # Call render - this writes to gAppState.layers (unified layer system)
       renderStorie(globalState)
       
-      # For SDL3: Composite layers, then render cells to pixels
-      let themeBg = globalState.themeBackground
-      globalCanvas.clear((themeBg.r, themeBg.g, themeBg.b))
-      globalCanvas.compositeLayers()  # Composite layer buffers to canvas.cells[]
-      globalCanvas.renderCellsToPixels()  # Render cells[] to pixels
+      # For SDL3: Use terminal backend's layer compositing, then render to pixels
+      # 1. Composite layers using terminal backend's logic (this is the proven system)
+      compositeLayers(globalState)
+      
+      # 2. Copy composited buffer to SDL3 canvas cells[]
+      globalCanvas.renderBuffer(globalState.currentBuffer)
+      
+      # 3. Render cells to pixels with dirty tracking
+      globalCanvas.renderCellsToPixels()
+      
+      # 4. Present the frame
       globalCanvas.present()
   
   proc flushWasmParams() =

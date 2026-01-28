@@ -23,20 +23,12 @@ when defined(emscripten):
   # ================================================================
   # Using web/audio_bridge.js for JavaScript WebAudio implementation
   
-  when not defined(sdl3Backend):
-    # Old WASM build with custom JS bridge
-    # Import JavaScript functions from audio_bridge.js
-    proc emAudioInit() {.importc.}
-    proc emAudioPlaySample(data: ptr float32, len: cint, sampleRate: cint, 
-                           volume: cfloat) {.importc.}
-    proc emAudioStopAll() {.importc.}
-  else:
-    # SDL3 web build - audio not yet implemented
-    # Stub out audio functions to avoid link errors
-    proc emAudioInit() = discard
-    proc emAudioPlaySample(data: ptr float32, len: cint, sampleRate: cint, 
-                           volume: cfloat) = discard
-    proc emAudioStopAll() = discard
+  # Import JavaScript functions from audio_bridge.js
+  # These work for both old WASM and SDL3 builds
+  proc emAudioInit() {.importc.}
+  proc emAudioPlaySample(data: ptr float32, len: cint, sampleRate: cint, 
+                         volume: cfloat) {.importc.}
+  proc emAudioStopAll() {.importc.}
 
 else:
   # ================================================================

@@ -10,20 +10,7 @@ This directory contains example WebGL shaders that can be loaded at runtime via 
 
 ## Example Shaders
 
-### example_shader.js
-Basic CRT effect with:
-- Scanlines
-- RGB chromatic aberration
-- Noise/grain
-- Vignette
-- Flicker
-
-**Parameters:**
-- `scanlineIntensity`: 0.8 (intensity of scanlines)
-- `rgbShift`: 1.0 (amount of chromatic aberration)
-- `noiseAmount`: 0.05 (grain intensity)
-
-### crt_shader.js
+### apocalypcrt.js
 Advanced CRT shader based on Apocalypse CRT with:
 - CRT curvature/barrel distortion
 - Aperture grille effect

@@ -8,7 +8,7 @@ chars: "岩僧石座固僧・苔霧松竹梅"
 doubleWidth: true
 theme: "stonegarden"
 font: "LXGW+WenKai+Mono+TC"
-shaders: "sand+clouds+gradualblur"
+shaders: "sand+clouds+blurgradual"
 ---
 
 # Stone Garden⠀

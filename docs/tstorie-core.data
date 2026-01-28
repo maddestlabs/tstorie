@@ -2143,7 +2143,7 @@ The editor is fully functional and ready for integration!
 title: "Depths Beckon"
 author: "Maddest Labs"
 theme: "coffee"
-shaders: "ruledlines+sand+lightnight+gradualblur"
+shaders: "ruledlines+sand+lightnight+blurgradual"
 font: "Courier+Prime"
 ---
 
@@ -13822,7 +13822,7 @@ chars: "岩僧石座固僧・苔霧松竹梅"
 doubleWidth: true
 theme: "stonegarden"
 font: "LXGW+WenKai+Mono+TC"
-shaders: "sand+clouds+gradualblur"
+shaders: "sand+clouds+blurgradual"
 ---
 
 # Stone Garden⠀

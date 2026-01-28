@@ -392,23 +392,29 @@ proc normalizeEvents*(events: seq[InputEvent]): seq[InputEvent] =
     case evt.kind
     of KeyEvent:
       # Check if this is a printable key that will have a TextEvent
-      if isPrintableKey(evt.keyCode):
-        # Look ahead for matching TextEvent
+      if isPrintableKey(evt.keyCode) and evt.keyAction == Press:
+        # Look ahead or behind for matching TextEvent
         var hasTextEvent = false
+        
+        # Check ahead (WASM backend: KeyEvent -> TextEvent)
         if i + 1 < events.len and events[i + 1].kind == TextEvent:
           hasTextEvent = true
         
-        # Skip this KeyEvent if TextEvent exists (WASM sends both)
+        # Check behind (SDL3 backend: TextEvent -> KeyEvent)
+        if i > 0 and events[i - 1].kind == TextEvent:
+          hasTextEvent = true
+        
+        # Skip this KeyEvent if TextEvent exists
         if not hasTextEvent:
           # No TextEvent found, convert KeyEvent to TextEvent for consistency
-          # Preserve modifiers from KeyEvent
+          # Preserve modifiers from KeyEvent (only for Press events)
           result.add InputEvent(
             kind: TextEvent,
             text: $chr(evt.keyCode),
             textMods: evt.keyMods
           )
       else:
-        # Non-printable key (arrow, function, etc.) - keep as KeyEvent
+        # Non-printable key OR Release event - keep as KeyEvent
         result.add evt
         
     else:

@@ -11,6 +11,7 @@ const
   SDL_EVENT_QUIT* = 0x100'u32
   SDL_EVENT_KEY_DOWN* = 0x300'u32
   SDL_EVENT_KEY_UP* = 0x301'u32
+  SDL_EVENT_TEXT_INPUT* = 0x303'u32
   SDL_EVENT_MOUSE_MOTION* = 0x400'u32
   SDL_EVENT_MOUSE_BUTTON_DOWN* = 0x401'u32
   SDL_EVENT_MOUSE_BUTTON_UP* = 0x402'u32
@@ -58,3 +59,5 @@ proc SDL_PollEvent*(event: ptr SDL_Event): bool {.importc, header: sdlHeader.}
 proc SDL_WaitEvent*(event: ptr SDL_Event): bool {.importc, header: sdlHeader.}
 proc SDL_WaitEventTimeout*(event: ptr SDL_Event, timeoutMS: int32): bool {.importc, header: "SDL3/SDL_events.h".}
 proc SDL_GetModState*(): uint16 {.importc, header: sdlHeader.}
+proc SDL_StartTextInput*(window: pointer): bool {.importc, header: sdlHeader.}
+proc SDL_StopTextInput*(window: pointer): bool {.importc, header: sdlHeader.}

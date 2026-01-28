@@ -51,7 +51,7 @@ shaders: "crt"
 
 ```yaml
 ---
-shaders: "grid2x1+sand+gradualblur"
+shaders: "grid2x1+sand+blurgradual"
 ---
 ```
 
@@ -137,7 +137,7 @@ Errors are logged to the browser console with the `[WASM]` prefix for debugging.
 - **[stonegarden.md](../demos/stonegarden.md)**: Uses custom theme with shader chain
   ```yaml
   theme: "stonegarden"
-  shaders: "grid2x1+sand+gradualblur"
+  shaders: "grid2x1+sand+blurgradual"
   ```
 
 - **[intro.md](../demos/intro.md)**: Uses default theme

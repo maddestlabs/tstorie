@@ -165,14 +165,14 @@ function getShaderConfig() {
         `,
         uniforms: {
             // Paper
-            paperNoise: 0.4,
-            noiseIntensity: 0.18,
+            paperNoise: 0.22,
+            noiseIntensity: 0.28,
             noiseMix: 0.74,
 
             // Dirt
-            dirtAmount: 0.2,
-            dirtScale: 4.5,
-            dirtContrast: 1.2,
+            dirtAmount: 0.32,
+            dirtScale: 1.1,
+            dirtContrast: 0.92,
             dirtColor: [0.25, 0.18, 0.12] // warm dirt / sepia
         }
     };

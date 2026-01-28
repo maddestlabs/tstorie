@@ -50,21 +50,30 @@ when not defined(coreOnly):
 
 
 type
+  GlyphCache = object
+    texture: ptr SDL_Texture  # Pre-rendered glyph texture with specific color
+    srcRect: SDL_FRect        # Source rect in atlas (if using atlas)
+    advance: int              # Character advance width
+  
+  GlyphKey = tuple[ch: string, r, g, b: uint8]  # Key includes character AND color
+  
   SDLCanvas* = ref object
     window*: ptr SDL_Window
     renderer*: ptr SDL_Renderer
+    terminalTexture*: ptr SDL_Texture  # Persistent texture (render target) for terminal content
     width*: int
     height*: int
     cellWidth*: int    # Width in character cells
     cellHeight*: int   # Height in character cells
-    cells*: seq[Cell]  # Virtual terminal grid
+    cells*: seq[Cell]  # Virtual terminal grid for final rendered output
+    prevCells*: seq[Cell]  # Previous frame for dirty tracking (battery optimization)
     bgColor*: tuple[r, g, b: uint8]
     clipRect*: Option[tuple[x, y, w, h: int]]
     offset*: tuple[x, y: int]
-    # Layer system support
-    layers*: seq[Layer]           # Layer storage for compositing
-    layerIndexCache*: Table[string, int]  # Cache for O(1) layer lookup
-    cacheValid*: bool             # Whether cache is up-to-date
+    glyphCache*: Table[GlyphKey, GlyphCache]  # (Character + Color) -> cached texture
+    firstFrame*: bool  # Track if this is the first frame (needs full clear)
+    # NOTE: SDL3 uses gAppState.layers (shared with terminal backend)
+    # No separate layer system needed - we just render the final composited buffer
     when not defined(coreOnly):
       font*: ptr TTF_Font  # Current font for text rendering (SDL3_ttf)
     useTTF*: bool        # Whether to use TTF fonts or debug text
@@ -78,6 +87,8 @@ proc newSDLCanvas*(width, height: int, title: string = "tStorie"): SDLCanvas =
   result.height = height
   result.clipRect = none(tuple[x, y, w, h: int])
   result.offset = (0, 0)
+  result.glyphCache = initTable[GlyphKey, GlyphCache]()
+  result.firstFrame = true  # First frame needs full clear
   
   # Calculate cell dimensions
   result.cellWidth = width div CHAR_WIDTH
@@ -85,14 +96,14 @@ proc newSDLCanvas*(width, height: int, title: string = "tStorie"): SDLCanvas =
   
   # Initialize virtual terminal cell grid
   result.cells = newSeq[Cell](result.cellWidth * result.cellHeight)
+  result.prevCells = newSeq[Cell](result.cellWidth * result.cellHeight)
   let defaultStyle = Style(fg: white(), bg: black(), bold: false)
   for i in 0 ..< result.cells.len:
     result.cells[i] = Cell(ch: " ", style: defaultStyle)
+    result.prevCells[i] = Cell(ch: " ", style: defaultStyle)
   
-  # Initialize layer system
-  result.layers = @[]
-  result.layerIndexCache = initTable[string, int]()
-  result.cacheValid = false
+  # NOTE: SDL3 uses gAppState.layers (shared with terminal backend)
+  # No layer initialization needed here
   
   # Set hints BEFORE SDL_Init (required for Emscripten)
   when defined(emscripten):
@@ -147,8 +158,10 @@ proc newSDLCanvas*(width, height: int, title: string = "tStorie"): SDLCanvas =
     
     # Resize the cell grid to match new dimensions
     result.cells = newSeq[Cell](result.cellWidth * result.cellHeight)
+    result.prevCells = newSeq[Cell](result.cellWidth * result.cellHeight)
     for i in 0 ..< result.cells.len:
       result.cells[i] = Cell(ch: " ", style: defaultStyle)
+      result.prevCells[i] = Cell(ch: " ", style: defaultStyle)
   
   # Create window
   when defined(emscripten):
@@ -188,6 +201,34 @@ proc newSDLCanvas*(width, height: int, title: string = "tStorie"): SDLCanvas =
       SDL_Quit()
     return nil
   
+  # Enable text input for proper keyboard handling (SDL3)
+  discard SDL_StartTextInput(result.window)
+  
+  # Create persistent terminal texture (render target for dirty cell updates)
+  result.terminalTexture = SDL_CreateTexture(
+    result.renderer,
+    SDL_PIXELFORMAT_RGBA8888.uint32,
+    SDL_TEXTUREACCESS_TARGET.cint,  # KEY: allows rendering to this texture
+    result.width.cint,
+    result.height.cint
+  )
+  
+  if result.terminalTexture.isNil:
+    echo "Failed to create terminal texture: ", SDL_GetError()
+    SDL_DestroyRenderer(result.renderer)
+    SDL_DestroyWindow(result.window)
+    when not defined(emscripten):
+      SDL_Quit()
+    return nil
+  
+  # Initialize terminal texture to black
+  discard SDL_SetRenderTarget(result.renderer, result.terminalTexture)
+  discard SDL_SetRenderDrawColor(result.renderer, 0, 0, 0, 255)
+  discard SDL_RenderClear(result.renderer)
+  discard SDL_SetRenderTarget(result.renderer, nil)
+  
+  echo "[Canvas] Created persistent terminal texture: ", result.width, "x", result.height
+  
   # Don't use logical presentation on web - it causes additional scaling artifacts
   # On web, the canvas size should match the display size 1:1 for crisp text
   when not defined(emscripten):
@@ -202,6 +243,12 @@ proc newSDLCanvas*(width, height: int, title: string = "tStorie"): SDLCanvas =
 
 proc shutdown*(canvas: SDLCanvas) =
   ## Clean up SDL resources
+  # Destroy cached glyph textures
+  for ch, glyph in canvas.glyphCache.pairs:
+    if not glyph.texture.isNil:
+      SDL_DestroyTexture(glyph.texture)
+  canvas.glyphCache.clear()
+  
   when not defined(emscripten):
     sdl_fonts.shutdown()
   if not canvas.renderer.isNil:
@@ -255,13 +302,13 @@ proc fillRect*(canvas: SDLCanvas, x, y, width, height: int, ch: string, style: S
 
 proc clear*(canvas: SDLCanvas, bgColor: tuple[r, g, b: uint8]) =
   ## Clear the canvas to specified background color
-  discard SDL_SetRenderDrawColor(canvas.renderer, bgColor.r, bgColor.g, bgColor.b, 255)
-  discard SDL_RenderClear(canvas.renderer)
+  ## Note: We don't call SDL_RenderClear() - pixels persist and cells overwrite their areas
+  discard  # No-op: layers handle clearing, pixels persist on renderer
 
 proc clearTransparent*(canvas: SDLCanvas) =
   ## Clear with transparency (SDL3 doesn't really support this, use black)
-  discard SDL_SetRenderDrawColor(canvas.renderer, 0, 0, 0, 0)
-  discard SDL_RenderClear(canvas.renderer)
+  ## Note: We don't call SDL_RenderClear() - pixels persist and cells overwrite their areas
+  discard  # No-op: layers handle clearing, pixels persist on renderer
 
 proc getCell*(canvas: SDLCanvas, x, y: int): tuple[ch: string, style: Style] =
   ## Get cell content (not really supported in SDL3, return empty)
@@ -359,10 +406,51 @@ proc fillCellRect*(canvas: SDLCanvas, x, y, w, h: int, ch: string, style: Style)
     for cx in x ..< min(x + w, canvas.cellWidth):
       canvas.writeCell(cx, cy, ch, style)
 
+proc getOrCreateGlyph(canvas: SDLCanvas, ch: string, fgColor: tuple[r, g, b: uint8]): ptr SDL_Texture =
+  ## Get cached glyph texture or create new one (terminal emulator approach)
+  ## Caches each character + color combination for maximum performance
+  
+  let key: GlyphKey = (ch, fgColor.r, fgColor.g, fgColor.b)
+  
+  # Check cache first
+  if canvas.glyphCache.hasKey(key):
+    return canvas.glyphCache[key].texture
+  
+  # Render new glyph
+  var glyphTexture: ptr SDL_Texture = nil
+  
+  when not defined(coreOnly):
+    if not canvas.font.isNil:
+      # Render glyph with actual foreground color
+      var color = sdl3_bindings.SDL_Color(r: fgColor.r, g: fgColor.g, b: fgColor.b, a: 255)
+      let surface = TTF_RenderText_Blended(canvas.font, ch.cstring, ch.len.csize_t, color)
+      if not surface.isNil:
+        # Get dimensions before destroying surface
+        let w = surface.w
+        let h = surface.h
+        
+        glyphTexture = SDL_CreateTextureFromSurface(canvas.renderer, surface)
+        SDL_DestroySurface(surface)
+        
+        # Cache it (SDL3 textures have alpha blending by default)
+        if not glyphTexture.isNil:
+          canvas.glyphCache[key] = GlyphCache(
+            texture: glyphTexture,
+            srcRect: SDL_FRect(x: 0, y: 0, w: w.cfloat, h: h.cfloat),
+            advance: w.int
+          )
+  
+  return glyphTexture
+
 proc renderCellsToPixels*(canvas: SDLCanvas) =
-  ## Render the entire cell grid to pixels
-  ## This is called each frame to convert terminal cells to graphics
-  var nonSpaceCount = 0
+  ## TRUE dirty tracking using persistent texture render target
+  ## Only render changed cells to persistent texture, then blit to back buffer
+  ## This is how modern terminal emulators (Ghostty/Kitty) optimize rendering
+  
+  # Step 1: Render ONLY dirty cells to persistent terminal texture
+  # Switch render target to our persistent texture
+  discard SDL_SetRenderTarget(canvas.renderer, canvas.terminalTexture)
+  
   for y in 0 ..< canvas.cellHeight:
     for x in 0 ..< canvas.cellWidth:
       let idx = y * canvas.cellWidth + x
@@ -370,32 +458,80 @@ proc renderCellsToPixels*(canvas: SDLCanvas) =
         continue
       
       let cell = canvas.cells[idx]
-      if cell.ch != " " and cell.ch.len > 0:
-        nonSpaceCount += 1
+      let prevCell = canvas.prevCells[idx]
+      
+      # Check if cell changed (TRUE dirty tracking)
+      let cellChanged = cell.ch != prevCell.ch or
+         cell.style.fg.r != prevCell.style.fg.r or
+         cell.style.fg.g != prevCell.style.fg.g or
+         cell.style.fg.b != prevCell.style.fg.b or
+         cell.style.bg.r != prevCell.style.bg.r or
+         cell.style.bg.g != prevCell.style.bg.g or
+         cell.style.bg.b != prevCell.style.bg.b
+      
+      # Skip unchanged cells - texture persists between frames!
+      if not cellChanged and not canvas.firstFrame:
+        continue
+      
+      # Calculate pixel coordinates for this cell
       let pixelX = x * CHAR_WIDTH
       let pixelY = y * CHAR_HEIGHT
       
-      # Draw background (only if not default black to save draw calls)
-      if cell.style.bg.r != 0 or cell.style.bg.g != 0 or cell.style.bg.b != 0:
-        discard SDL_SetRenderDrawColor(canvas.renderer, 
-          cell.style.bg.r, cell.style.bg.g, cell.style.bg.b, 255)
-        var bgRect = SDL_FRect(x: pixelX.cfloat, y: pixelY.cfloat, 
-          w: CHAR_WIDTH.cfloat, h: CHAR_HEIGHT.cfloat)
-        discard SDL_RenderFillRect(canvas.renderer, addr bgRect)
+      # Render this dirty cell to the persistent texture
+      # Draw background (overwrite previous pixels at this location)
+      discard SDL_SetRenderDrawColor(canvas.renderer, 
+        cell.style.bg.r, cell.style.bg.g, cell.style.bg.b, 255)
+      var bgRect = SDL_FRect(x: pixelX.cfloat, y: pixelY.cfloat, 
+        w: CHAR_WIDTH.cfloat, h: CHAR_HEIGHT.cfloat)
+      discard SDL_RenderFillRect(canvas.renderer, addr bgRect)
       
       # Draw character if not space
       if cell.ch != " " and cell.ch.len > 0:
-        # Runtime check: use TTF plugin if loaded, otherwise fallback
-        if not gTTFRenderFunc.isNil and not gTTFFontHandle.isNil:
-          # Use TTF plugin (dynamically loaded)
-          discard gTTFRenderFunc(canvas.renderer, gTTFFontHandle, cell.ch.cstring, cell.ch.len.csize_t,
-                                 pixelX.cfloat, pixelY.cfloat,
-                                 cell.style.fg.r, cell.style.fg.g, cell.style.fg.b)
+        # Use glyph atlas cache (like terminal emulators)
+        when not defined(coreOnly):
+          if canvas.useTTF:
+            let glyphTexture = canvas.getOrCreateGlyph(cell.ch, (cell.style.fg.r, cell.style.fg.g, cell.style.fg.b))
+            if not glyphTexture.isNil:
+              # Get glyph dimensions from cache
+              let key: GlyphKey = (cell.ch, cell.style.fg.r, cell.style.fg.g, cell.style.fg.b)
+              if canvas.glyphCache.hasKey(key):
+                let glyph = canvas.glyphCache[key]
+                
+                # Render glyph texture (single SDL_RenderTexture call per cell)
+                var srcRect = glyph.srcRect
+                var dstRect = SDL_FRect(x: pixelX.cfloat, y: pixelY.cfloat, w: srcRect.w, h: srcRect.h)
+                discard SDL_RenderTexture(canvas.renderer, glyphTexture, addr srcRect, addr dstRect)
+            else:
+              # Fallback to debug text
+              discard SDL_SetRenderDrawColor(canvas.renderer,
+                cell.style.fg.r, cell.style.fg.g, cell.style.fg.b, 255)
+              discard SDL_RenderDebugText(canvas.renderer, pixelX.cfloat, pixelY.cfloat, cell.ch.cstring)
+          else:
+            # No TTF: use debug text
+            discard SDL_SetRenderDrawColor(canvas.renderer,
+              cell.style.fg.r, cell.style.fg.g, cell.style.fg.b, 255)
+            discard SDL_RenderDebugText(canvas.renderer, pixelX.cfloat, pixelY.cfloat, cell.ch.cstring)
         else:
-          # Fallback to debug text (ASCII only, always available)
+          # Core-only build: use debug text
           discard SDL_SetRenderDrawColor(canvas.renderer,
             cell.style.fg.r, cell.style.fg.g, cell.style.fg.b, 255)
           discard SDL_RenderDebugText(canvas.renderer, pixelX.cfloat, pixelY.cfloat, cell.ch.cstring)
+  
+  # Step 2: Switch back to default render target (back buffer)
+  discard SDL_SetRenderTarget(canvas.renderer, nil)
+  
+  # Step 3: Clear back buffer and blit entire persistent texture
+  discard SDL_SetRenderDrawColor(canvas.renderer, 0, 0, 0, 255)
+  discard SDL_RenderClear(canvas.renderer)
+  discard SDL_RenderTexture(canvas.renderer, canvas.terminalTexture, nil, nil)
+  
+  # Update previous frame buffer for next dirty comparison
+  for i in 0 ..< canvas.cells.len:
+    canvas.prevCells[i] = canvas.cells[i]
+  
+  # Mark first frame as complete
+  if canvas.firstFrame:
+    canvas.firstFrame = false
 
 proc measureText*(canvas: SDLCanvas, text: string): tuple[width, height: int] =
   ## Measure text dimensions with current font
@@ -414,136 +550,18 @@ proc clearTextCache*(canvas: SDLCanvas) =
     sdl_fonts.clearCache()
 
 # ================================================================
-# LAYER SYSTEM (Multi-buffer compositing)
+# BUFFER RENDERING (SDL3 just renders the final composited buffer)
 # ================================================================
 
-proc newLayer*(canvas: SDLCanvas, id: string, z: int = 0): Layer =
-  ## Create a new layer with the canvas dimensions
-  result = Layer(
-    id: id,
-    z: z,
-    visible: true,
-    buffer: TermBuffer(
-      width: canvas.cellWidth,
-      height: canvas.cellHeight,
-      cells: newSeq[Cell](canvas.cellWidth * canvas.cellHeight),
-      clipX: 0,
-      clipY: 0,
-      clipW: canvas.cellWidth,
-      clipH: canvas.cellHeight,
-      offsetX: 0,
-      offsetY: 0
-    )
-  )
-  # Clear layer buffer to transparent
-  let defaultStyle = Style(fg: white(), bg: black(), bold: false)
-  for i in 0 ..< result.buffer.cells.len:
-    result.buffer.cells[i] = Cell(ch: "", style: defaultStyle)
-
-proc rebuildLayerCache*(canvas: SDLCanvas) =
-  ## Rebuild the layer name -> index cache
-  canvas.layerIndexCache.clear()
-  for i, layer in canvas.layers:
-    canvas.layerIndexCache[layer.id] = i
-  canvas.cacheValid = true
-
-proc invalidateLayerCache*(canvas: SDLCanvas) =
-  ## Mark the layer cache as invalid (will be rebuilt on next access)
-  canvas.cacheValid = false
-
-proc resolveLayerIndex*(canvas: SDLCanvas, layerId: string): int =
-  ## Resolve a layer name to its index in the layers array
-  ## Returns -1 if layer not found
-  ## Special case: "default" or "" returns 0 (the default layer)
-  if layerId == "default" or layerId == "":
-    if canvas.layers.len > 0:
-      return 0
-    else:
-      return -1
+proc renderBuffer*(canvas: SDLCanvas, buffer: TermBuffer) =
+  ## Copy a composited TermBuffer to the SDL3 cells[] array for rendering
+  ## This is the bridge between terminal backend's layer system and SDL3 rendering
+  let w = min(canvas.cellWidth, buffer.width)
+  let h = min(canvas.cellHeight, buffer.height)
   
-  # Rebuild cache if invalid
-  if not canvas.cacheValid:
-    canvas.rebuildLayerCache()
-  
-  # Look up in cache
-  if canvas.layerIndexCache.hasKey(layerId):
-    return canvas.layerIndexCache[layerId]
-  else:
-    return -1
-
-proc addLayer*(canvas: SDLCanvas, id: string, z: int): Layer =
-  ## Add a new layer to the canvas
-  let layer = canvas.newLayer(id, z)
-  canvas.layers.add(layer)
-  canvas.invalidateLayerCache()
-  echo "[SDL3] Added layer '", id, "' (z=", z, ") - total layers: ", canvas.layers.len
-  return layer
-
-proc getLayer*(canvas: SDLCanvas, id: string): Layer =
-  ## Get a layer by ID
-  for layer in canvas.layers:
-    if layer.id == id:
-      return layer
-  return nil
-
-proc removeLayer*(canvas: SDLCanvas, id: string) =
-  ## Remove a layer by ID
-  var i = 0
-  while i < canvas.layers.len:
-    if canvas.layers[i].id == id:
-      canvas.layers.delete(i)
-      canvas.invalidateLayerCache()
-    else:
-      i += 1
-
-proc resizeLayers*(canvas: SDLCanvas, newWidth, newHeight: int) =
-  ## Resize all layer buffers to match new canvas size
-  for layer in canvas.layers:
-    layer.buffer.width = newWidth
-    layer.buffer.height = newHeight
-    layer.buffer.cells = newSeq[Cell](newWidth * newHeight)
-    let defaultStyle = Style(fg: white(), bg: black(), bold: false)
-    for i in 0 ..< layer.buffer.cells.len:
-      layer.buffer.cells[i] = Cell(ch: "", style: defaultStyle)
-
-proc compositeBufferOnto(dest: var seq[Cell], destWidth: int, src: var TermBuffer) =
-  ## Composite one buffer onto a destination cell array
-  ## Empty cells and pure-black backgrounds are treated as transparent
-  var nonEmptyCount = 0
-  let w = min(destWidth, src.width)
-  let h = min(dest.len div destWidth, src.height)
   for y in 0 ..< h:
-    let dr = y * destWidth
-    let sr = y * src.width
     for x in 0 ..< w:
-      let s = src.cells[sr + x]
-      # Composite if there's a character OR if there's a non-black background
-      if s.ch.len > 0 or (s.style.bg.r != 0 or s.style.bg.g != 0 or s.style.bg.b != 0):
-        if s.ch.len > 0 and s.ch != " ":
-          nonEmptyCount += 1
-        dest[dr + x] = s
-
-proc compositeLayers*(canvas: SDLCanvas) =
-  ## Composite all visible layers to the canvas cells[] in z-order
-  if canvas.layers.len == 0:
-    return
-  
-  # Clear canvas cells to background
-  let bgStyle = Style(fg: white(), bg: Color(r: canvas.bgColor.r, g: canvas.bgColor.g, b: canvas.bgColor.b), bold: false)
-  for i in 0 ..< canvas.cells.len:
-    canvas.cells[i] = Cell(ch: " ", style: bgStyle)
-  
-  # Sort layers by z-index (stable sort maintains insertion order for equal z values)
-  canvas.layers.sort(proc(a, b: Layer): int =
-    cmp(a.z, b.z)
-  )
-  canvas.invalidateLayerCache()  # Cache is stale after reordering
-  
-  # Composite each visible layer
-  for layer in canvas.layers:
-    if layer.visible:
-      compositeBufferOnto(canvas.cells, canvas.cellWidth, layer.buffer)
-
-proc getLayerCount*(canvas: SDLCanvas): int =
-  ## Get the number of layers
-  return canvas.layers.len
+      let srcIdx = y * buffer.width + x
+      let dstIdx = y * canvas.cellWidth + x
+      if srcIdx < buffer.cells.len and dstIdx < canvas.cells.len:
+        canvas.cells[dstIdx] = buffer.cells[srcIdx]

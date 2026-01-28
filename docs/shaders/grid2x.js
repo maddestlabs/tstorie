@@ -82,7 +82,7 @@ function getShaderConfig() {
             
             // Grid appearance
             gridColor: [0.1, 0.1, 0.12], // Very dark, almost black with slight blue tint
-            gridAlpha: 0.2,              // Overall grid opacity (0.0-1.0)
+            gridAlpha: 0.1,              // Overall grid opacity (0.0-1.0)
             
             // Softness control
             coreThickness: 0.7,          // Core line thickness in pixels (sharp)

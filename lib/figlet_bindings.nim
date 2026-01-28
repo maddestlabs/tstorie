@@ -147,51 +147,26 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   if gFigletFontsRef.isNil:
     return valNil()
   
-  when defined(sdl3Backend):
-    # SDL3: Use layer system
-    if gSDL3Canvas.isNil:
-      return valNil()
-    
-    # Resolve layer from first argument
-    var layer: Layer = nil
-    if args[0].kind == vkInt:
-      let idx = args[0].i
-      if idx >= 0 and idx < gSDL3Canvas.layers.len:
-        layer = gSDL3Canvas.layers[idx]
-      elif idx == 0 and gSDL3Canvas.layers.len == 0:
-        # Auto-create default layer only if it doesn't exist
-        layer = gSDL3Canvas.getLayer("default")
-        if layer.isNil:
-          layer = gSDL3Canvas.addLayer("default", 0)
-    elif args[0].kind == vkString:
-      let layerId = args[0].s
-      layer = gSDL3Canvas.getLayer(layerId)
-      if layer.isNil and (layerId == "default" or layerId == ""):
-        # Auto-create default layer only if it doesn't exist
-        layer = gSDL3Canvas.addLayer("default", 0)
-    
-    if layer.isNil:
-      return valNil()
-  else:
-    # Regular WASM/Terminal: Use layer system
-    if gDefaultLayerRef.isNil or gAppStateRef.isNil:
-      return valNil()
+  # Use unified layer system (gAppState.layers for both terminal and SDL3)
+  if gDefaultLayerRef.isNil or gAppStateRef.isNil:
+    return valNil()
   
-  when not defined(sdl3Backend):
-    # Get layer - determine from first arg (supports both string and int)
-    let layer = if args[0].kind == vkInt:
-                  let idx = args[0].i
-                  if idx == 0: gDefaultLayerRef[]
-                  else:
-                    if idx >= gAppStateRef[].layers.len:
-                      return valNil()
-                    gAppStateRef[].layers[idx]
-                elif args[0].kind == vkString:
-                  # For string layer IDs, we'd need getLayer function
-                  # For now, just use default layer
-                  gDefaultLayerRef[]
-                else:
-                  return valNil()
+  # Resolve layer from first argument
+  var layer: Layer = nil
+  if args[0].kind == vkInt:
+    let idx = args[0].i
+    if idx >= 0 and idx < gAppStateRef[].layers.len:
+      layer = gAppStateRef[].layers[idx]
+    elif idx == 0:
+      layer = gDefaultLayerRef[]
+  elif args[0].kind == vkString:
+    let layerId = args[0].s
+    layer = getLayer(gAppStateRef[], layerId)
+    if layer.isNil and (layerId == "default" or layerId == ""):
+      layer = gDefaultLayerRef[]
+  
+  if layer.isNil:
+    return valNil()
   
   let x = toInt(args[1])
   let y = toInt(args[2])
@@ -282,65 +257,32 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
 # REGISTRATION
 # ==============================================================================
 
-when defined(sdl3Backend):
-  proc registerFigletBindings*(fontsTable: ptr Table[string, FIGfont], 
-                               embeddedFontsTable: ptr Table[string, string],
-                               defaultLayer: ptr Layer,
-                               appState: ptr AppState,
-                               sdl3Canvas: SDLCanvas) =
-    ## Register figlet bindings with references to global state
-    ## This should be called from createNiminiContext in runtime_api.nim
-    gFigletFontsRef = fontsTable
-    gEmbeddedFigletFontsRef = embeddedFontsTable
-    gDefaultLayerRef = defaultLayer
-    gAppStateRef = appState
-    gSDL3Canvas = sdl3Canvas
-    
-    # Pattern 1 & 3: Auto-exposed functions
-    register_listAvailableFonts()
-    register_isFontLoaded()
-    register_clearCache()
-    
-    # Manual wrappers: Complex font loading and rendering
-    registerNative("figletLoadFont", figletLoadFont, 
-      storieLibs = @["figlet"], 
-      description = "Load a FIGlet font by name")
-    registerNative("figletListEmbeddedFonts", figletListEmbeddedFonts,
-      storieLibs = @["figlet"],
-      description = "List FIGlet fonts embedded in markdown")
-    registerNative("figletRender", figletRender,
-      storieLibs = @["figlet"],
-      description = "Render text using a loaded FIGlet font")
-    registerNative("drawFigletText", drawFigletText,
-      storieLibs = @["figlet"],
-      description = "Draw FIGlet text to a layer")
-else:
-  proc registerFigletBindings*(fontsTable: ptr Table[string, FIGfont], 
-                               embeddedFontsTable: ptr Table[string, string],
-                               defaultLayer: ptr Layer,
-                               appState: ptr AppState) =
-    ## Register figlet bindings with references to global state
-    ## This should be called from createNiminiContext in runtime_api.nim
-    gFigletFontsRef = fontsTable
-    gEmbeddedFigletFontsRef = embeddedFontsTable
-    gDefaultLayerRef = defaultLayer
-    gAppStateRef = appState
-    
-    # Pattern 1 & 3: Auto-exposed functions
-    register_listAvailableFonts()
-    register_isFontLoaded()
-    register_clearCache()
-    
-    # Manual wrappers: Complex font loading and rendering
-    registerNative("figletLoadFont", figletLoadFont, 
-      storieLibs = @["figlet"], 
-      description = "Load a FIGlet font by name")
-    registerNative("figletListEmbeddedFonts", figletListEmbeddedFonts,
-      storieLibs = @["figlet"],
-      description = "List FIGlet fonts embedded in markdown")
-    registerNative("figletRender", figletRender,
-      storieLibs = @["figlet"],
-      description = "Render text using a loaded FIGlet font")
-    registerNative("drawFigletText", drawFigletText,
-      storieLibs = @["figlet"],
-      description = "Draw FIGlet text to a layer")
+proc registerFigletBindings*(fontsTable: ptr Table[string, FIGfont], 
+                             embeddedFontsTable: ptr Table[string, string],
+                             defaultLayer: ptr Layer,
+                             appState: ptr AppState) =
+  ## Register figlet bindings with references to global state
+  ## This should be called from createNiminiContext in runtime_api.nim
+  gFigletFontsRef = fontsTable
+  gEmbeddedFigletFontsRef = embeddedFontsTable
+  gDefaultLayerRef = defaultLayer
+  gAppStateRef = appState
+  
+  # Pattern 1 & 3: Auto-exposed functions
+  register_listAvailableFonts()
+  register_isFontLoaded()
+  register_clearCache()
+  
+  # Manual wrappers: Complex font loading and rendering
+  registerNative("figletLoadFont", figletLoadFont, 
+    storieLibs = @["figlet"], 
+    description = "Load a FIGlet font by name")
+  registerNative("figletListEmbeddedFonts", figletListEmbeddedFonts,
+    storieLibs = @["figlet"],
+    description = "List FIGlet fonts embedded in markdown")
+  registerNative("figletRender", figletRender,
+    storieLibs = @["figlet"],
+    description = "Render text using a loaded FIGlet font")
+  registerNative("drawFigletText", drawFigletText,
+    storieLibs = @["figlet"],
+    description = "Draw FIGlet text to a layer")

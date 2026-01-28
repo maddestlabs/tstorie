@@ -195,19 +195,19 @@ when defined(sdl3Backend):
     var layer: Layer = nil
     if args[0].kind == vkInt:
       let idx = args[0].i
-      if idx >= 0 and idx < gSDL3Canvas.layers.len:
-        layer = gSDL3Canvas.layers[idx]
-      elif idx == 0 and gSDL3Canvas.layers.len == 0:
+      if idx >= 0 and idx < gAppState.layers.len:
+        layer = gAppState.layers[idx]
+      elif idx == 0 and gAppState.layers.len == 0:
         # Auto-create default layer only if it doesn't exist
-        layer = gSDL3Canvas.getLayer("default")
+        layer = gAppState.getLayer("default")
         if layer.isNil:
-          layer = gSDL3Canvas.addLayer("default", 0)
+          layer = gAppState.addLayer("default", 0)
     elif args[0].kind == vkString:
       let layerId = args[0].s
-      layer = gSDL3Canvas.getLayer(layerId)
+      layer = gAppState.getLayer(layerId)
       if layer.isNil and (layerId == "default" or layerId == ""):
         # Auto-create default layer only if it doesn't exist
-        layer = gSDL3Canvas.addLayer("default", 0)
+        layer = gAppState.addLayer("default", 0)
     
     if layer.isNil:
       return valNil()
@@ -236,7 +236,7 @@ when defined(sdl3Backend):
     
     # No args - clear all layers
     if args.len == 0:
-      for layer in gSDL3Canvas.layers:
+      for layer in gAppState.layers:
         layer.buffer.clear(bg)
       return valNil()
     
@@ -244,10 +244,10 @@ when defined(sdl3Backend):
     var layer: Layer = nil
     if args[0].kind == vkInt:
       let idx = args[0].i
-      if idx >= 0 and idx < gSDL3Canvas.layers.len:
-        layer = gSDL3Canvas.layers[idx]
+      if idx >= 0 and idx < gAppState.layers.len:
+        layer = gAppState.layers[idx]
     elif args[0].kind == vkString:
-      layer = gSDL3Canvas.getLayer(args[0].s)
+      layer = gAppState.getLayer(args[0].s)
     
     if layer.isNil:
       return valNil()
@@ -270,19 +270,19 @@ when defined(sdl3Backend):
     var layer: Layer = nil
     if args[0].kind == vkInt:
       let idx = args[0].i
-      if idx >= 0 and idx < gSDL3Canvas.layers.len:
-        layer = gSDL3Canvas.layers[idx]
-      elif idx == 0 and gSDL3Canvas.layers.len == 0:
+      if idx >= 0 and idx < gAppState.layers.len:
+        layer = gAppState.layers[idx]
+      elif idx == 0 and gAppState.layers.len == 0:
         # Auto-create default layer only if it doesn't exist
-        layer = gSDL3Canvas.getLayer("default")
+        layer = gAppState.getLayer("default")
         if layer.isNil:
-          layer = gSDL3Canvas.addLayer("default", 0)
+          layer = gAppState.addLayer("default", 0)
     elif args[0].kind == vkString:
       let layerId = args[0].s
-      layer = gSDL3Canvas.getLayer(layerId)
+      layer = gAppState.getLayer(layerId)
       if layer.isNil and (layerId == "default" or layerId == ""):
         # Auto-create default layer only if it doesn't exist
-        layer = gSDL3Canvas.addLayer("default", 0)
+        layer = gAppState.addLayer("default", 0)
     
     if layer.isNil:
       return valNil()
@@ -503,21 +503,11 @@ proc nimini_addLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let id = args[0].s
   let z = toInt(args[1])
   
-  when defined(sdl3Backend):
-    # SDL3: Add layer to canvas
-    if not gSDL3Canvas.isNil:
-      let layer = gSDL3Canvas.addLayer(id, z)
-      if not layer.isNil:
-        # Return the array index for convenience
-        for i in 0 ..< gSDL3Canvas.layers.len:
-          if gSDL3Canvas.layers[i] == layer:
-            return valInt(i)
-  else:
-    # Terminal/Web: Add layer to AppState
-    let layer = gAppState.addLayer(id, z)
-    if not layer.isNil:
-      # Return the array index for convenience
-      for i in 0 ..< gAppState.layers.len:
+  # Add layer to AppState (unified for all backends)
+  let layer = gAppState.addLayer(id, z)
+  if not layer.isNil:
+    # Return the array index for convenience
+    for i in 0 ..< gAppState.layers.len:
         if gAppState.layers[i] == layer:
           return valInt(i)
   
@@ -529,11 +519,7 @@ proc nimini_removeLayer(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   
   let id = args[0].s
-  when defined(sdl3Backend):
-    if not gSDL3Canvas.isNil:
-      gSDL3Canvas.removeLayer(id)
-  else:
-    gAppState.removeLayer(id)
+  gAppState.removeLayer(id)
   return valNil()
 
 proc nimini_setLayerVisible(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -544,27 +530,15 @@ proc nimini_setLayerVisible(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let id = args[0].s
   let visible = toBool(args[1])
   
-  when defined(sdl3Backend):
-    if not gSDL3Canvas.isNil:
-      let layer = gSDL3Canvas.getLayer(id)
-      if not layer.isNil:
-        layer.visible = visible
-  else:
-    let layer = getLayer(gAppState, id)
-    if not layer.isNil:
-      layer.visible = visible
+  let layer = getLayer(gAppState, id)
+  if not layer.isNil:
+    layer.visible = visible
   
   return valNil()
 
 proc nimini_getLayerCount(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## getLayerCount() -> returns the number of layers
-  when defined(sdl3Backend):
-    if not gSDL3Canvas.isNil:
-      return valInt(gSDL3Canvas.getLayerCount())
-    else:
-      return valInt(0)
-  else:
-    return valInt(gAppState.layers.len)
+  return valInt(gAppState.layers.len)
 
 # Random number generator and functions are now in tstorie.nim
 
@@ -1498,29 +1472,14 @@ proc createNiminiContext(state: AppState): NiminiContext =
   
   # Create DrawProc wrapper for ASCII/ANSI art bindings
   proc drawWrapper(layer, x, y: int, char: string, style: Style) =
-    when defined(sdl3Backend):
-      # SDL3: Write to layer buffer (auto-create default layer if needed)
-      if not gSDL3Canvas.isNil:
-        var targetLayer: Layer = nil
-        if layer >= 0 and layer < gSDL3Canvas.layers.len:
-          targetLayer = gSDL3Canvas.layers[layer]
-        elif layer == 0 and gSDL3Canvas.layers.len == 0:
-          # Auto-create default layer only if it doesn't exist
-          targetLayer = gSDL3Canvas.getLayer("default")
-          if targetLayer.isNil:
-            targetLayer = gSDL3Canvas.addLayer("default", 0)
-        
-        if not targetLayer.isNil:
-          targetLayer.buffer.write(x, y, char, style)
-    else:
-      # Regular WASM/Terminal: Use layer buffer system
-      if gDefaultLayer.isNil:
-        echo "[drawWrapper] ERROR: gDefaultLayer is NIL at ", x, ",", y
-        return
-      if gDefaultLayer.buffer.cells.len == 0:
-        echo "[drawWrapper] ERROR: gDefaultLayer.buffer has no cells"
-        return
-      gDefaultLayer.buffer.write(x, y, char, style)
+    # Write to layer buffer (unified for all backends)
+    if gDefaultLayer.isNil:
+      echo "[drawWrapper] ERROR: gDefaultLayer is NIL at ", x, ",", y
+      return
+    if gDefaultLayer.buffer.cells.len == 0:
+      echo "[drawWrapper] ERROR: gDefaultLayer.buffer has no cells"
+      return
+    gDefaultLayer.buffer.write(x, y, char, style)
   
   # Register ASCII art bindings and dungeon generator
   registerAsciiArtBindings(drawWrapper, addr state)
@@ -1528,17 +1487,15 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerTextEditorBindings(runtimeEnv)
   registerParticleBindings(runtimeEnv, state)
   
+  # NOTE: Particles now use gAppState.layers (unified for both terminal and SDL3)
+  
   # Register TUI helper bindings with polymorphic int/string layer support
   # NOTE: Some auto-exposed versions are disabled in initTUIHelpersModule()
   # to avoid conflicts with these polymorphic wrappers
   registerTUIHelperBindings(runtimeEnv)
   
   # Register figlet bindings with font cache references and layer system
-  when defined(sdl3Backend):
-    registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
-                          addr gDefaultLayer, addr gAppState, gSDL3Canvas)
-  else:
-    registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
+  registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
                           addr gDefaultLayer, addr gAppState)
   
   # Explicitly initialize plugin modules BEFORE calling initPlugins()
@@ -1705,15 +1662,9 @@ proc executeInputCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: 
     # Input blocks run in child scope
     let execEnv = newEnv(context.env)
     
-    # Normalize and expose the event object
-    # This ensures consistent behavior across all backends (terminal, WASM, SDL3)
-    let normalized = normalizeEvents(@[event])
-    if normalized.len > 0:
-      let eventValue = encodeInputEvent(normalized[0])
-      defineVar(execEnv, "event", eventValue)
-    else:
-      # Event was filtered out (e.g., duplicate KeyEvent for printable char)
-      return (true, false)
+    # Expose the event object (already normalized by backend's pollInput)
+    let eventValue = encodeInputEvent(event)
+    defineVar(execEnv, "event", eventValue)
     
     # Execute and capture return value
     let returnValue = execProgramWithResult(program, execEnv)
@@ -1786,14 +1737,9 @@ proc executeCodeBlock(context: NiminiContext, codeBlock: CodeBlock, state: AppSt
     
     # For input blocks, expose the event object
     if codeBlock.lifecycle == "input":
-      # Normalize event for consistent behavior across backends
-      let normalized = normalizeEvents(@[event])
-      if normalized.len > 0:
-        let eventValue = encodeInputEvent(normalized[0])
-        defineVar(execEnv, "event", eventValue)
-      else:
-        # Event filtered out - skip execution
-        return true
+      # Expose the event object (already normalized by backend's pollInput)
+      let eventValue = encodeInputEvent(event)
+      defineVar(execEnv, "event", eventValue)
     
     execProgram(program, execEnv)
     
@@ -2037,25 +1983,10 @@ proc initStorieContext(state: AppState) =
       when not defined(emscripten):
         echo "Warning: Invalid minHeight value in front matter"
   
-  # Create single default layer (layer 0)
-  when defined(sdl3Backend):
-    # SDL3: Create layer on canvas AND state
-    if not gSDL3Canvas.isNil:
-      gDefaultLayer = gSDL3Canvas.getLayer("default")
-      if gDefaultLayer.isNil:
-        gDefaultLayer = gSDL3Canvas.addLayer("default", 0)
-      # Also add to state for backwards compatibility
-      if state.getLayer("default").isNil:
-        discard state.addLayer("default", 0)
-    else:
-      gDefaultLayer = state.getLayer("default")
-      if gDefaultLayer.isNil:
-        gDefaultLayer = state.addLayer("default", 0)
-  else:
-    # Terminal/Web: Create layer on state only
-    gDefaultLayer = state.getLayer("default")
-    if gDefaultLayer.isNil:
-      gDefaultLayer = state.addLayer("default", 0)
+  # Create single default layer (layer 0) on gAppState (unified for all backends)
+  gDefaultLayer = state.getLayer("default")
+  if gDefaultLayer.isNil:
+    gDefaultLayer = state.addLayer("default", 0)
   
   # Set TUI helper default layer reference immediately
   tui_helpers.gDefaultLayerRef = gDefaultLayer
@@ -2375,17 +2306,18 @@ proc inputHandler(state: AppState, event: InputEvent): bool =
   else:
     discard
   
+  # Filter out Release events for KeyEvents - most apps only care about Press
+  # Apps that need Release events can check event.action in their handlers
+  if event.kind == KeyEvent and event.keyAction == Release:
+    return false
+  
   # 1. Execute global input handlers first (allow modules to intercept)
   for handler in storieCtx.globalInputHandlers:
     try:
       if handler.callback.kind == vkFunction and handler.callback.fnVal.isNative:
         let env = storieCtx.niminiContext.env
-        # Normalize and encode input event as a Nimini Value
-        let normalized = normalizeEvents(@[event])
-        if normalized.len == 0:
-          # Event filtered out
-          continue
-        let eventValue = encodeInputEvent(normalized[0])
+        # Encode input event as a Nimini Value (already normalized by backend's pollInput)
+        let eventValue = encodeInputEvent(event)
         let result = handler.callback.fnVal.native(env, @[eventValue])
         # If handler returns true, it consumed the event
         if result.kind == vkBool and result.b:

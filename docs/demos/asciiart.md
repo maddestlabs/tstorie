@@ -3,7 +3,7 @@ title: "ASCII Art Demo"
 theme: "alleycat"
 ---
 
-# ASCII Art Demo
+# ASCII Art Demoascii
 
 This demo shows ASCII art support using tStorie's content blocks.
 

@@ -3,7 +3,7 @@ title: "Depths Beckon"
 author: "Maddest Labs"
 theme: "coffee"
 fontsize: 22
-shaders: "ruledlines+paper+filmhairs+filmlines+lightsway+gradualblur"
+shaders: "ruledlines+paper+filmhairs+filmlines+lightsway+blurgradual"
 font: "Courier+Prime"
 ---
 

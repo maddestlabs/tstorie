@@ -251,13 +251,18 @@ class TStorieTerminal {
         }
         
         if (keyCode > 0) {
-            Module._emHandleKeyPress(keyCode, shift, alt, ctrl);
+            // For printable characters, only send TextEvent to avoid duplicates
+            // For special keys, send KeyEvent
+            const isPrintableChar = e.key.length === 1 && !ctrl && !alt && keyCode >= 32 && keyCode < 127;
             
-            // Also send text input for printable characters
-            if (e.key.length === 1 && !ctrl && !alt && keyCode < 127) {
+            if (isPrintableChar) {
+                // Send text input event only
                 const textPtr = Module.allocateUTF8(e.key);
                 Module._emHandleTextInput(textPtr);
                 Module._free(textPtr);
+            } else {
+                // Send key press event for special keys
+                Module._emHandleKeyPress(keyCode, shift, alt, ctrl);
             }
         }
     }

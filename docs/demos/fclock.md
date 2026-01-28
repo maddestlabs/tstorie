@@ -15,8 +15,6 @@ var debugMsg = "Font loaded: " & $fontLoaded
 ```
 
 ```nim on:render
-clear()
-
 # Get current time
 var time = now()
 var hour = time.hour

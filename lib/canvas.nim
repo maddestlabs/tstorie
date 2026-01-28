@@ -1263,7 +1263,9 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     if line.strip() == "{{CONTENT_BUFFER}}":
       # Render content buffer if this section has content
       if not canvasState.isNil and canvasState.contentBuffers.hasKey(layout.section.title):
-        let bufferStartY = contentY  # Track where buffer rendering begins
+        # Use screenY as the origin for positioned drawing, not contentY
+        # This makes coordinates absolute to the section's content area
+        let bufferStartY = screenY  # Changed from contentY to screenY
         let sectionBuffer = canvasState.contentBuffers[layout.section.title]
         
         # Track the maximum cell width used (accounting for double-width chars)
@@ -1283,7 +1285,47 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
           if contentY >= screenY + layoutHeight:
             break
           
-          if bufferLine.startsWith("#"):
+          if bufferLine.startsWith("{{DRAW:") and "}}" in bufferLine:
+            # Styled positioned drawing marker
+            # Format: {{DRAW:x,y,styleName}}text or {{DRAW:x,y}}text
+            let markerEnd = bufferLine.find("}}")
+            if markerEnd > 0:
+              let markerContent = bufferLine[7..<markerEnd]  # Skip "{{DRAW:"
+              let textContent = bufferLine[markerEnd+2..^1]  # Text after "}}"
+              
+              let parts = markerContent.split(",")
+              if parts.len >= 2:
+                try:
+                  let drawX = parseInt(parts[0])
+                  let drawY = parseInt(parts[1])
+                  let targetY = bufferStartY + drawY
+                  
+                  # Get style if specified
+                  var drawStyle = bodyStyle
+                  if parts.len >= 3 and parts[2].len > 0:
+                    let styleName = parts[2]
+                    if styleSheet.hasKey(styleName):
+                      drawStyle = toStyle(styleSheet[styleName])
+                  
+                  # Write text at specified position
+                  if targetY >= 0 and targetY < buffer.height:
+                    let actualX = contentX + drawX
+                    if actualX >= 0 and actualX < buffer.width:
+                      buffer.writeText(actualX, targetY, textContent, drawStyle)
+                      
+                      # Track width
+                      let lineWidth = getVisualWidth(textContent) + drawX
+                      if lineWidth > maxVisualWidth:
+                        maxVisualWidth = lineWidth
+                      if lineWidth > maxCellWidth:
+                        maxCellWidth = lineWidth
+                except:
+                  discard  # Skip invalid markers
+            
+            # Skip the contentY increment - these position themselves absolutely
+            continue
+            
+          elif bufferLine.startsWith("#"):
             # Heading
             let formatted = formatHeading(bufferLine)
             let displayText = if getVisualWidth(formatted) > maxContentWidth: 
@@ -1855,6 +1897,43 @@ proc canvasHandleMouse*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let isDown = if args[3].kind == vkBool: args[3].b else: (canvasValueToInt(args[3]) != 0)
   return valBool(canvasHandleMouse(x, y, button, isDown))
 
+proc nimini_contentDraw*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Draw styled text at a specific position in the content buffer
+  ## Args: x (int), y (int), text (string), styleName (string, optional)
+  ## Creates a placeholder line that will be rendered with proper styling
+  if args.len < 3:
+    return valNil()
+  
+  let x = canvasValueToInt(args[0])
+  let y = canvasValueToInt(args[1])
+  let text = if args[2].kind == vkString: args[2].s else: ""
+  let styleName = if args.len >= 4 and args[3].kind == vkString: args[3].s else: ""
+  
+  let currentIdx = getCurrentSectionIdx()
+  if not canvasState.isNil and currentIdx >= 0 and currentIdx < canvasState.sections.len:
+    let sectionTitle = canvasState.sections[currentIdx].section.title
+    if not canvasState.contentBuffers.hasKey(sectionTitle):
+      canvasState.contentBuffers[sectionTitle] = @[]
+    
+    # Create a special marker line for styled positioned content
+    # Format: {{DRAW:x,y,styleName}}text
+    let marker = if styleName.len > 0:
+                   "{{DRAW:" & $x & "," & $y & "," & styleName & "}}" & text
+                 else:
+                   "{{DRAW:" & $x & "," & $y & "}}" & text
+    
+    # Just append each draw call as a separate line
+    # The renderer will position them based on the x,y coordinates in the marker
+    canvasState.contentBuffers[sectionTitle].add(marker)
+  
+  return valNil()
+
+proc nimini_contentPut*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Place a single character at a specific position with optional style
+  ## Args: x (int), y (int), char (string), styleName (string, optional)
+  ## More efficient than contentDraw for single characters
+  return nimini_contentDraw(env, args)
+
 proc nimini_getSectionMetrics*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## Get current section's screen coordinates and dimensions
   ## Returns table: { x: int, y: int, width: int, height: int, worldX: int, worldY: int }
@@ -2012,6 +2091,8 @@ proc registerCanvasBindings*(buffer: ptr TermBuffer, appState: ptr AppState,
   # Register content buffer functions with simple names
   registerNative("contentWrite", nimini_contentWrite)
   registerNative("contentClear", nimini_contentClear)
+  registerNative("contentDraw", nimini_contentDraw)
+  registerNative("contentPut", nimini_contentPut)
   registerNative("getSectionMetrics", nimini_getSectionMetrics)
 
 # Export rendering functions

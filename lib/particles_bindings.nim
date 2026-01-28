@@ -30,13 +30,13 @@ import primitives
 import ../nimini
 import ../nimini/type_converters
 import ../src/types
-import ../src/layers
+import ../src/layers  # For getLayer function
 import nimini_helpers
 
 # Global particle systems registry (keyed by name for multiple systems)
 var gParticleSystems: Table[string, ParticleSystem]
 
-# Global reference to app state (for layer access)
+# Global reference to app state (for unified layer access)
 var gAppStateRef: AppState = nil
 
 proc initParticleSystemsRegistry() =
@@ -86,13 +86,12 @@ proc particleRender*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     return valNil()
   
   let name = args[0].s
+  let ps = gParticleSystems[name]
   
+  # Use unified layer system (gAppState.layers for both terminal and SDL3)
   if gAppStateRef.isNil:
     return valNil()
   
-  let ps = gParticleSystems[name]
-  
-  # Get the layer from app state
   if gAppStateRef.layers.len == 0:
     return valNil()
   

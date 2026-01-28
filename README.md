@@ -9,9 +9,10 @@ Demos:
 - [slides.md](https://maddestlabs.github.io/tstorie/?content=slides) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/slides.md)
 - [her.md](https://maddestlabs.github.io/tstorie/?content=her) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/her.md)
 - [depths.md](https://maddestlabs.github.io/tstorie/?content=depths&font=Courier+Prime) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/depths.md)
+- [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
+- [minesweeper.md](https://maddestlabs.github.io/tstorie?content=minesweeper) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/minesweeper.md)
 - [toxiclock.md](https://maddestlabs.github.io/tstorie?content=toxiclock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/toxiclock.md)
 - [magiclock.md](https://maddestlabs.github.io/tstorie?content=magiclock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/magiclock.md)
-- [kanjifx.md](https://maddestlabs.github.io/tstorie?content=kanjifx) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/kanjifx.md)
 
 Core examples:
 - [figletclock.md](https://maddestlabs.github.io/tstorie?content=figletclock) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/figletclock.md)
@@ -20,8 +21,8 @@ Core examples:
 - [hexview.md](https://maddestlabs.github.io/tstorie?content=hexview) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/hexview.md)
 - [events.md](https://maddestlabs.github.io/tstorie?content=events) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/events.md)
 - [drawing.md](https://maddestlabs.github.io/tstorie?content=drawing) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/drawing.md)
-- [tui.md](https://maddestlabs.github.io/tstorie?content=tui&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
-- [tui3.md](https://maddestlabs.github.io/tstorie?content=tui3&shader=crt) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
+- [tui.md](https://maddestlabs.github.io/tstorie?content=tui) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
+- [tui3.md](https://maddestlabs.github.io/tstorie?content=tui3) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
 - [shader.md](https://maddestlabs.github.io/tstorie?content=shader) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
 
 Gist Example:

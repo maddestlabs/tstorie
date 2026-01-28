@@ -2,7 +2,7 @@
 title: "Dungeon Generator - Native Edition"
 author: "High-performance procedural dungeon using native Nim"
 theme: "coffee"
-shader: grid+grid2x1+dirt+paper+lightsway+vignette
+shader: grid+grid2x1+dirt+paper+lightsway+lightvignette
 fontsize: 24
 ---
 

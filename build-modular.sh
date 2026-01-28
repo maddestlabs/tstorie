@@ -53,6 +53,7 @@ nim c \
   --passL:"--preload-file" --passL:"docs/assets/3270-Regular.ttf@/fonts/3270-Regular.ttf" \
   --passL:--js-library --passL:web/sdl3_stub_bridge.js \
   --passL:--js-library --passL:web/figlet_bridge.js \
+  --passL:--js-library --passL:web/audio_bridge.js \
   --passL:"-sALLOW_MEMORY_GROWTH=1" \
   --passL:"-sWASM_ASYNC_COMPILATION=1" \
   --passL:"-sFULL_ES2=1" \
@@ -88,6 +89,7 @@ echo ""
 echo "Features:"
 echo "  ✓ SDL3 rendering backend"
 echo "  ✓ TTF font support (Unicode, anti-aliasing)"
+echo "  ✓ WebAudio API (procedural sound generation)"
 echo "  ✓ Plugin architecture ready for extensions"
 echo ""
 echo "For minimal build without TTF (~800KB), use:"

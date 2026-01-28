@@ -1923,8 +1923,12 @@
                 terminalCanvas.parentNode.insertBefore(webglCanvas, terminalCanvas.nextSibling);
                 
                 // Forward input events from WebGL canvas to terminal canvas
-                ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'wheel'].forEach(eventType => {
+                ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'wheel', 'contextmenu'].forEach(eventType => {
                     webglCanvas.addEventListener(eventType, function(e) {
+                        // Prevent context menu on the WebGL canvas itself
+                        if (eventType === 'contextmenu') {
+                            e.preventDefault();
+                        }
                         const clonedEvent = new e.constructor(e.type, e);
                         terminalCanvas.dispatchEvent(clonedEvent);
                     });

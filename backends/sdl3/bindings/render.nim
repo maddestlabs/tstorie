@@ -18,6 +18,16 @@ const
   SDL_LOGICAL_PRESENTATION_OVERSCAN* = 3
   SDL_LOGICAL_PRESENTATION_INTEGER_SCALE* = 4
 
+# Pixel formats
+const
+  SDL_PIXELFORMAT_RGBA8888* = 0x16462004'u32
+
+# Texture access modes
+const
+  SDL_TEXTUREACCESS_STATIC* = 0
+  SDL_TEXTUREACCESS_STREAMING* = 1
+  SDL_TEXTUREACCESS_TARGET* = 2  # Can be used as render target
+
 proc SDL_SetRenderLogicalPresentation*(renderer: ptr SDL_Renderer, w, h: cint, mode: cint): bool {.importc, header: sdlHeader.}
 
 # Drawing state
@@ -32,8 +42,10 @@ proc SDL_RenderPoint*(renderer: ptr SDL_Renderer, x, y: cfloat): bool {.importc,
 proc SDL_RenderPresent*(renderer: ptr SDL_Renderer): bool {.importc, header: sdlHeader.}
 
 # Texture management
+proc SDL_CreateTexture*(renderer: ptr SDL_Renderer, format: uint32, access: cint, w: cint, h: cint): ptr SDL_Texture {.importc, header: "SDL3/SDL_render.h".}
 proc SDL_CreateTextureFromSurface*(renderer: ptr SDL_Renderer, surface: ptr SDL_Surface): ptr SDL_Texture {.importc, header: "SDL3/SDL_render.h".}
 proc SDL_DestroyTexture*(texture: ptr SDL_Texture) {.importc, header: "SDL3/SDL_render.h".}
+proc SDL_SetRenderTarget*(renderer: ptr SDL_Renderer, texture: ptr SDL_Texture): bool {.importc, header: "SDL3/SDL_render.h".}
 proc SDL_RenderTexture*(renderer: ptr SDL_Renderer, texture: ptr SDL_Texture, srcrect: ptr SDL_FRect, dstrect: ptr SDL_FRect): bool {.importc, header: "SDL3/SDL_render.h".}
 
 # Texture scale modes for filtering

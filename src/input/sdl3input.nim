@@ -89,11 +89,23 @@ proc applyShiftToChar(keyCode: int, hasShift: bool): string =
     of 55: return "&"  # 7 → &
     of 56: return "*"  # 8 → *
     of 57: return "("  # 9 → (
-    # Other common keys with shift
+    # Punctuation with shift
+    of 45: return "_"  # - → _
+    of 61: return "+"  # = → +
+    of 91: return "{"  # [ → {
+    of 93: return "}"  # ] → }
+    of 92: return "|"  # \ → |
+    of 59: return ":"  # ; → :
+    of 39: return "\""  # ' → "
+    of 96: return "~"  # ` → ~
+    of 44: return "<"  # , → <
+    of 46: return ">"  # . → >
+    of 47: return "?"  # / → ?
+    # Space and other printables
     of 32: return " "  # Space stays space
     else: return $char(keyCode)
   else:
-    # No shift - return lowercase/numbers
+    # No shift - return lowercase/numbers/punctuation as-is
     if keyCode >= 65 and keyCode <= 90:
       # Letters: convert to lowercase (65-90 → 97-122)
       return $char(keyCode + 32)
@@ -169,6 +181,19 @@ proc scancodeToKeyCode(scancode: int): int =
   of 38: return 57  # 9
   of 39: return 48  # 0
   
+  # Punctuation and symbols (scancodes for US QWERTY layout)
+  of 45: return 45   # - (minus)
+  of 46: return 61   # = (equals)
+  of 47: return 91   # [ (left bracket)
+  of 48: return 93   # ] (right bracket)
+  of 49: return 92   # \ (backslash)
+  of 51: return 59   # ; (semicolon)
+  of 52: return 39   # ' (apostrophe)
+  of 53: return 96   # ` (grave accent / backtick)
+  of 54: return 44   # , (comma)
+  of 55: return 46   # . (period)
+  of 56: return 47   # / (forward slash)
+  
   # Function keys → Special codes (1100+)
   of 58: return KEY_F1.int
   of 59: return KEY_F2.int
@@ -206,7 +231,10 @@ proc pollInput*(handler: var SDL3InputHandler): seq[InputEvent] =
       let keyCode = scancodeToKeyCode(scancode)
       
       if keyCode == 0:
-        continue  # Unknown key, skip
+        # Unknown scancode - log it for debugging (only in dev builds)
+        when not defined(release):
+          echo "Unknown SDL scancode: ", scancode
+        continue  # Skip unknown key
       
       let action = if event.type_field == SDL_EVENT_KEY_DOWN: Press else: Release
       
@@ -215,25 +243,26 @@ proc pollInput*(handler: var SDL3InputHandler): seq[InputEvent] =
       let mods = sdlModsToSet(sdlMods)
       let hasShift = (sdlMods and SDL_KMOD_SHIFT) != 0
       
-      # Generate both KeyEvent and TextEvent for printable keys
-      # (normalization will remove the KeyEvent duplicate)
+      # Generate appropriate event based on key type and action
       if isPrintableKey(keyCode):
-        # Printable key - generate TextEvent with proper character
-        let charText = applyShiftToChar(keyCode, hasShift)
-        result.add(InputEvent(
-          kind: TextEvent,
-          text: charText,
-          textMods: mods
-        ))
-        # Also generate KeyEvent (will be filtered by normalization)
-        result.add(InputEvent(
-          kind: KeyEvent,
-          keyCode: keyCode,
-          keyMods: mods,
-          keyAction: action
-        ))
+        # Printable key - generate TextEvent only on Press
+        if action == Press:
+          let charText = applyShiftToChar(keyCode, hasShift)
+          result.add(InputEvent(
+            kind: TextEvent,
+            text: charText,
+            textMods: mods
+          ))
+        # For Release, generate KeyEvent (apps that need key-up detection)
+        else:
+          result.add(InputEvent(
+            kind: KeyEvent,
+            keyCode: keyCode,
+            keyMods: mods,
+            keyAction: action
+          ))
       else:
-        # Special key - only KeyEvent
+        # Special key - generate KeyEvent for both Press and Release
         result.add(InputEvent(
           kind: KeyEvent,
           keyCode: keyCode,
