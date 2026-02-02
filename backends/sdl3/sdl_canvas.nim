@@ -6,7 +6,7 @@ when not defined(coreOnly):
   import sdl_fonts  # TTF fonts (excluded in core-only builds)
 
 import ../../src/types  # For Style type, Cell, Layer
-import std/[options, unicode, tables, algorithm]  # For UTF-8 rune iteration and layer system
+import std/[options, unicode, tables, algorithm, strutils]  # For UTF-8 rune iteration and layer system
 
 const
   CHAR_WIDTH* = 8   # Character cell width in pixels
@@ -120,15 +120,17 @@ proc newSDLCanvas*(width, height: int, title: string = "tStorie"): SDLCanvas =
   when not defined(coreOnly):
     sdl_fonts.init()
     when defined(emscripten):
-      # Emscripten: Load preloaded font from /fonts/ (3270 has excellent Unicode/Kanji support)
-      result.font = TTF_OpenFont("/fonts/3270-Regular.ttf", 16.0)
+      # Emscripten: Load minimal font first for fast startup (3270 classic)
+      # 3270-full.ttf will be loaded asynchronously after startup
+      result.font = TTF_OpenFont("/fonts/3270-startup.ttf", 16.0)
       if result.font.isNil:
         echo "[Canvas] Warning: Failed to load /fonts/3270-Regular.ttf, falling back to debug text"
         result.useTTF = false
       else:
         # Enable light hinting for better text quality
         TTF_SetFontHinting(result.font, TTF_HINTING_LIGHT)
-        echo "[Canvas] TTF font loaded successfully: 3270-Regular.ttf"
+        echo "[Canvas] TTF font loaded successfully: Iosevka Fixed SS04 (minimal, 33KB)"
+        echo "[Canvas] Full Iosevka font (1.4MB) will load in background for complete glyph coverage"
         result.useTTF = true
         initTTFPointers(result.font)  # Initialize function pointers
     else:
@@ -256,6 +258,35 @@ proc shutdown*(canvas: SDLCanvas) =
   if not canvas.window.isNil:
     SDL_DestroyWindow(canvas.window)
   SDL_Quit()
+
+proc updateFont*(canvas: SDLCanvas, fontPath: string, fontSize: float = 16.0) =
+  ## Update the canvas font at runtime and clear glyph cache
+  when not defined(coreOnly):
+    echo "[Canvas] Loading font: ", fontPath, " (size: ", fontSize, ")"
+    
+    # Load new font
+    let newFont = sdl_fonts.loadFont(fontPath, fontSize)
+    if newFont.isNil:
+      echo "[Canvas] Failed to load font, keeping current font"
+      return
+    
+    # Clear old glyph cache (contains glyphs from old font)
+    for ch, glyph in canvas.glyphCache.pairs:
+      if not glyph.texture.isNil:
+        SDL_DestroyTexture(glyph.texture)
+    canvas.glyphCache.clear()
+    echo "[Canvas] Cleared glyph cache (", canvas.glyphCache.len, " glyphs removed)"
+    
+    # Update font reference
+    canvas.font = newFont
+    canvas.useTTF = true
+    
+    # Update global function pointers for TTF rendering
+    initTTFPointers(newFont)
+    
+    echo "[Canvas] Font updated successfully"
+  else:
+    echo "[Canvas] Font loading not available in core-only build"
 
 # Implement RenderBuffer interface
 proc write*(canvas: SDLCanvas, x, y: int, ch: string, style: Style) =
@@ -423,7 +454,23 @@ proc getOrCreateGlyph(canvas: SDLCanvas, ch: string, fgColor: tuple[r, g, b: uin
     if not canvas.font.isNil:
       # Render glyph with actual foreground color
       var color = sdl3_bindings.SDL_Color(r: fgColor.r, g: fgColor.g, b: fgColor.b, a: 255)
-      let surface = TTF_RenderText_Blended(canvas.font, ch.cstring, ch.len.csize_t, color)
+      
+      # CRITICAL: Pass 0 for length to let SDL3_ttf auto-detect null-terminated UTF-8 string
+      # This is the correct way to render Unicode characters in SDL3_ttf
+      let surface = TTF_RenderText_Blended(canvas.font, ch.cstring, 0, color)
+      
+      # DEBUG: Log when SDL3_ttf fails to render a character
+      if surface.isNil:
+        when defined(emscripten):
+          # Convert to hex for debugging
+          var hexStr = ""
+          for i in 0 ..< ch.len:
+            if i > 0: hexStr.add(" ")
+            let b = ord(ch[i])
+            hexStr.add(toHex(b, 2))
+          echo "[SDL3_ttf ERROR] Failed to render char (", ch.len, " bytes): hex=[", hexStr, "] SDL_Error: ", SDL_GetError()
+        return nil
+      
       if not surface.isNil:
         # Get dimensions before destroying surface
         let w = surface.w
@@ -485,8 +532,26 @@ proc renderCellsToPixels*(canvas: SDLCanvas) =
         w: CHAR_WIDTH.cfloat, h: CHAR_HEIGHT.cfloat)
       discard SDL_RenderFillRect(canvas.renderer, addr bgRect)
       
-      # Draw character if not space
-      if cell.ch != " " and cell.ch.len > 0:
+      # Draw character if not space or whitespace
+      # Skip rendering for common invisible/whitespace Unicode characters
+      var shouldSkip = false
+      if cell.ch == " " or cell.ch.len == 0:
+        shouldSkip = true
+      elif cell.ch.len >= 3:  # Multi-byte UTF-8 character
+        # Check for common Unicode whitespace/invisible characters
+        # U+2800 (⠀) - Braille Pattern Blank - often used as spacing
+        # U+00A0 ( ) - Non-breaking space
+        # U+3000 (　) - Ideographic space
+        # U+200B - Zero-width space
+        # U+FEFF - Zero-width no-break space
+        if cell.ch == "\xe2\xa0\x80" or  # U+2800 (⠀) Braille blank
+           cell.ch == "\xc2\xa0" or      # U+00A0 non-breaking space
+           cell.ch == "\xe3\x80\x80" or  # U+3000 ideographic space  
+           cell.ch == "\xe2\x80\x8b" or  # U+200B zero-width space
+           cell.ch == "\xef\xbb\xbf":    # U+FEFF zero-width no-break space
+          shouldSkip = true
+      
+      if not shouldSkip:
         # Use glyph atlas cache (like terminal emulators)
         when not defined(coreOnly):
           if canvas.useTTF:

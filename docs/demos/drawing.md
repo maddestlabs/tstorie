@@ -1,8 +1,7 @@
 ---
 title: "Manual Drawing & Compositing Demo"
-minWidth: 60
-minHeight: 18
 theme: "neotopia"
+shaders: "invert+ruledlines+paper"
 ---
 
 # Drawing API Showcase

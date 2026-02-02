@@ -610,7 +610,7 @@ proc applyDisplacementField*(ps: ParticleSystem, buffer: var TermBuffer) =
         let sourceCell = tempCells[sourceY * buffer.width + sourceX]
         
         # Write to current position
-        buffer.write(x, y, sourceCell.ch, sourceCell.style)
+        buffer.writeCell(x, y, sourceCell.ch, sourceCell.style)
 
 proc applyColorField*(ps: ParticleSystem, buffer: var TermBuffer) =
   ## Apply spatial color modulation graph to buffer
@@ -642,7 +642,7 @@ proc applyColorField*(ps: ParticleSystem, buffer: var TermBuffer) =
           italic: cell.style.italic,
           dim: cell.style.dim
         )
-        buffer.write(x, y, cell.ch, newStyle)
+        buffer.writeCell(x, y, cell.ch, newStyle)
 
 # ================================================================
 # PARTICLE RENDERING
@@ -709,7 +709,7 @@ proc render*(ps: ParticleSystem, layer: ptr Layer) =
           let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
           let shaderProc = ps.shader
           let outCell = shaderProc(inCell, ctx)
-          buf[].write(ix, iy, outCell.ch, outCell.style)
+          buf[].writeCell(ix, iy, outCell.ch, outCell.style)
     
     # Render main particle
     let ix = int(ps.particles[i].x)
@@ -764,7 +764,7 @@ proc render*(ps: ParticleSystem, layer: ptr Layer) =
       let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
       let shaderProc = ps.shader
       let outCell = shaderProc(inCell, ctx)
-      buf[].write(ix, iy, outCell.ch, outCell.style)
+      buf[].writeCell(ix, iy, outCell.ch, outCell.style)
 
 proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
   ## Render all active particles directly to a buffer using shaders
@@ -821,7 +821,7 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
           let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
           let shaderProc = ps.shader
           let outCell = shaderProc(inCell, ctx)
-          buffer.write(ix, iy, outCell.ch, outCell.style)
+          buffer.writeCell(ix, iy, outCell.ch, outCell.style)
     
     # Render main particle
     let ix = int(ps.particles[i].x)
@@ -875,7 +875,7 @@ proc render*(ps: ParticleSystem, buffer: var TermBuffer) =
       let inCell = Cell(ch: cellTuple.ch, style: cellTuple.style)
       let shaderProc = ps.shader
       let outCell = shaderProc(inCell, ctx)
-      buffer.write(ix, iy, outCell.ch, outCell.style)
+      buffer.writeCell(ix, iy, outCell.ch, outCell.style)
 
 # ================================================================
 # UTILITY FUNCTIONS

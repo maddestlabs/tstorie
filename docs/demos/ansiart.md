@@ -1,5 +1,6 @@
 ---
 title: ANSI Art Demo
+theme: "solarlight"
 ---
 
 # ANSI Art Support

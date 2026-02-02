@@ -595,6 +595,89 @@ proc extractProcedures*(code: string): seq[string] =
     # If parsing fails, can't extract procs
     discard
 
+proc transformDefinedCalls*(code: string): string =
+  ## Transform nimini runtime defined() calls to Nim compile-time defined()
+  ## Maps symbol names: "web" -> "emscripten", keeps others as-is
+  ## 
+  ## Transforms:
+  ##   if defined("web"):     -> when defined(emscripten):
+  ##   elif defined("linux"): -> elif defined(linux):
+  ##   if defined("native"):  -> when not defined(emscripten):
+  result = ""
+  let lines = code.split('\n')
+  
+  for line in lines:
+    var transformedLine = line
+    
+    # Check if line contains defined() call
+    if "defined(" in line:
+      # Extract the call pattern and transform it
+      var i = 0
+      var newLine = ""
+      while i < line.len:
+        if i + 8 < line.len and line[i..<i+8] == "defined(":
+          # Found defined( - extract the argument
+          var j = i + 8
+          # Skip whitespace and quotes
+          while j < line.len and line[j] in {' ', '"', '\''}:
+            j.inc()
+          
+          # Extract symbol name
+          var symbol = ""
+          while j < line.len and line[j] notin {' ', '"', '\'', ')'}:
+            symbol.add(line[j])
+            j.inc()
+          
+          # Map symbol names for Nim compile-time
+          var nimSymbol = symbol
+          case symbol.toLowerAscii()
+          of "web", "emscripten":
+            nimSymbol = "emscripten"
+          of "native":
+            # Special case: defined("native") becomes "not defined(emscripten)"
+            newLine.add("not defined(emscripten)")
+            # Skip to closing paren
+            while j < line.len and line[j] != ')':
+              j.inc()
+            if j < line.len: j.inc()  # Skip the ')'
+            i = j
+            continue
+          of "windows", "linux", "macosx", "macos":
+            nimSymbol = symbol.toLowerAscii()
+            if nimSymbol == "macos":
+              nimSymbol = "macosx"
+          of "debug", "release":
+            nimSymbol = symbol.toLowerAscii()
+          
+          # Generate compile-time defined() without quotes
+          newLine.add("defined(" & nimSymbol & ")")
+          
+          # Skip to closing paren
+          while j < line.len and line[j] != ')':
+            j.inc()
+          if j < line.len: j.inc()  # Skip the ')'
+          i = j
+        else:
+          newLine.add(line[i])
+          i.inc()
+      
+      transformedLine = newLine
+      
+      # Also transform if/elif to when/elif for defined checks
+      if transformedLine.strip().startsWith("if ") and "defined(" in transformedLine:
+        # Replace only the first "if " with "when "
+        let indentEnd = transformedLine.len - transformedLine.strip().len
+        let indent = if indentEnd > 0: transformedLine[0..<indentEnd] else: ""
+        let rest = transformedLine.strip()
+        transformedLine = indent & "when " & rest[3..^1]
+      elif transformedLine.strip().startsWith("elif ") and "defined(" in transformedLine:
+        # elif stays as elif (it's part of a when block)
+        discard
+    
+    result.add(transformedLine & "\n")
+  
+  result = result.strip()
+
 proc fixIntegerDivision*(code: string): string =
   ## Convert floating-point division (/) to integer division (div) when appropriate
   ## This is needed because nimini uses JavaScript semantics where / always returns float,
@@ -1080,6 +1163,7 @@ proc buildExportContext*(doc: MarkdownDocument): ExportContext =
     var processedCode = removeVarDeclForGlobals(codeBlock.code, globalNames, result)
     processedCode = removeProcedures(processedCode, extractedProcNames)
     # Apply export-specific transformations
+    processedCode = transformDefinedCalls(processedCode)  # Transform runtime defined() to compile-time
     processedCode = fixIntegerDivision(processedCode)
     processedCode = removeReturnStatements(processedCode)
     
@@ -1364,7 +1448,7 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
   result &= "  let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result &= "  if targetLayer.isNil: return\n"
-  result &= "  targetLayer.buffer.writeText(x, y, text, style)\n"
+  result &= "  targetLayer.buffer.writeCellText(x, y, text, style)\n"
   result &= "\n"
   result &= "proc draw(layerId: int, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
   result &= "  # Integer layer ID overload (0 = default layer)\n"
@@ -1372,23 +1456,23 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
   result &= "                    elif layerId < gState.layers.len: gState.layers[layerId]\n"
   result &= "                    else: nil\n"
   result &= "  if targetLayer.isNil: return\n"
-  result &= "  targetLayer.buffer.writeText(x, y, text, style)\n"
+  result &= "  targetLayer.buffer.writeCellText(x, y, text, style)\n"
   result &= "\n"
   result &= "proc clear(layer: string = \"\", transparent: bool = false) =\n"
   result &= "  # Clear specific layer, or all layers if no layer specified\n"
   result &= "  if layer == \"\":\n"
   result &= "    for l in gState.layers:\n"
-  result &= "      if transparent: l.buffer.clearTransparent()\n"
-  result &= "      else: l.buffer.clear(gState.themeBackground)\n"
+  result &= "      if transparent: l.buffer.clearCellsTransparent()\n"
+  result &= "      else: l.buffer.clearCells(gState.themeBackground)\n"
   result &= "  else:\n"
   result &= "    let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result &= "    if targetLayer.isNil: return\n"
-  result &= "    if transparent: targetLayer.buffer.clearTransparent() else: targetLayer.buffer.clear(gState.themeBackground)\n"
+  result &= "    if transparent: targetLayer.buffer.clearCellsTransparent() else: targetLayer.buffer.clearCells(gState.themeBackground)\n"
   result &= "\n"
   result &= "proc fillRect(layer: string, x, y, w, h: int, ch: string, style: Style = getStyle(\"default\")) =\n"
   result &= "  let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result &= "  if targetLayer.isNil: return\n"
-  result &= "  targetLayer.buffer.fillRect(x, y, w, h, ch, style)\n"
+  result &= "  targetLayer.buffer.fillCellRect(x, y, w, h, ch, style)\n"
   result &= "\n"
   result &= "# Runtime helper functions\n"
   result &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
@@ -1470,7 +1554,7 @@ proc generateNimProgram*(doc: MarkdownDocument, filename: string = "untitled.md"
     result &= "    # Load theme and stylesheet\n"
     result &= "    let theme = getTheme(\"" & themeName & "\")\n"
     result &= "    gState.styleSheet = applyTheme(theme, \"" & themeName & "\")\n"
-    result &= "    gState.themeBackground = theme.bgPrimary\n"
+    result &= "    gState.themeBackground = theme.bg\n"
     result &= "    \n"
   
   # Init code
@@ -1656,7 +1740,7 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
   result &= "  let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result &= "  if targetLayer.isNil: return\n"
-  result &= "  targetLayer.buffer.writeText(x, y, text, style)\n"
+  result &= "  targetLayer.buffer.writeCellText(x, y, text, style)\n"
   result &= "\n"
   result &= "proc draw(layerId: int, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
   result &= "  # Integer layer ID overload (0 = default layer)\n"
@@ -1664,23 +1748,23 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
   result &= "                    elif layerId < gState.layers.len: gState.layers[layerId]\n"
   result &= "                    else: nil\n"
   result &= "  if targetLayer.isNil: return\n"
-  result &= "  targetLayer.buffer.writeText(x, y, text, style)\n"
+  result &= "  targetLayer.buffer.writeCellText(x, y, text, style)\n"
   result &= "\n"
   result &= "proc clear(layer: string = \"\", transparent: bool = false) =\n"
   result &= "  # Clear specific layer, or all layers if no layer specified\n"
   result &= "  if layer == \"\":\n"
   result &= "    for l in gState.layers:\n"
-  result &= "      if transparent: l.buffer.clearTransparent()\n"
-  result &= "      else: l.buffer.clear(gState.themeBackground)\n"
+  result &= "      if transparent: l.buffer.clearCellsTransparent()\n"
+  result &= "      else: l.buffer.clearCells(gState.themeBackground)\n"
   result &= "  else:\n"
   result &= "    let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result &= "    if targetLayer.isNil: return\n"
-  result &= "    if transparent: targetLayer.buffer.clearTransparent() else: targetLayer.buffer.clear(gState.themeBackground)\n"
+  result &= "    if transparent: targetLayer.buffer.clearCellsTransparent() else: targetLayer.buffer.clearCells(gState.themeBackground)\n"
   result &= "\n"
   result &= "proc fillRect(layer: string, x, y, w, h: int, ch: string, style: Style = getStyle(\"default\")) =\n"
   result &= "  let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result &= "  if targetLayer.isNil: return\n"
-  result &= "  targetLayer.buffer.fillRect(x, y, w, h, ch, style)\n"
+  result &= "  targetLayer.buffer.fillCellRect(x, y, w, h, ch, style)\n"
   result &= "\n"
   result &= "# Runtime helper functions\n"
   result &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
@@ -1814,7 +1898,7 @@ proc generateTStorieIntegratedProgram*(doc: MarkdownDocument, filename: string =
     result &= "    # Load theme and stylesheet\n"
     result &= "    let theme = getTheme(\"" & themeName & "\")\n"
     result &= "    gState.styleSheet = applyTheme(theme, \"" & themeName & "\")\n"
-    result &= "    gState.themeBackground = theme.bgPrimary\n"
+    result &= "    gState.themeBackground = theme.bg\n"
     result &= "    \n"
   
   result &= "    # User initialization\n"
@@ -2032,7 +2116,7 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "proc draw(layer: string, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
   result.code &= "  let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result.code &= "  if targetLayer.isNil: return\n"
-  result.code &= "  targetLayer.buffer.writeText(x, y, text, style)\n"
+  result.code &= "  targetLayer.buffer.writeCellText(x, y, text, style)\n"
   result.code &= "\n"
   result.code &= "proc draw(layerId: int, x, y: int, text: string, style: Style = getStyle(\"default\")) =\n"
   result.code &= "  # Integer layer ID overload (0 = default layer)\n"
@@ -2040,23 +2124,23 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
   result.code &= "                    elif layerId < gState.layers.len: gState.layers[layerId]\n"
   result.code &= "                    else: nil\n"
   result.code &= "  if targetLayer.isNil: return\n"
-  result.code &= "  targetLayer.buffer.writeText(x, y, text, style)\n"
+  result.code &= "  targetLayer.buffer.writeCellText(x, y, text, style)\n"
   result.code &= "\n"
   result.code &= "proc clear(layer: string = \"\", transparent: bool = false) =\n"
   result.code &= "  # Clear specific layer, or all layers if no layer specified\n"
   result.code &= "  if layer == \"\":\n"
   result.code &= "    for l in gState.layers:\n"
-  result.code &= "      if transparent: l.buffer.clearTransparent()\n"
-  result.code &= "      else: l.buffer.clear(gState.themeBackground)\n"
+  result.code &= "      if transparent: l.buffer.clearCellsTransparent()\n"
+  result.code &= "      else: l.buffer.clearCells(gState.themeBackground)\n"
   result.code &= "  else:\n"
   result.code &= "    let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result.code &= "    if targetLayer.isNil: return\n"
-  result.code &= "    if transparent: targetLayer.buffer.clearTransparent() else: targetLayer.buffer.clear(gState.themeBackground)\n"
+  result.code &= "    if transparent: targetLayer.buffer.clearCellsTransparent() else: targetLayer.buffer.clearCells(gState.themeBackground)\n"
   result.code &= "\n"
   result.code &= "proc fillRect(layer: string, x, y, w, h: int, ch: string, style: Style = getStyle(\"default\")) =\n"
   result.code &= "  let targetLayer = if layer == \"default\": gDefaultLayer else: getLayer(gState, layer)\n"
   result.code &= "  if targetLayer.isNil: return\n"
-  result.code &= "  targetLayer.buffer.fillRect(x, y, w, h, ch, style)\n"
+  result.code &= "  targetLayer.buffer.fillCellRect(x, y, w, h, ch, style)\n"
   result.code &= "\n"
   result.code &= "# Runtime helper functions\n"
   result.code &= "proc print(args: varargs[string, `$`]) = echo args.join(\" \")\n"
@@ -2175,7 +2259,7 @@ proc exportToTStorieNimOptimized*(doc: MarkdownDocument, filename: string = "unt
     result.code &= "    # Load theme and stylesheet\n"
     result.code &= "    let theme = getTheme(\"" & themeName & "\")\n"
     result.code &= "    gState.styleSheet = applyTheme(theme, \"" & themeName & "\")\n"
-    result.code &= "    gState.themeBackground = theme.bgPrimary\n"
+    result.code &= "    gState.themeBackground = theme.bg\n"
     result.code &= "    \n"
   
   result.code &= "    onInit()\n"

@@ -74,7 +74,7 @@ proc getTypeIdent(typeNode: NimNode): string {.compileTime.} =
   else:
     return typeNode.repr
 
-proc makeConverter(argName: NimNode, typeName: string, valueExpr: NimNode): NimNode {.compileTime.} =
+proc makeConverter(argName: NimNode, typeName: string, typeNode: NimNode, valueExpr: NimNode): NimNode {.compileTime.} =
   ## Generate conversion code from Value to native type
   case typeName
   of "int":
@@ -95,10 +95,25 @@ proc makeConverter(argName: NimNode, typeName: string, valueExpr: NimNode): NimN
   of "Color":
     return quote do:
       valueToColor(`valueExpr`)
-  of "seq":
-    # seq[int], seq[string], seq[float] - need full type info
+  of "UIContext":
+    # UIContext is passed as pointer value
     return quote do:
-      valueToSeqInt(`valueExpr`)  # Default to int, will enhance later
+      if `valueExpr`.kind != vkPointer or `valueExpr`.ptrVal.isNil:
+        quit "Runtime Error: Invalid UIContext (expected pointer, got " & $`valueExpr`.kind & ")"
+      cast[UIContext](`valueExpr`.ptrVal)
+  of "seq":
+    # Check the full type representation to determine element type
+    let typeRepr = typeNode.repr
+    if "string" in typeRepr:
+      return quote do:
+        valueToSeqString(`valueExpr`)
+    elif "float" in typeRepr:
+      return quote do:
+        valueToSeqFloat(`valueExpr`)
+    else:
+      # Default to int
+      return quote do:
+        valueToSeqInt(`valueExpr`)
   else:
     error("Unsupported type for auto-binding: " & typeName & ". Add converter to type_converters.nim")
     return valueExpr
@@ -156,6 +171,11 @@ proc makeReturnConverter(expr: NimNode, returnType: NimNode): NimNode {.compileT
       # Default to x/y tuple
       return quote do:
         tupleXYToValue(`expr`)
+  of "UIContext":
+    # Handle UIContext ref object as pointer
+    # Note: UIContext instances are kept alive in gUIContextRegistry
+    return quote do:
+      Value(kind: vkPointer, ptrVal: cast[pointer](`expr`))
   else:
     # Check if it's a tuple type by representation
     if typeRepr.startsWith("tuple["):
@@ -209,7 +229,7 @@ macro autoExpose*(libName: string, procDef: untyped): untyped =
         let valueAccess = quote do:
           args[`argIdx`]
         
-        let convertExpr = makeConverter(argName, typeName, valueAccess)
+        let convertExpr = makeConverter(argName, typeName, argType, valueAccess)
         
         argConversions.add(quote do:
           let `argName` = `convertExpr`

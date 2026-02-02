@@ -344,7 +344,7 @@ proc compositeLayersWithEffects*(state: AppState) =
     applyAutoDepthing(state)
   
   # Clear destination
-  state.currentBuffer.clear(state.themeBackground)
+  state.currentBuffer.clearCells(state.themeBackground)
   
   # Sort layers by z-index
   state.layers.sort(proc(a, b: Layer): int = cmp(a.z, b.z))

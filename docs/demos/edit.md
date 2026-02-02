@@ -4,8 +4,8 @@ theme: "neotopia"
 editorX: 0
 editorY: 2
 dropTarget: true
-shaders: "invert+ruledlines+paper+lightnight"
 fontsize: 16
+shaders: "invert+ruledlines+paper"
 ---
 
 # t|Storie Text Editor

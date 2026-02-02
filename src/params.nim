@@ -74,6 +74,8 @@ proc flushPendingParams*() =
   if not runtimeEnv.isNil and gPendingParams.len > 0:
     for name, value in gPendingParams:
       defineVar(runtimeEnv, "_param_" & name, valString(value))
+    # Clear pending params after flushing
+    gPendingParams.clear()
 
 proc clearParams*() =
   ## Clear all parameters

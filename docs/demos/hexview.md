@@ -2,10 +2,10 @@
 title: "Hex Viewer Demo"
 dropTarget: true
 theme: "neotopia"
-shader: "invert+sand+ruledlines+paper"
+shader: "invert+ruledlines+paper"
 ---
 
-# Hex Viewer 🔍
+# Hex Viewer
 
 Drop any file to view its hexadecimal representation!
 

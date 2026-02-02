@@ -496,7 +496,7 @@ proc renderConnection*(editor: NodeEditor, conn: EditorConnection,
   if srcScreenY >= 0 and srcScreenY < editor.viewportHeight:
     for x in startX .. endX:
       if x >= 0 and x < editor.viewportWidth:
-        buffer.writeText(x, srcScreenY, "─", style)
+        buffer.writeCellText(x, srcScreenY, "─", style)
   
   # Vertical line at midpoint
   let startY = min(srcScreenY, dstScreenY)
@@ -504,7 +504,7 @@ proc renderConnection*(editor: NodeEditor, conn: EditorConnection,
   if midX >= 0 and midX < editor.viewportWidth:
     for y in startY .. endY:
       if y >= 0 and y < editor.viewportHeight:
-        buffer.writeText(midX, y, "│", style)
+        buffer.writeCellText(midX, y, "│", style)
   
   # Horizontal line from midpoint to dest
   let startX2 = min(midX, dstScreenX)
@@ -512,16 +512,16 @@ proc renderConnection*(editor: NodeEditor, conn: EditorConnection,
   if dstScreenY >= 0 and dstScreenY < editor.viewportHeight:
     for x in startX2 .. endX2:
       if x >= 0 and x < editor.viewportWidth:
-        buffer.writeText(x, dstScreenY, "─", style)
+        buffer.writeCellText(x, dstScreenY, "─", style)
   
   # Connection corners
   if midX >= 0 and midX < editor.viewportWidth:
     if srcScreenY >= 0 and srcScreenY < editor.viewportHeight:
       let corner = if dstScreenY > srcScreenY: "┐" else: "┘"
-      buffer.writeText(midX, srcScreenY, corner, style)
+      buffer.writeCellText(midX, srcScreenY, corner, style)
     if dstScreenY >= 0 and dstScreenY < editor.viewportHeight:
       let corner = if dstScreenY > srcScreenY: "└" else: "┌"
-      buffer.writeText(midX, dstScreenY, corner, style)
+      buffer.writeCellText(midX, dstScreenY, corner, style)
 
 proc renderNode*(editor: NodeEditor, node: EditorNode, 
                 buffer: var TermBuffer, layer: int) =
@@ -548,7 +548,7 @@ proc renderNode*(editor: NodeEditor, node: EditorNode,
     let x = screenX + dx
     if x >= 0 and x < editor.viewportWidth and screenY >= 0 and screenY < editor.viewportHeight:
       let ch = if dx == 0: "┌" elif dx == node.width-1: "┐" else: "─"
-      buffer.writeText(x, screenY, ch, style)
+      buffer.writeCellText(x, screenY, ch, style)
   
   # Bottom border
   let by = screenY + node.height - 1
@@ -556,7 +556,7 @@ proc renderNode*(editor: NodeEditor, node: EditorNode,
     let x = screenX + dx
     if x >= 0 and x < editor.viewportWidth and by >= 0 and by < editor.viewportHeight:
       let ch = if dx == 0: "└" elif dx == node.width-1: "┘" else: "─"
-      buffer.writeText(x, by, ch, style)
+      buffer.writeCellText(x, by, ch, style)
   
   # Side borders and fill
   for dy in 1 ..< node.height - 1:
@@ -564,16 +564,16 @@ proc renderNode*(editor: NodeEditor, node: EditorNode,
     if y >= 0 and y < editor.viewportHeight:
       # Left border
       if screenX >= 0 and screenX < editor.viewportWidth:
-        buffer.writeText(screenX, y, "│", style)
+        buffer.writeCellText(screenX, y, "│", style)
       # Right border
       let rx = screenX + node.width - 1
       if rx >= 0 and rx < editor.viewportWidth:
-        buffer.writeText(rx, y, "│", style)
+        buffer.writeCellText(rx, y, "│", style)
       # Fill interior with background color
       for dx in 1 ..< node.width - 1:
         let x = screenX + dx
         if x >= 0 and x < editor.viewportWidth:
-          buffer.writeText(x, y, " ", style)
+          buffer.writeCellText(x, y, " ", style)
   
   # Label (center of box, truncated)
   let label = "Node " & $node.id
@@ -585,7 +585,7 @@ proc renderNode*(editor: NodeEditor, node: EditorNode,
       label[0 ..< availableWidth]
     else:
       label
-    buffer.writeText(labelX, labelY, displayLabel, style)
+    buffer.writeCellText(labelX, labelY, displayLabel, style)
 
 proc render*(editor: NodeEditor, buffer: var TermBuffer, layer: int = 0) =
   ## Render the entire node editor
@@ -668,7 +668,7 @@ proc renderMarkdownNode*(editor: NodeEditor, node: MarkdownSectionNode,
       title[0 ..< availableWidth]
     else:
       title
-    buffer.writeText(titleX, titleY, displayTitle, titleStyle)
+    buffer.writeCellText(titleX, titleY, displayTitle, titleStyle)
   
   # Render content preview (next few lines)
   let maxContentLines = min(node.height - 4, node.contentLines.len)
@@ -682,7 +682,7 @@ proc renderMarkdownNode*(editor: NodeEditor, node: MarkdownSectionNode,
         line[0 ..< availableWidth]
       else:
         line
-      buffer.writeText(contentX, contentY, displayLine, contentStyle)
+      buffer.writeCellText(contentX, contentY, displayLine, contentStyle)
 
 proc loadMarkdownSections*(editor: NodeEditor, sections: seq[Section]) =
   ## Load markdown sections as nodes (spatial layout)

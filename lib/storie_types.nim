@@ -23,6 +23,20 @@ type
     lifecycle*: string  ## Lifecycle hook: "render", "update", "init", "input", "shutdown", "enter", "exit", "ondrop"
     language*: string
   
+  WGSLShaderKind* = enum
+    ComputeShader,  ## @compute shader
+    VertexShader,   ## @vertex shader  
+    FragmentShader  ## @fragment shader
+  
+  WGSLShader* = object
+    ## A WGSL GPU shader extracted from markdown
+    name*: string          ## Shader identifier (from code block header)
+    code*: string          ## WGSL source code
+    kind*: WGSLShaderKind  ## Shader type
+    uniforms*: seq[string] ## Detected uniform struct field names
+    bindings*: seq[int]    ## Detected binding numbers
+    workgroupSize*: tuple[x, y, z: int]  ## For compute shaders
+  
   EmbeddedContentKind* = enum
     ## Types of embedded content blocks in markdown
     FigletFont,    ## figlet:NAME blocks - FIGlet font data
@@ -47,7 +61,7 @@ type
     linkUrl*: string
   
   ContentBlockKind* = enum
-    TextBlock, CodeBlock_Content, HeadingBlock, PreformattedBlock, AnsiBlock
+    TextBlock, CodeBlock_Content, HeadingBlock, PreformattedBlock, AnsiBlock, WGSLBlock
   
   ContentBlock* = object
     ## A block of content within a section (text, code, or heading)
@@ -65,6 +79,8 @@ type
     of AnsiBlock:
       ansiContent*: string  ## Raw ANSI escape sequence content (parsed at render time)
       ansiBufferKey*: string  ## Cache key for parsed buffer (generated once)
+    of WGSLBlock:
+      wgslShader*: WGSLShader  ## GPU shader code
   
   Section* = object
     ## A section represents a heading and all content until the next heading
@@ -81,3 +97,4 @@ type
     codeBlocks*: seq[CodeBlock]       ## Flat list of all code blocks (for backward compatibility)
     sections*: seq[Section]           ## Structured section-based view
     embeddedContent*: seq[EmbeddedContent]  ## Embedded data blocks (figlet fonts, data files, etc.)
+    wgslShaders*: seq[WGSLShader]     ## GPU compute/render shaders

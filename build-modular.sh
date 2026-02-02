@@ -50,7 +50,8 @@ nim c \
   --passL:"/workspaces/storie-vendor/build-wasm/vendor/SDL_ttf-src/libSDL3_ttf.a" \
   --passL:"/workspaces/storie-vendor/build-wasm/vendor/SDL_ttf-src/external/freetype-build/libfreetype.a" \
   --passL:"/workspaces/storie-vendor/build-wasm/vendor/SDL_ttf-src/external/harfbuzz-build/libharfbuzz.a" \
-  --passL:"--preload-file" --passL:"docs/assets/3270-Regular.ttf@/fonts/3270-Regular.ttf" \
+    --passL:"--preload-file" --passL:"docs/assets/3270-startup.ttf@/fonts/3270-startup.ttf" \
+    --passL:"--preload-file" --passL:"docs/assets/3270-full.ttf@/fonts/3270-full.ttf" \
   --passL:--js-library --passL:web/sdl3_stub_bridge.js \
   --passL:--js-library --passL:web/figlet_bridge.js \
   --passL:--js-library --passL:web/audio_bridge.js \
@@ -60,8 +61,8 @@ nim c \
   --passL:"-sUSE_WEBGL2=1" \
   --passL:"-sMIN_WEBGL_VERSION=2" \
   --passL:"-sMAX_WEBGL_VERSION=2" \
-  --passL:"-sEXPORTED_FUNCTIONS=['_main','_malloc','_free','_setMarkdownContent']" \
-  --passL:"-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','allocateUTF8']" \
+  --passL:"-sEXPORTED_FUNCTIONS=['_main','_malloc','_free','_setMarkdownContent','_emReloadFontSDL3']" \
+  --passL:"-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','allocateUTF8','FS']" \
   --passL:"-sMODULARIZE=1" \
   --passL:"-sEXPORT_NAME='TStorie'" \
   --passL:"-sENVIRONMENT=web" \
@@ -73,6 +74,11 @@ nim c \
   tstorie.nim
 
 echo "✓ Build complete: $OUTPUT_DIR/tstorie.{js,wasm}"
+
+# Copy JavaScript helper files to docs/
+echo "Copying helper scripts..."
+cp web/progressive_font_loader.js "$OUTPUT_DIR/"
+echo "✓ progressive_font_loader.js copied"
 echo ""
 
 # Note: Plugin architecture is ready for future extensions

@@ -15,12 +15,12 @@ type
     buffer.width is int
     buffer.height is int
     
-    # Buffer operations - these are the primitives all backends support
-    buffer.write(x: int, y: int, ch: string, style: Style)
-    buffer.writeText(x: int, y: int, text: string, style: Style)
-    buffer.fillRect(x: int, y: int, w: int, h: int, ch: string, style: Style)
-    buffer.clear(bgColor: tuple[r: uint8, g: uint8, b: uint8])
-    buffer.clearTransparent()
+    # Cell-based buffer operations - these are the primitives all backends support
+    buffer.writeCell(x: int, y: int, ch: string, style: Style)
+    buffer.writeCellText(x: int, y: int, text: string, style: Style)
+    buffer.fillCellRect(x: int, y: int, w: int, h: int, ch: string, style: Style)
+    buffer.clearCells(bgColor: tuple[r: uint8, g: uint8, b: uint8])
+    buffer.clearCellsTransparent()
     
     # Cell access
     buffer.getCell(x: int, y: int) is tuple[ch: string, style: Style]

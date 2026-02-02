@@ -27,7 +27,7 @@ class TStorieTerminal {
         
         // Font settings
         this.fontSize = fontSize || 16;
-        this.fontFamily = fontFamily || "'3270-Regular', 'Consolas', 'Monaco', monospace";
+        this.fontFamily = fontFamily || "'3270-regular', 'Consolas', 'Monaco', monospace";
         
         // Performance
         this.lastFrameTime = 0;
@@ -782,7 +782,7 @@ let terminal = null;
 
 async function inittstorie() {
     try {
-        console.log('Initializing TStorie (WebGL renderer)...');
+        console.log('Initializing TStorie (Hybrid renderer: WebGPU → WebGL)...');
         
         // Wait for fonts to load
         if (document.fonts && document.fonts.ready) {
@@ -800,17 +800,37 @@ async function inittstorie() {
             console.log('Using custom font size:', customFontSize, 'px');
         }
         
-        terminal = new TStorieTerminal(canvas, customFont, customFontSize);
+        // Try hybrid renderer (WebGPU with WebGL fallback) if available
+        if (typeof TStorieHybridRenderer !== 'undefined') {
+            console.log('Using hybrid renderer (WebGPU with automatic WebGL fallback)...');
+            terminal = new TStorieHybridRenderer(canvas, {
+                fontFamily: customFont,
+                fontSize: customFontSize,
+                preferWebGPU: true,
+                fallbackToWebGL: true,
+                webgpuBridge: window.webGPUBridge || null
+            });
+            
+            const backend = await terminal.init();
+            console.log('Hybrid renderer initialized with backend:', backend);
+        } else {
+            // Fallback to pure WebGL if hybrid renderer not loaded
+            console.log('Hybrid renderer not available, using WebGL only...');
+            terminal = new TStorieTerminal(canvas, customFont, customFontSize);
+        }
         
         // Expose terminal globally
         window.terminal = terminal;
         
-        console.log('Terminal created:', terminal.cols, 'x', terminal.rows);
+        // Get dimensions from the underlying renderer
+        const cols = terminal.renderer ? terminal.renderer.cols : terminal.cols;
+        const rows = terminal.renderer ? terminal.renderer.rows : terminal.rows;
+        console.log('Terminal created:', cols, 'x', rows);
         
         // Initialize WASM module
         if (Module._emInit) {
             console.log('Calling Module._emInit...');
-            Module._emInit(terminal.cols, terminal.rows);
+            Module._emInit(cols, rows);
             console.log('Module._emInit completed');
         } else {
             throw new Error('Module._emInit not found');
@@ -818,7 +838,11 @@ async function inittstorie() {
         
         // Start animation loop
         console.log('Starting animation loop...');
-        terminal.startAnimationLoop();
+        if (terminal.renderer && terminal.renderer.startAnimationLoop) {
+            terminal.renderer.startAnimationLoop();
+        } else if (terminal.startAnimationLoop) {
+            terminal.startAnimationLoop();
+        }
     } catch (error) {
         console.error('Failed to initialize TStorie:', error);
         document.getElementById('container').innerHTML = 

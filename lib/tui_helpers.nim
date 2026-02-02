@@ -13,8 +13,8 @@ import ../src/types  # Style, Color
 import ../src/layers  # TermBuffer, writeText, Layer
 import storie_types   # StyleConfig, StyleSheet
 import ascii_art
-import layout
 import ../nimini/auto_bindings  # Auto-binding system
+import ../nimini/auto_pointer   # Pointer type support
 
 # Import AppState and related types from src
 import ../src/types
@@ -50,9 +50,9 @@ proc tuiDraw(layer: int, x, y: int, text: string, style: Style) =
   # Layer 0 is special - use gDefaultLayer
   if layer == 0:
     if not gDefaultLayerRef.isNil:
-      gDefaultLayerRef.buffer.writeText(x, y, text, style)
+      gDefaultLayerRef.buffer.writeCellText(x, y, text, style)
   elif not gAppStateRef.isNil and layer > 0 and layer < gAppStateRef.layers.len:
-    gAppStateRef.layers[layer].buffer.writeText(x, y, text, style)
+    gAppStateRef.layers[layer].buffer.writeCellText(x, y, text, style)
 
 proc tuiResolveLayer(layerId: string): int =
   ## Resolve layer name to index for drawing
@@ -923,6 +923,467 @@ proc calculateMaxScroll*(contentLines: int, viewportHeight: int): int =
 # PLUGIN REGISTRATION
 # ==============================================================================
 
+# ==============================================================================
+# EXPORTS
+# ==============================================================================
+
+# Export everything for use in other modules
+export drawBox, drawBoxSimple, drawBoxSingle, drawBoxDouble, drawBoxRounded, fillBox
+export centerTextX, centerTextY, drawCenteredText, truncateText
+export pointInRect, findClickedWidget
+export drawButton, drawLabel, drawTextBox, drawSlider, drawCheckBox
+export drawPanel, drawProgressBar, drawSeparator
+export layoutVertical, layoutHorizontal, layoutGrid, layoutCentered
+# Internal helpers (for text_editor and other internal modules)
+export tuiGetStyle, tuiDraw
+# New exports
+export handleTextInput, handleBackspace, handleArrowKeys
+export drawRadioButton, drawRadioGroup
+export drawDropdown
+export drawList
+export drawTextArea
+export drawTooltip
+export drawTabBar, drawTabContent
+export layoutForm
+export drawTextBoxWithScroll
+# Viewport exports
+export drawViewport, drawViewportNoReturn
+export updateScroll, handleScrollKeys, clampScroll, calculateMaxScroll
+
+# ==============================================================================
+# UI CONTEXT - Stateful Immediate-Mode UI System
+# ==============================================================================
+## 
+## UIContext provides a hybrid immediate/retained mode UI system that works
+## like canvas - single context object manages all widget state internally.
+##
+## Benefits:
+## - Canvas-like simplicity: var ui = initUI()
+## - No boilerplate: state managed automatically by widget ID
+## - Immediate-mode API: no callbacks, just return values
+## - Works in both terminal and graphics modes
+## - Single pointer = no pointer hell
+##
+## Usage:
+##   # on:init
+##   var ui = initUI()
+##
+##   # on:render
+##   if ui.button("btn1", "Click Me", 10, 5, 20, 3):
+##     doSomething()
+##   
+##   let name = ui.textBox("input1", 10, 10, 30, 1)
+##   let volume = ui.slider("slider1", 0, 100, 10, 15, 30)
+
+import ../src/input/types  # InputEvent
+
+type
+  UIWidgetState* = object
+    ## Internal state for a single widget
+    bounds*: tuple[x, y, w, h: int]
+    textValue*: string
+    intValue*: int
+    floatValue*: float
+    boolValue*: bool
+    hovered*: bool
+    active*: bool
+    focused*: bool
+    dirty*: bool
+    scrollOffset*: int
+    cursorPos*: int
+    # Render cache (for smart caching optimization)
+    lastLabel*: string
+    lastX*, lastY*, lastW*, lastH*: int
+    lastStyleName*: string
+    renderDirty*: bool  # True if visual representation needs regeneration
+  
+  UIContext* = ref object
+    ## Main UI context - manages all widget state
+    widgets*: Table[string, UIWidgetState]
+    activeId*: string      # Currently active widget (mouse pressed on it)
+    hotId*: string         # Widget under mouse cursor
+    focusedId*: string     # Widget with keyboard focus
+    mouseX*: int           # Current mouse X position (updated each frame)
+    mouseY*: int           # Current mouse Y position (updated each frame)
+    mousePressed*: bool    # Mouse pressed this frame
+    mouseReleased*: bool   # Mouse released this frame
+    mouseButton*: string   # Which button: "left", "right", "middle"
+    textInput*: string     # Text input received this frame
+    keyPressed*: int       # Key code pressed this frame
+    keyAction*: string     # "press", "release", "repeat"
+    # For terminal/graphics abstraction
+    cellWidth*: int        # Width of character cell in pixels (1 for terminal)
+    cellHeight*: int       # Height of character cell in pixels (1 for terminal)
+    isGraphicsMode*: bool  # True if rendering to pixels instead of cells
+
+# ==============================================================================
+# UI Context System
+# ==============================================================================
+
+# Global registry to keep UIContext instances alive (prevents GC collection)
+var gUIContextRegistry {.global.}: seq[UIContext] = @[]
+
+# ==============================================================================
+# UI Context Lifecycle
+# ==============================================================================
+
+proc initUI*(): UIContext {.autoExpose: "ui".} =
+  ## Initialize a new UI context - call once in on:init
+  ## 
+  ## Example:
+  ##   var ui = initUI()
+  result = UIContext(
+    widgets: initTable[string, UIWidgetState](),
+    cellWidth: 1,
+    cellHeight: 1,
+    isGraphicsMode: false,
+    mouseX: 0,
+    mouseY: 0
+  )
+  # Store in global registry to prevent GC collection
+  gUIContextRegistry.add(result)
+
+proc uiBeginFrame*(ui: UIContext, mouseX, mouseY: int) =
+  ## Called internally by runtime before on:render
+  ## Resets per-frame state and updates mouse position
+  ui.mouseX = mouseX
+  ui.mouseY = mouseY
+  # Don't reset mousePressed - it persists from Press until Release event
+  ui.mouseReleased = false
+  ui.textInput = ""
+  ui.keyPressed = 0
+  ui.keyAction = ""
+  ui.hotId = ""
+
+proc uiProcessInput*(ui: UIContext, event: InputEvent) =
+  ## Called internally by runtime to capture input events
+  ## Should be called before user's on:input handler
+  case event.kind
+  of MouseEvent:
+    if event.action == Press:
+      ui.mousePressed = true
+      ui.mouseButton = $event.button  # Convert to string
+      ui.activeId = ui.hotId
+    elif event.action == Release:
+      ui.mousePressed = false
+      ui.mouseReleased = true
+      ui.activeId = ""
+  
+  of MouseMoveEvent:
+    # Movement is tracked via global mouseX/mouseY
+    discard
+  
+  of TextEvent:
+    ui.textInput = event.text
+  
+  of KeyEvent:
+    ui.keyPressed = event.keyCode
+    ui.keyAction = $event.keyAction
+  
+  else:
+    discard
+
+# ==============================================================================
+# Core Widgets
+# ==============================================================================
+
+proc button*(ui: UIContext, id, label: string, x, y, w, h: int): bool {.autoExpose: "ui".} =
+  ## Interactive button that returns true when clicked
+  ## User is responsible for rendering - check ui.isHovered(id) for visual state
+  ## 
+  ## Example:
+  ##   if ui.button("btn_save", "Save", 10, 5, 15, 3):
+  ##     saveFile()
+  if ui.isNil:
+    return false
+    
+  let hovered = ui.mouseX >= x and ui.mouseX < x+w and ui.mouseY >= y and ui.mouseY < y+h
+  
+  if hovered:
+    ui.hotId = id
+  
+  let clicked = hovered and ui.mousePressed and ui.activeId == id
+  
+  # Store state for this frame
+  ui.widgets[id] = UIWidgetState(
+    bounds: (x, y, w, h),
+    hovered: hovered,
+    active: clicked
+  )
+  
+  return clicked
+
+proc textBox*(ui: UIContext, id: string, x, y, w, h: int): string {.autoExpose: "ui".} =
+  ## Editable text input box - returns current text value
+  ## 
+  ## Example:
+  ##   let name = ui.textBox("input_name", 10, 10, 30, 1)
+  let focused = ui.focusedId == id
+  let hovered = ui.mouseX >= x and ui.mouseX < x+w and ui.mouseY >= y and ui.mouseY < y+h
+  
+  # Get or create state
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState(textValue: "", cursorPos: 0)
+  
+  var state = ui.widgets[id]
+  state.bounds = (x, y, w, h)
+  state.hovered = hovered
+  state.focused = focused
+  
+  # Focus on click
+  if hovered and ui.mousePressed:
+    ui.focusedId = id
+    ui.hotId = id
+  
+  # Handle text input when focused
+  if focused and ui.textInput.len > 0:
+    # Insert text at cursor
+    let before = if state.cursorPos > 0: state.textValue[0 ..< state.cursorPos] else: ""
+    let after = if state.cursorPos < state.textValue.len: state.textValue[state.cursorPos .. ^1] else: ""
+    state.textValue = before & ui.textInput & after
+    state.cursorPos += ui.textInput.len
+    state.dirty = true
+  
+  # Handle backspace
+  if focused and ui.keyPressed == 127 and state.cursorPos > 0:
+    let before = if state.cursorPos > 1: state.textValue[0 ..< state.cursorPos - 1] else: ""
+    let after = if state.cursorPos < state.textValue.len: state.textValue[state.cursorPos .. ^1] else: ""
+    state.textValue = before & after
+    state.cursorPos -= 1
+    state.dirty = true
+  
+  # Handle arrow keys for cursor movement
+  if focused:
+    if ui.keyPressed == 1002 and state.cursorPos > 0:  # Left
+      state.cursorPos -= 1
+    elif ui.keyPressed == 1003 and state.cursorPos < state.textValue.len:  # Right
+      state.cursorPos += 1
+  
+  # Render
+  let style = if focused: tuiGetStyle("focus") else: tuiGetStyle("default")
+  drawBoxSingle(0, x, y, w, h, style)
+  
+  # Draw text with scrolling if needed
+  let maxVisible = w - 2
+  var displayText = state.textValue
+  var displayCursor = state.cursorPos
+  
+  if state.textValue.len > maxVisible:
+    # Scroll to keep cursor visible
+    if state.cursorPos > state.scrollOffset + maxVisible - 1:
+      state.scrollOffset = state.cursorPos - maxVisible + 1
+    elif state.cursorPos < state.scrollOffset:
+      state.scrollOffset = state.cursorPos
+    
+    let endIdx = min(state.scrollOffset + maxVisible, state.textValue.len)
+    displayText = state.textValue[state.scrollOffset ..< endIdx]
+    displayCursor = state.cursorPos - state.scrollOffset
+  
+  tuiDraw(0, x + 1, y + 1, displayText, style)
+  
+  # Draw cursor if focused
+  if focused:
+    let cursorStyle = tuiGetStyle("primary")
+    tuiDraw(0, x + 1 + displayCursor, y + 1, "_", cursorStyle)
+  
+  ui.widgets[id] = state
+  return state.textValue
+
+proc slider*(ui: UIContext, id: string, min, max: int, x, y, w: int): int {.autoExpose: "ui".} =
+  ## Horizontal slider - returns current value
+  ## 
+  ## Example:
+  ##   let volume = ui.slider("slider_vol", 0, 100, 10, 15, 30)
+  # Get or create state
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState(intValue: min)
+  
+  var state = ui.widgets[id]
+  let h = 1
+  let hovered = ui.mouseX >= x and ui.mouseX < x+w and ui.mouseY == y
+  
+  state.bounds = (x, y, w, h)
+  state.hovered = hovered
+  
+  # Update value while dragging
+  if hovered and ui.mousePressed:
+    ui.hotId = id
+    let relX = ui.mouseX - x
+    let percent = float(relX) / float(w - 1)
+    state.intValue = min + int(percent * float(max - min))
+    state.intValue = clamp(state.intValue, min, max)
+    state.dirty = true
+  
+  # Render track
+  let trackStyle = tuiGetStyle("default")
+  for dx in 0 ..< w:
+    tuiDraw(0, x + dx, y, "─", trackStyle)
+  
+  # Render handle
+  let percent = float(state.intValue - min) / float(max - min)
+  let handleX = x + int(percent * float(w - 1))
+  let handleStyle = if hovered: tuiGetStyle("primary") else: tuiGetStyle("success")
+  tuiDraw(0, handleX, y, "█", handleStyle)
+  
+  ui.widgets[id] = state
+  return state.intValue
+
+proc checkbox*(ui: UIContext, id, label: string, x, y: int): bool {.autoExpose: "ui".} =
+  ## Checkbox - returns checked state
+  ## 
+  ## Example:
+  ##   let enabled = ui.checkbox("check_enable", "Enable Feature", 10, 20)
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState(boolValue: false)
+  
+  var state = ui.widgets[id]
+  let w = 3 + label.len
+  let h = 1
+  let hovered = ui.mouseX >= x and ui.mouseX < x+w and ui.mouseY == y
+  
+  state.bounds = (x, y, w, h)
+  state.hovered = hovered
+  
+  # Toggle on click
+  if hovered and ui.mousePressed and ui.activeId == id:
+    state.boolValue = not state.boolValue
+    state.dirty = true
+  
+  if hovered:
+    ui.hotId = id
+  
+  # Render
+  let boxChar = if state.boolValue: "☑" else: "☐"
+  let style = if hovered: tuiGetStyle("primary") else: tuiGetStyle("default")
+  tuiDraw(0, x, y, boxChar & " " & label, style)
+  
+  ui.widgets[id] = state
+  return state.boolValue
+
+proc radioGroup*(ui: UIContext, id: string, options: seq[string], x, y: int, vertical: bool = true): int {.autoExpose: "ui".} =
+  ## Radio button group - returns selected index
+  ## 
+  ## Example:
+  ##   let size = ui.radioGroup("size", @["Small", "Medium", "Large"], 10, 5)
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState(intValue: 0)
+  
+  var state = ui.widgets[id]
+  
+  var currentX = x
+  var currentY = y
+  
+  for i, option in options:
+    let w = 4 + option.len
+    let h = 1
+    let hovered = ui.mouseX >= currentX and ui.mouseX < currentX+w and 
+                  ui.mouseY >= currentY and ui.mouseY < currentY+h
+    
+    # Select on click
+    if hovered and ui.mousePressed:
+      state.intValue = i
+      state.dirty = true
+      ui.hotId = id
+    
+    # Render
+    let isSelected = state.intValue == i
+    let radioChar = if isSelected: "◉" else: "○"
+    let style = if hovered: tuiGetStyle("primary") else: tuiGetStyle("default")
+    tuiDraw(0, currentX, currentY, radioChar & " " & option, style)
+    
+    # Move to next position
+    if vertical:
+      currentY += 1
+    else:
+      currentX += w + 2
+  
+  ui.widgets[id] = state
+  return state.intValue
+
+proc progressBar*(ui: UIContext, id: string, value, max: int, x, y, w: int) {.autoExpose: "ui".} =
+  ## Progress bar (read-only display)
+  ## 
+  ## Example:
+  ##   ui.progressBar("progress", currentValue, maxValue, 10, 20, 40)
+  let percent = float(value) / float(max)
+  let filled = int(percent * float(w))
+  
+  let style = tuiGetStyle("success")
+  let emptyStyle = tuiGetStyle("default")
+  
+  for dx in 0 ..< w:
+    let char = if dx < filled: "█" else: "░"
+    let cellStyle = if dx < filled: style else: emptyStyle
+    tuiDraw(0, x + dx, y, char, cellStyle)
+
+# ==============================================================================
+# Utility Functions
+# ==============================================================================
+
+proc getValue*(ui: UIContext, id: string, default: string = ""): string {.autoExpose: "ui".} =
+  ## Get text value of a widget by ID
+  if ui.widgets.hasKey(id):
+    return ui.widgets[id].textValue
+  return default
+
+proc getIntValue*(ui: UIContext, id: string, default: int = 0): int {.autoExpose: "ui".} =
+  ## Get integer value of a widget by ID
+  if ui.widgets.hasKey(id):
+    return ui.widgets[id].intValue
+  return default
+
+proc getBoolValue*(ui: UIContext, id: string, default: bool = false): bool {.autoExpose: "ui".} =
+  ## Get boolean value of a widget by ID
+  if ui.widgets.hasKey(id):
+    return ui.widgets[id].boolValue
+  return default
+
+proc setValue*(ui: UIContext, id: string, value: string) {.autoExpose: "ui".} =
+  ## Set text value of a widget by ID
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState()
+  ui.widgets[id].textValue = value
+
+proc setIntValue*(ui: UIContext, id: string, value: int) {.autoExpose: "ui".} =
+  ## Set integer value of a widget by ID
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState()
+  ui.widgets[id].intValue = value
+
+proc setBoolValue*(ui: UIContext, id: string, value: bool) {.autoExpose: "ui".} =
+  ## Set boolean value of a widget by ID
+  if not ui.widgets.hasKey(id):
+    ui.widgets[id] = UIWidgetState()
+  ui.widgets[id].boolValue = value
+
+proc isHovered*(ui: UIContext, id: string): bool {.autoExpose: "ui".} =
+  ## Check if a widget is currently hovered
+  if ui.isNil:
+    return false
+  if ui.widgets.hasKey(id):
+    return ui.widgets[id].hovered
+  return false
+
+proc isActive*(ui: UIContext, id: string): bool {.autoExpose: "ui".} =
+  ## Check if a widget is currently active (being interacted with)
+  if ui.isNil:
+    return false
+  if ui.widgets.hasKey(id):
+    return ui.widgets[id].active
+  return false
+
+# Export UIContext types and functions
+export UIContext, UIWidgetState
+export initUI, uiBeginFrame, uiProcessInput
+export button, textBox, slider, checkbox, radioGroup, progressBar
+export getValue, getIntValue, getBoolValue
+export setValue, setIntValue, setBoolValue
+export isHovered, isActive
+
+# ==============================================================================
+# MODULE INITIALIZATION
+# ==============================================================================
+
 proc initTUIHelpersModule*() {.used.} =
   ## Initialize TUI helpers module - registers all auto-exposed functions
   ## This is called from runtime_api.nim to ensure WASM compatibility
@@ -952,33 +1413,40 @@ proc initTUIHelpersModule*() {.used.} =
   # queuePluginRegistration(register_drawPanel)  # Polymorphic version in bindings
   queuePluginRegistration(register_drawProgressBar)
   queuePluginRegistration(register_drawRadioButton)
+  
+  # UIContext system (register functions explicitly for proper init order in WASM)
+  queuePluginRegistration(register_initUI)
+  queuePluginRegistration(register_button)
+  queuePluginRegistration(register_textBox)
+  queuePluginRegistration(register_slider)
+  queuePluginRegistration(register_checkbox)
+  queuePluginRegistration(register_radioGroup)
+  queuePluginRegistration(register_progressBar)
+  queuePluginRegistration(register_getValue)
+  queuePluginRegistration(register_getIntValue)
+  queuePluginRegistration(register_getBoolValue)
+  queuePluginRegistration(register_setValue)
+  queuePluginRegistration(register_setIntValue)
+  queuePluginRegistration(register_setBoolValue)
+  queuePluginRegistration(register_isHovered)
+  queuePluginRegistration(register_isActive)
+  
+  # UIContext functions (must be explicitly registered for WASM)
+  queuePluginRegistration(register_initUI)
+  queuePluginRegistration(register_button)
+  queuePluginRegistration(register_textBox)
+  queuePluginRegistration(register_slider)
+  queuePluginRegistration(register_checkbox)
+  queuePluginRegistration(register_radioGroup)
+  queuePluginRegistration(register_progressBar)
+  queuePluginRegistration(register_getValue)
+  queuePluginRegistration(register_getIntValue)
+  queuePluginRegistration(register_getBoolValue)
+  queuePluginRegistration(register_setValue)
+  queuePluginRegistration(register_setIntValue)
+  queuePluginRegistration(register_setBoolValue)
+  queuePluginRegistration(register_isHovered)
+  queuePluginRegistration(register_isActive)
 
-# ==============================================================================
-# EXPORTS
-# ==============================================================================
-
-# Plugin initialization (called from tstorie.nim and runtime_api.nim)
+# Export module initialization (called from tstorie.nim and runtime_api.nim)
 export initTUIHelpersModule
-
-# Export everything for use in other modules
-export drawBox, drawBoxSimple, drawBoxSingle, drawBoxDouble, drawBoxRounded, fillBox
-export centerTextX, centerTextY, drawCenteredText, truncateText
-export pointInRect, findClickedWidget
-export drawButton, drawLabel, drawTextBox, drawSlider, drawCheckBox
-export drawPanel, drawProgressBar, drawSeparator
-export layoutVertical, layoutHorizontal, layoutGrid, layoutCentered
-# Internal helpers (for text_editor and other internal modules)
-export tuiGetStyle, tuiDraw
-# New exports
-export handleTextInput, handleBackspace, handleArrowKeys
-export drawRadioButton, drawRadioGroup
-export drawDropdown
-export drawList
-export drawTextArea
-export drawTooltip
-export drawTabBar, drawTabContent
-export layoutForm
-export drawTextBoxWithScroll
-# Viewport exports
-export drawViewport, drawViewportNoReturn
-export updateScroll, handleScrollKeys, clampScroll, calculateMaxScroll

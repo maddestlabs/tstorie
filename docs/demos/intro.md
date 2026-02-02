@@ -1,9 +1,8 @@
 ---
 title: "t|Storie ꭲꭼꭱꮇꮖꮑꭺꮮ ꭼꮑᏽꮖꮑꭼ"
 author: "Maddest Labs"
-minWidth: 30
-minHeight: 12
 theme: "neotopia"
+shaders: "invert+ruledlines+paper"
 targetFPS: 60
 ---
 

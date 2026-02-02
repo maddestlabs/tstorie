@@ -1,7 +1,7 @@
 ---
 title: "Advanced TUI Widgets Demo"
 theme: "coffee"
-shaders: "ruledlines+paper+lightnight"
+shaders: "ruledlines+paper"
 fontsize: 16
 ---
 
@@ -171,10 +171,17 @@ if event.type == "text":
 # ===================================================================
 elif event.type == "key":
   let keyCode = event.keyCode
-  let isShift = contains(event.mods, "shift")
+  
+  # Check for Shift modifier
+  var isShift = false
+  var i = 0
+  while i < len(event.mods):
+    if event.mods[i] == "shift":
+      isShift = true
+    i = i + 1
   
   # Tab - cycle focus areas (support Shift+Tab for reverse)
-  if keyCode == 9:
+  if keyCode == KEY_TAB:
     if isShift:
       focusArea = (focusArea - 1 + 5) mod 5
     else:
@@ -187,43 +194,43 @@ elif event.type == "key":
   
   # Handle input based on focus area
   if focusArea == 0:  # Radio buttons
-    if keyCode == 10000 or keyCode == 10001:  # Up/Down arrows
-      if keyCode == 10000:  # Up
+    if keyCode == KEY_UP or keyCode == KEY_DOWN:  # Up/Down arrows
+      if keyCode == KEY_UP:  # Up
         radioFocusIndex = (radioFocusIndex - 1 + len(radioOptions)) mod len(radioOptions)
-      elif keyCode == 10001:  # Down
+      elif keyCode == KEY_DOWN:  # Down
         radioFocusIndex = (radioFocusIndex + 1) mod len(radioOptions)
       return true
     
-    if keyCode == 32 or keyCode == 13:  # Space or Enter
+    if keyCode == KEY_SPACE or keyCode == KEY_ENTER:  # Space or Enter
       if radioFocusIndex >= 0:
         radioSelected = radioFocusIndex
         message = "Selected: " & radioOptions[radioSelected]
       return true
   
   elif focusArea == 1:  # Dropdown
-    if keyCode == 32 or keyCode == 13:  # Space or Enter
+    if keyCode == KEY_SPACE or keyCode == KEY_ENTER:  # Space or Enter
       dropdownOpen = not dropdownOpen
       message = if dropdownOpen: "Dropdown opened" else: "Dropdown closed"
       return true
     
-    if dropdownOpen and (keyCode == 10000 or keyCode == 10001):  # Up/Down
-      if keyCode == 10000:  # Up
+    if dropdownOpen and (keyCode == KEY_UP or keyCode == KEY_DOWN):  # Up/Down
+      if keyCode == KEY_UP:  # Up
         dropdownSelected = (dropdownSelected - 1 + len(dropdownOptions)) mod len(dropdownOptions)
-      elif keyCode == 10001:  # Down
+      elif keyCode == KEY_DOWN:  # Down
         dropdownSelected = (dropdownSelected + 1) mod len(dropdownOptions)
       message = "Selected: " & dropdownOptions[dropdownSelected]
       return true
   
   elif focusArea == 2:  # List
-    if keyCode == 10000 or keyCode == 10001:  # Up/Down arrows
-      if keyCode == 10000:  # Up
+    if keyCode == KEY_UP or keyCode == KEY_DOWN:  # Up/Down arrows
+      if keyCode == KEY_UP:  # Up
         if listSelected > 0:
           listSelected = listSelected - 1
           # Auto-scroll when selection moves out of view
           if listSelected < listScrollOffset:
             listScrollOffset = listSelected
           message = "Selected: " & listItems[listSelected]
-      elif keyCode == 10001:  # Down
+      elif keyCode == KEY_DOWN:  # Down
         if listSelected < len(listItems) - 1:
           listSelected = listSelected + 1
           # Auto-scroll when selection moves out of view
@@ -233,12 +240,12 @@ elif event.type == "key":
       return true
     
     # Page Up/Down for faster scrolling
-    if keyCode == 33:  # Page Up
+    if keyCode == KEY_PAGEUP:  # Page Up
       listSelected = max(0, listSelected - 5)
       listScrollOffset = max(0, listScrollOffset - 5)
       message = "Selected: " & listItems[listSelected]
       return true
-    elif keyCode == 34:  # Page Down
+    elif keyCode == KEY_PAGEDOWN:  # Page Down
       listSelected = min(len(listItems) - 1, listSelected + 5)
       if listSelected >= listScrollOffset + 9:
         listScrollOffset = min(len(listItems) - 9, listScrollOffset + 5)
@@ -247,15 +254,15 @@ elif event.type == "key":
   
   elif focusArea == 3:  # Form
     # Arrow keys to switch between fields
-    if keyCode == 10000 or keyCode == 10001:  # Up/Down
-      if keyCode == 10000:  # Up
+    if keyCode == KEY_UP or keyCode == KEY_DOWN:  # Up/Down
+      if keyCode == KEY_UP:  # Up
         formFocusIndex = (formFocusIndex - 1 + 2) mod 2
-      elif keyCode == 10001:  # Down
+      elif keyCode == KEY_DOWN:  # Down
         formFocusIndex = (formFocusIndex + 1) mod 2
       return true
     
     # Backspace
-    if keyCode == 127 or keyCode == 8:
+    if keyCode == KEY_BACKSPACE:
       if formFocusIndex == 0:
         let result = handleBackspace(formNameCursor, formName)
         formNameCursor = result[0]
@@ -268,28 +275,28 @@ elif event.type == "key":
   
   elif focusArea == 4:  # Text area
     # Arrow key navigation
-    if keyCode == 10000:  # Up
+    if keyCode == KEY_UP:  # Up
       if textCursorLine > 0:
         textCursorLine = textCursorLine - 1
         # Clamp cursor column to new line length
         if textCursorCol > len(textLines[textCursorLine]):
           textCursorCol = len(textLines[textCursorLine])
       return true
-    elif keyCode == 10001:  # Down
+    elif keyCode == KEY_DOWN:  # Down
       if textCursorLine < len(textLines) - 1:
         textCursorLine = textCursorLine + 1
         # Clamp cursor column to new line length
         if textCursorCol > len(textLines[textCursorLine]):
           textCursorCol = len(textLines[textCursorLine])
       return true
-    elif keyCode == 10002:  # Left
+    elif keyCode == KEY_LEFT:  # Left
       if textCursorCol > 0:
         textCursorCol = textCursorCol - 1
       elif textCursorLine > 0:
         textCursorLine = textCursorLine - 1
         textCursorCol = len(textLines[textCursorLine])
       return true
-    elif keyCode == 10003:  # Right
+    elif keyCode == KEY_RIGHT:  # Right
       if textCursorCol < len(textLines[textCursorLine]):
         textCursorCol = textCursorCol + 1
       elif textCursorLine < len(textLines) - 1:
@@ -298,7 +305,7 @@ elif event.type == "key":
       return true
     
     # Backspace
-    if keyCode == 127 or keyCode == 8:
+    if keyCode == KEY_BACKSPACE:
       if textCursorCol > 0:
         # Delete character before cursor
         let line = textLines[textCursorLine]
@@ -321,7 +328,7 @@ elif event.type == "key":
       return true
     
     # Enter - insert new line
-    if keyCode == 13:
+    if keyCode == KEY_ENTER:
       let currentLine = textLines[textCursorLine]
       let beforeCursor = sliceStr(currentLine, 0, textCursorCol - 1)
       let afterCursor = sliceStr(currentLine, textCursorCol, len(currentLine) - 1)
@@ -348,11 +355,11 @@ elif event.type == "key":
 # Mouse Input Handling
 # ===================================================================
 elif event.type == "mouse":
-  let mx = event.x
-  let my = event.y
+  let mx = mouseX
+  let my = mouseY
   let action = event.action
   
-  if action == "press":
+  if action == "press" and event.button == "left":
     # Check which area was clicked
     # Radio buttons
     if mx >= 5 and mx < 30 and my >= 4 and my < 12:
@@ -391,11 +398,10 @@ elif event.type == "mouse":
       return true
   
   # Handle mouse wheel for list scrolling
-  if action == "wheel":
+  elif event.button == "scroll_up" or event.button == "scroll_down":
     if mx >= 35 and mx < 65 and my >= 4 and my < 16:
       focusArea = 2
-      # event.wheelDelta: positive = scroll up, negative = scroll down
-      if event.wheelDelta > 0:
+      if event.button == "scroll_up":
         # Scroll up
         if listScrollOffset > 0:
           listScrollOffset = listScrollOffset - 1
@@ -412,7 +418,7 @@ elif event.type == "mouse":
       return true
     
   # Tabs
-  if action == "press":
+  elif action == "press" and event.button == "left":
     if mx >= 35 and mx < 75 and my >= 17 and my < 19:
       # Simple tab hit detection
       let relX = mx - 36

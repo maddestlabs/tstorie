@@ -26,7 +26,7 @@ proc newLayer*(id: string, width, height: int, z: int = 0): Layer =
     visible: true,
     buffer: newTermBuffer(width, height)
   )
-  result.buffer.clearTransparent()
+  result.buffer.clearCellsTransparent()
 
 # ================================================================
 # LAYER CACHE MANAGEMENT
@@ -79,7 +79,7 @@ proc addLayer*(state: AppState, id: string, z: int): Layer =
     buffer: newTermBuffer(state.termWidth, state.termHeight)
   )
   echo "[Layer] Layer '", id, "' buffer created successfully"
-  layer.buffer.clearTransparent()
+  layer.buffer.clearCellsTransparent()
   state.layers.add(layer)
   invalidateLayerCache(state)  # Cache is now stale
   echo "[Layer] Layer '", id, "' added to state"
@@ -104,7 +104,7 @@ proc resizeLayers*(state: AppState, newWidth, newHeight: int) =
   ## Resize all layer buffers to match new terminal size
   for layer in state.layers:
     layer.buffer = newTermBuffer(newWidth, newHeight)
-    layer.buffer.clearTransparent()
+    layer.buffer.clearCellsTransparent()
 
 # Hook for plugins to replace compositing logic
 type
@@ -123,7 +123,7 @@ proc compositeLayers*(state: AppState) =
     return
   
   # Fill buffer with theme background color first
-  state.currentBuffer.clear(state.themeBackground)
+  state.currentBuffer.clearCells(state.themeBackground)
   
   # Sort layers by z-index (stable sort maintains insertion order for equal z values)
   # This matches behavior of game engines like Unity, Godot, and Phaser

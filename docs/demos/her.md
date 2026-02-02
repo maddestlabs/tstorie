@@ -8,7 +8,6 @@ hideSections: "true"
 styles.lines.fg: "#ffff00"
 styles.lines.bold: "true"
 fontsize: 20
-shader: "scanlines+bloom+lightvignette+warpdaze"
 ---
 
 ```nim on:init

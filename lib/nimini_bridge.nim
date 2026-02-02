@@ -35,24 +35,24 @@ var gDroppedFileSize*: int = 0
 
 # Helper templates to avoid symbol resolution conflicts with File.write
 template tbWrite(layer: Layer, x, y: int, ch: string, style: Style) =
-  bind write
-  layer.buffer.write(x, y, ch, style)
+  bind writeCell
+  layer.buffer.writeCell(x, y, ch, style)
 
 template tbWriteText(layer: Layer, x, y: int, text: string, style: Style) =
-  bind writeText
-  layer.buffer.writeText(x, y, text, style)
+  bind writeCellText
+  layer.buffer.writeCellText(x, y, text, style)
 
 template tbFillRect(layer: Layer, x, y, w, h: int, ch: string, style: Style) =
-  bind fillRect
-  layer.buffer.fillRect(x, y, w, h, ch, style)
+  bind fillCellRect
+  layer.buffer.fillCellRect(x, y, w, h, ch, style)
 
 template tbClear(layer: Layer, bgColor: tuple[r, g, b: uint8]) =
-  bind clear
-  layer.buffer.clear(bgColor)
+  bind clearCells
+  layer.buffer.clearCells(bgColor)
 
 template tbClearTransparent(layer: Layer) =
-  bind clearTransparent
-  layer.buffer.clearTransparent()
+  bind clearCellsTransparent
+  layer.buffer.clearCellsTransparent()
 
 # ================================================================
 # STYLE CONVERSION HELPERS

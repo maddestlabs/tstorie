@@ -210,9 +210,9 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
       var lineY = currentY
       for line in charLines:
         when defined(sdl3Backend):
-          layer.buffer.writeText(x, lineY, line, style)
+          layer.buffer.writeCellText(x, lineY, line, style)
         else:
-          layer[].buffer.writeText(x, lineY, line, style)
+          layer[].buffer.writeCellText(x, lineY, line, style)
         lineY += 1
       # Move down for next character (plus letter spacing)
       currentY = lineY + letterSpacing
@@ -234,9 +234,9 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
           # Draw each line of the character
           for line in charLines:
             when defined(sdl3Backend):
-              layer.buffer.writeText(currentX, lineY, line, style)
+              layer.buffer.writeCellText(currentX, lineY, line, style)
             else:
-              layer[].buffer.writeText(currentX, lineY, line, style)
+              layer[].buffer.writeCellText(currentX, lineY, line, style)
             lineY += 1
           
           # Move to next character position (width + spacing)
@@ -246,9 +246,9 @@ proc drawFigletText*(env: ref Env; args: seq[Value]): Value {.nimini.} =
       var currentY = y
       for line in lines:
         when defined(sdl3Backend):
-          layer.buffer.writeText(x, currentY, line, style)
+          layer.buffer.writeCellText(x, currentY, line, style)
         else:
-          layer[].buffer.writeText(x, currentY, line, style)
+          layer[].buffer.writeCellText(x, currentY, line, style)
         currentY += 1
   
   return valNil()

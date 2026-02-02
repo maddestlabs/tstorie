@@ -47,6 +47,16 @@ Engine features:
 - **Terminal Resizing** - All layers automatically resize when terminal or browser window changes size.
 - **Nim-based scripting** - Code with executable code blocks. Powered by [Nimini](https://github.com/maddestlabs/nimini).
 - **Reusable Libraries** - [Helper modules](https://github.com/maddestlabs/tstorie/tree/main/lib) for advanced events, animations, TUI, transitions and more.
+- **Flexible Font System** - Hot-swappable fonts with progressive loading. Built-in support for Iosevka with 1000+ variants. [Learn more →](docs/FONT_HOT_SWAPPING.md)
+
+## Documentation
+
+- **[Font System](docs/FONT_HOT_SWAPPING.md)** - Hot-swapping fonts, testing variants, and switching to Iosevka
+  - [Font Architecture](docs/FONT_SYSTEM.md) - How fonts are embedded and loaded
+  - [Iosevka Variants Guide](docs/IOSEVKA_VARIANTS.md) - Complete variant reference
+  - [Font Variant Switcher](docs/font-variant-switcher.html) - Interactive testing tool
+- **[WebGPU Integration](docs/WEBGPU_INTEGRATION.md)** - GPU-accelerated rendering and compute shaders
+- **[Modular Build System](MODULAR.md)** - Pluggable TTF renderer and progressive font loading
 
 ## Getting Started
 

@@ -50,7 +50,6 @@ import lib/storie_types
 # Audio system is now imported through nimini_bridge (which exports audio)
 import lib/storie_md          # Markdown parser (includes gEmbeddedFigletFonts)
 import lib/section_manager    # Section navigation and management (includes nimini bindings)
-import lib/layout             # Text layout utilities
 import lib/figlet             # FIGlet font rendering (for parsing and rendering)
 import lib/figlet_bindings    # FIGlet nimini bindings
 import lib/nimini_bridge      # Nimini API registration and bindings (includes gDroppedFile* globals)
@@ -59,7 +58,9 @@ import lib/ansi_art_bindings  # ANSI art nimini bindings
 import lib/dungeon_gen        # Dungeon generator (auto-registers via pragmas)
 import lib/particles_bindings # Particle system nimini bindings
 import lib/primitives         # Procedural primitives (auto-registers via pragmas)
+import lib/noise_composer     # Composable noise API with WebGPU support
 import lib/graph              # Graph/node system (auto-registers via pragmas)
+import lib/wgsl_bindings      # WGSL GPU shader bindings for compute shaders
 # import lib/graph_compiler     # Graph compiler (utility, not runtime plugin)
 import lib/animation          # Animation helpers and easing (now pure math, can be imported)
 import lib/canvas             # Canvas navigation system (now proper module!)
@@ -446,6 +447,14 @@ import lib/tui_helpers
 # Import TUI bindings after the helpers
 import lib/tui_helpers_bindings
 
+# Import TUI terminal backend (auto-rendering with caching)
+import lib/tui_terminal
+import lib/tui_terminal_bindings
+
+# Import TUI module (production retained mode UI system)
+import lib/tui
+import lib/tui_bindings
+
 # Import text editor module and bindings
 import lib/text_editor
 import lib/text_editor_bindings
@@ -475,6 +484,7 @@ proc initGlobalRuntime*(state: AppState) =
   if globalRuntimeEnv == nil:
     globalRuntimeEnv = newEnv()
     registerTstorieApis(globalRuntimeEnv, state)
+    initPlugins()  # Register all {.nimini.} pragma functions
 
 proc require*(moduleRef: string, state: AppState): ref Env =
   ## Load a Nim module at runtime from a gist or local file
@@ -739,12 +749,48 @@ when defined(emscripten):
   proc emLoadShaders(shadersStr: cstring) {.importc.}
   proc emSetFontSize(size: int) {.importc.}
   
+  when defined(sdl3Backend):
+    # SDL3-specific font reloading (used by progressive_font_loader.js)
+    proc emReloadFontSDL3(fontPath: cstring, size: cfloat) {.exportc.} =
+      ## Callback from JavaScript after progressive font loading
+      ## fontPath is the virtual filesystem path (e.g., "/fonts/iosevka-full.ttf")
+      try:
+        let pathStr = $fontPath
+        echo "[SDL3] Reloading font from: ", pathStr, " (size: ", size, ")"
+        
+        if not globalCanvas.isNil:
+          globalCanvas.updateFont(pathStr, size)
+          
+          # Force full redraw with new font by clearing prevCells (breaks dirty tracking)
+          globalCanvas.firstFrame = true
+          for i in 0..<globalCanvas.prevCells.len:
+            globalCanvas.prevCells[i].ch = ""  # Make prev different from current
+          
+          echo "[SDL3] Font reloaded successfully, full redraw triggered"
+        else:
+          echo "[SDL3] ERROR: globalCanvas is nil"
+      except Exception as e:
+        echo "[SDL3] ERROR reloading font: ", e.msg
+    
+    proc emForceRedraw() {.exportc.} =
+      ## Force a complete redraw on the next frame
+      ## Useful after font changes or when display needs refreshing
+      try:
+        if not globalCanvas.isNil:
+          globalCanvas.firstFrame = true
+          for i in 0..<globalCanvas.prevCells.len:
+            globalCanvas.prevCells[i].ch = ""  # Invalidate all cells
+          echo "[SDL3] Forced redraw requested"
+        else:
+          echo "[SDL3] ERROR: Cannot force redraw, globalCanvas is nil"
+      except Exception as e:
+        echo "[SDL3] ERROR forcing redraw: ", e.msg
+  
   proc loadFontFromFrontMatter(fontName: string) =
-    ## Load a custom font from Google Fonts or URL (called from front matter)
-    try:
-      emLoadFont(fontName.cstring)
-    except:
-      discard  # Gracefully ignore errors
+    ## DISABLED: Dynamic font loading removed in favor of progressive loading
+    ## The app now starts with iosevka-startup.ttf (33KB) and automatically upgrades
+    ## to iosevka-full.ttf (1.4MB) after 2 seconds (see progressive_font_loader.js)
+    discard
   
   proc setFontSizeFromFrontMatter(size: int) =
     ## Set font size from front matter
@@ -798,7 +844,7 @@ when defined(emscripten):
     debugStyle.fg = rgb(255'u8, 100'u8, 100'u8)
     debugStyle.bold = true
     let debugMsg = "Check: " & $minW & "x" & $minH & " vs " & $globalState.termWidth & "x" & $globalState.termHeight
-    globalState.currentBuffer.writeText(1, 1, debugMsg, debugStyle)
+    globalState.currentBuffer.writeCellText(1, 1, debugMsg, debugStyle)
     
     if minW <= 0 and minH <= 0:
       gShowingDimensionWarning = false
@@ -815,7 +861,7 @@ when defined(emscripten):
     gShowingDimensionWarning = true
     
     # Clear screen and render centered warning message
-    globalState.currentBuffer.clear((0'u8, 0'u8, 0'u8))
+    globalState.currentBuffer.clearCells((0'u8, 0'u8, 0'u8))
     
     # Build the message lines with current dimensions for debugging
     let reqWidth = if minW > 0: minW else: globalState.termWidth
@@ -836,17 +882,17 @@ when defined(emscripten):
     let line1X = (globalState.termWidth - line1.len) div 2
     let line1Y = centerY
     if line1Y >= 0 and line1Y < globalState.termHeight:
-      globalState.currentBuffer.writeText(line1X, line1Y, line1, warnStyle)
+      globalState.currentBuffer.writeCellText(line1X, line1Y, line1, warnStyle)
     
     let line2X = (globalState.termWidth - line2.len) div 2
     let line2Y = centerY + 1
     if line2Y >= 0 and line2Y < globalState.termHeight:
-      globalState.currentBuffer.writeText(line2X, line2Y, line2, warnStyle)
+      globalState.currentBuffer.writeCellText(line2X, line2Y, line2, warnStyle)
     
     let line3X = (globalState.termWidth - line3.len) div 2
     let line3Y = centerY + 2
     if line3Y >= 0 and line3Y < globalState.termHeight:
-      globalState.currentBuffer.writeText(line3X, line3Y, line3, warnStyle)
+      globalState.currentBuffer.writeCellText(line3X, line3Y, line3, warnStyle)
     
     return false
   
@@ -877,7 +923,7 @@ when defined(emscripten):
     var testStyle = defaultStyle()
     testStyle.fg = rgb(255'u8, 0'u8, 255'u8)
     testStyle.bold = true
-    globalState.currentBuffer.writeText(1, 0, "emUpdate running!", testStyle)
+    globalState.currentBuffer.writeCellText(1, 0, "emUpdate running!", testStyle)
     
     # Check if dimensions meet requirements and render warning if not
     if not checkAndRenderDimensionWarning():
@@ -896,9 +942,9 @@ when defined(emscripten):
     # Clear layer buffers each frame
     if not storieCtx.isNil:
       if not storieCtx.bgLayer.isNil:
-        storieCtx.bgLayer.buffer.clearTransparent()
+        storieCtx.bgLayer.buffer.clearCellsTransparent()
       if not storieCtx.fgLayer.isNil:
-        storieCtx.fgLayer.buffer.clearTransparent()
+        storieCtx.fgLayer.buffer.clearCellsTransparent()
     
     # Call render - this writes to layers
     renderStorie(globalState)
@@ -915,7 +961,7 @@ when defined(emscripten):
         var errStyle = defaultStyle()
         errStyle.fg = red()
         errStyle.bold = true
-        globalState.currentBuffer.writeText(2, hudY, "Error: " & lastError, errStyle)
+        globalState.currentBuffer.writeCellText(2, hudY, "Error: " & lastError, errStyle)
 
       if lastError.len > 0:
         var errStyle = defaultStyle()
@@ -927,7 +973,7 @@ when defined(emscripten):
         var remaining = lastError
         while remaining.len > 0:
           let lineLen = min(globalState.termWidth - 8, remaining.len)
-          globalState.currentBuffer.writeText(4, yPos, "ERR: " & remaining[0 ..< lineLen], errStyle)
+          globalState.currentBuffer.writeCellText(4, yPos, "ERR: " & remaining[0 ..< lineLen], errStyle)
           remaining = if remaining.len > lineLen: remaining[lineLen .. ^1] else: ""
           yPos += 1
           if yPos >= globalState.termHeight - 1: break
@@ -1025,13 +1071,56 @@ when defined(emscripten):
         return getCharDisplayWidth(ch)
     return 1
   
+  proc normalizeJSKeyCode(jsKeyCode: int): int =
+    ## Convert JavaScript keyCode to unified tStorie keyCode
+    ## 
+    ## JavaScript uses different key code values than our unified system:
+    ## - JS arrows: 37-40 → Unified: 1000-1003
+    ## - JS function keys: 112-123 → Unified: 1100-1111
+    ## - JS navigation keys: Different values → Unified: 1004-1008
+    ## 
+    ## This ensures consistent behavior between terminal, SDL3, and WASM backends.
+    case jsKeyCode
+    of 37: return KEY_LEFT.int    # Left arrow
+    of 38: return KEY_UP.int      # Up arrow
+    of 39: return KEY_RIGHT.int   # Right arrow
+    of 40: return KEY_DOWN.int    # Down arrow
+    of 36: return KEY_HOME.int    # Home
+    of 35: return KEY_END.int     # End
+    of 33: return KEY_PAGEUP.int  # Page Up
+    of 34: return KEY_PAGEDOWN.int # Page Down
+    of 45: return KEY_INSERT.int  # Insert
+    of 46: return KEY_DELETE.int  # Delete
+    of 112: return KEY_F1.int     # F1
+    of 113: return KEY_F2.int     # F2
+    of 114: return KEY_F3.int     # F3
+    of 115: return KEY_F4.int     # F4
+    of 116: return KEY_F5.int     # F5
+    of 117: return KEY_F6.int     # F6
+    of 118: return KEY_F7.int     # F7
+    of 119: return KEY_F8.int     # F8
+    of 120: return KEY_F9.int     # F9
+    of 121: return KEY_F10.int    # F10
+    of 122: return KEY_F11.int    # F11
+    of 123: return KEY_F12.int    # F12
+    # Control keys that match
+    of 8: return KEY_BACKSPACE.int
+    of 9: return KEY_TAB.int
+    of 13: return KEY_RETURN.int
+    of 27: return KEY_ESCAPE.int
+    # Everything else passes through (printable characters, etc.)
+    else: return jsKeyCode
+  
   proc emHandleKeyPress(keyCode: int, shift, alt, ctrl: int) {.exportc.} =
     var mods: set[uint8] = {}
     if shift != 0: mods.incl ModShift
     if alt != 0: mods.incl ModAlt
     if ctrl != 0: mods.incl ModCtrl
     
-    let event = InputEvent(kind: KeyEvent, keyCode: keyCode, keyMods: mods, keyAction: Press)
+    # Normalize JavaScript keyCode to unified system
+    let normalizedKeyCode = normalizeJSKeyCode(keyCode)
+    
+    let event = InputEvent(kind: KeyEvent, keyCode: normalizedKeyCode, keyMods: mods, keyAction: Press)
     # Call inputHandler directly
     discard inputHandler(globalState, event)
   
@@ -1274,7 +1363,7 @@ when defined(emscripten):
         
         # Clear all layer buffers with theme background
         for layer in globalState.layers:
-          layer.buffer.clear(globalState.themeBackground)
+          layer.buffer.clearCells(globalState.themeBackground)
         
         # Execute init blocks immediately
         for codeBlock in doc.codeBlocks:
@@ -1764,8 +1853,23 @@ when defined(emscripten) and defined(sdl3Backend):
         storieCtx.styleSheet = doc.styleSheet
         storieCtx.embeddedContent = doc.embeddedContent
         
+        # Register WGSL shaders for nimini access
+        registerWGSLShaders(doc.wgslShaders)
+        
         # Also update globalState styleSheet for API access
         globalState.styleSheet = doc.styleSheet
+        
+        # Expose front matter variables to Nimini environment
+        exposeFrontMatterVariables()
+        
+        # Apply front matter settings for font (SDL3-specific)
+        when defined(emscripten):
+          # Load custom font if specified in front matter
+          if storieCtx.frontMatter.hasKey("font"):
+            let fontName = storieCtx.frontMatter["font"]
+            if fontName.len > 0:
+              echo "[setMarkdownContent] Loading font from front matter: ", fontName
+              loadFontFromFrontMatter(fontName)
         
         # Execute init blocks
         for codeBlock in storieCtx.codeBlocks:

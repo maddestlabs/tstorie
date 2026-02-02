@@ -934,7 +934,7 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
             var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: false, 
                              underline: baseStyle.underline, italic: false, dim: baseStyle.dim)
             let chStr = $ch
-            buffer.writeText(currentX, y, chStr, style)
+            buffer.writeCellText(currentX, y, chStr, style)
             currentX += getCharDisplayWidth(chStr)
           pos = codeEnd + 1
         else:
@@ -945,14 +945,14 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
             var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: false, 
                              underline: baseStyle.underline, italic: false, dim: baseStyle.dim)
             let chStr = $ch
-            buffer.writeText(currentX, y, chStr, style)
+            buffer.writeCellText(currentX, y, chStr, style)
             currentX += getCharDisplayWidth(chStr)
           pos = codeEnd + 1  # Skip past closing backtick
       else:
         # No matching backtick, render the backtick itself
         var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
                          underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
-        buffer.writeText(currentX, y, "`", style)
+        buffer.writeCellText(currentX, y, "`", style)
         currentX += 1  # Backtick is always single-width
         pos += 1
     # Check for **bold**
@@ -985,7 +985,7 @@ proc renderInlineMarkdown(text: string, x, y: int, maxWidth: int,
       
       var style = Style(fg: baseStyle.fg, bg: baseStyle.bg, bold: isBold, 
                        underline: baseStyle.underline, italic: isItalic, dim: baseStyle.dim)
-      buffer.writeText(currentX, y, ch, style)
+      buffer.writeCellText(currentX, y, ch, style)
       currentX += getCharDisplayWidth(ch)
       pos += charLen
   
@@ -1084,7 +1084,7 @@ proc renderTextWithLinks(text: string, x, y: int, maxWidth: int,
         for ch in linkText:
           if currentX < x + maxWidth:
             let chStr = $ch
-            buffer.writeText(currentX, y, chStr, styleToUse)
+            buffer.writeCellText(currentX, y, chStr, styleToUse)
             currentX += getCharDisplayWidth(chStr)
         
         globalLinkIdx += 1
@@ -1164,6 +1164,10 @@ proc getSectionRawContent(section: Section): string =
       # Add a marker line so we know where to render the ANSI buffer
       # This marker will be recognized during rendering
       lines.add("{{ANSI:" & bufferKey & "}}")
+    of WGSLBlock:
+      # WGSL shaders don't render as content - they're GPU compute code
+      # Skip in content rendering
+      discard
   
   return lines.join("\n")
 
@@ -1242,7 +1246,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
     let placeholder = "???"
     let centerX = screenX + (layoutWidth - placeholder.len) div 2
     let centerY = screenY + layoutHeight div 2
-    buffer.writeText(centerX, centerY, placeholder, placeholderStyle)
+    buffer.writeCellText(centerX, centerY, placeholder, placeholderStyle)
     return
   
   # Get raw content and preprocess to filter removed section links
@@ -1311,7 +1315,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
                   if targetY >= 0 and targetY < buffer.height:
                     let actualX = contentX + drawX
                     if actualX >= 0 and actualX < buffer.width:
-                      buffer.writeText(actualX, targetY, textContent, drawStyle)
+                      buffer.writeCellText(actualX, targetY, textContent, drawStyle)
                       
                       # Track width
                       let lineWidth = getVisualWidth(textContent) + drawX
@@ -1338,7 +1342,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
               maxVisualWidth = renderedWidth
             if renderedWidth > maxCellWidth:
               maxCellWidth = renderedWidth
-            buffer.writeText(contentX, contentY, displayText, headingStyle)
+            buffer.writeCellText(contentX, contentY, displayText, headingStyle)
           elif hasLinksOutsideBackticks(bufferLine):
             # Line with links
             let links = renderTextWithLinks(bufferLine, contentX, contentY, maxContentWidth,
@@ -1378,7 +1382,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
             for wLine in wrapped:
               if contentY >= screenY + layoutHeight:
                 break
-              buffer.writeText(contentX, contentY, wLine, bodyStyle)
+              buffer.writeCellText(contentX, contentY, wLine, bodyStyle)
               # Track visual width of wrapped line (equals cell width for double-width chars)
               let lineWidth = getVisualWidth(wLine)
               if lineWidth > maxVisualWidth:
@@ -1411,7 +1415,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
       let renderedWidth = getVisualWidth(displayText)
       if renderedWidth > maxVisualWidth:
         maxVisualWidth = renderedWidth
-      buffer.writeText(contentX, contentY, displayText, headingStyle)
+      buffer.writeCellText(contentX, contentY, displayText, headingStyle)
     elif hasLinksOutsideBackticks(line):
       # Line with links (but not inside backticks)
       let links = renderTextWithLinks(line, contentX, contentY, maxContentWidth,
@@ -1480,7 +1484,7 @@ proc renderSection(layout: SectionLayout, screenX, screenY: int,
       for wLine in wrapped:
         if contentY >= screenY + layoutHeight:
           break
-        buffer.writeText(contentX, contentY, wLine, bodyStyle)
+        buffer.writeCellText(contentX, contentY, wLine, bodyStyle)
         # Track visual width of wrapped line
         let lineWidth = getVisualWidth(wLine)
         if lineWidth > maxVisualWidth:
@@ -1502,7 +1506,7 @@ proc canvasRender*(buffer: var TermBuffer, viewportWidth, viewportHeight: int,
   
   # Clear the buffer with transparency to allow lower layers to show through
   # This enables multi-layer rendering (e.g., particles underneath canvas content)
-  buffer.clearTransparent()
+  buffer.clearCellsTransparent()
   
   # Copy parameters to local variables to avoid any potential shadowing issues
   let vw = viewportWidth

@@ -4,7 +4,6 @@ theme: "coffee"
 # Custom highlight style inherits background from theme
 styles.highlight.fg: "#FF0000"
 styles.highlight.bold: "true"
-shaders: "ruledlines+paper+lightnight"
 fontsize: 16
 ---
 

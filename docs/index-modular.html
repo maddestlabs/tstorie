@@ -175,6 +175,9 @@
   
   <div id="error-message"></div>
   
+  <!-- Progressive font loader: starts with 250KB minimal font, loads 2.6MB Nerd Font in background -->
+  <script src="progressive_font_loader.js"></script>
+  
   <script src="tstorie.js"></script>
   <script>
     // Track timing
@@ -240,6 +243,14 @@
       
       console.log('[App] Module loaded successfully');
       console.log('[App] Total initialization time:', (performance.now() - appStartTime).toFixed(0), 'ms');
+      
+      // Make Module globally accessible for progressive font loader
+      window.Module = Module;
+      
+      // Start progressive font loading (3270-Regular → 3270 Nerd Font after 2s)
+      if (window.progressiveFontLoader) {
+        window.progressiveFontLoader.init();
+      }
       
       // Handle dynamic content loading from URL parameter
       const urlParams = new URLSearchParams(window.location.search);

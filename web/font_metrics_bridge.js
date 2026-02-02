@@ -127,60 +127,29 @@ mergeInto(LibraryManager.library, {
       
       console.log('[WASM] Parsed shader names:', shaderNames);
       
-      // Function to load a single shader
-      function loadSingleShader(shaderName) {
-        return new Promise(function(resolve, reject) {
-          const localShaderUrl = 'shaders/' + shaderName + '.js';
-          
-          fetch(localShaderUrl)
-            .then(function(response) {
-              if (!response.ok) {
-                // Try loading from Gist if local file not found
-                console.log('[WASM] Local shader not found, trying Gist:', shaderName);
-                return fetch('https://api.github.com/gists/' + shaderName)
-                  .then(function(gistResponse) {
-                    if (!gistResponse.ok) {
-                      throw new Error('Shader not found: ' + shaderName);
-                    }
-                    return gistResponse.json();
-                  })
-                  .then(function(gist) {
-                    // Find first .js file
-                    for (const filename in gist.files) {
-                      if (filename.endsWith('.js')) {
-                        return { name: shaderName, content: gist.files[filename].content, source: 'gist' };
-                      }
-                    }
-                    throw new Error('No .js file in gist: ' + shaderName);
-                  });
-              } else {
-                return response.text().then(function(content) {
-                  return { name: shaderName, content: content, source: 'local' };
-                });
-              }
-            })
-            .then(resolve)
-            .catch(reject);
-        });
+      // Check if loadSingleShader function exists (from index-webgpu.html)
+      if (typeof window.loadSingleShader !== 'function') {
+        console.warn('[WASM] loadSingleShader not available, shaders cannot be loaded');
+        return;
       }
       
-      // Load all shaders
-      Promise.all(shaderNames.map(loadSingleShader))
+      // Load all shaders using the HTML's loader
+      Promise.all(shaderNames.map(window.loadSingleShader))
         .then(function(results) {
-          console.log('[WASM] All shaders loaded:', results.map(r => r.name).join(' → '));
+          console.log('[WASM] All shaders loaded from frontmatter:', results.map(r => r.name).join(' → '));
           
-          // Initialize shader system if available
+          // Store shader codes globally and initialize shader system
+          window.shaderCodes = results;
+          window.shaderReady = true;
+          
           if (typeof window.initShaderSystem === 'function') {
-            // Store shader codes globally for shader system
-            window.shaderCodes = results;
-            window.shaderReady = true;
             window.initShaderSystem();
           } else {
             console.warn('[WASM] Shader system not available');
           }
         })
         .catch(function(error) {
-          console.warn('[WASM] Error loading shaders:', error);
+          console.warn('[WASM] Error loading shaders from frontmatter:', error);
         });
       
     } catch (e) {

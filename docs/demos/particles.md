@@ -1,5 +1,7 @@
 ---
 title: "Particle System Demo"
+theme: "solarlight"
+shaders: "ruledlines+paper"
 ---
 
 # Particle System Demo

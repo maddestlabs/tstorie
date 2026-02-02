@@ -8,7 +8,7 @@
 
 import std/[strutils, base64, os, tables, re]
 import zippy  # Pure Nim - works on native AND WASM
-import ../lib/magic
+import ../src/magic
 
 proc compressString*(input: string): string =
   ## Compress a string using zippy and encode as base64

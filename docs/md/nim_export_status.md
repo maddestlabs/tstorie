@@ -104,7 +104,6 @@
 **tStorie Libraries** (70+ functions):
 - **Canvas**: write, writeText, fillRect, clearLayer, etc.
 - **Drawing**: drawRect, drawBox
-- **Layout**: wrapText, alignHorizontal, writeAligned, writeWrapped, writeTextBox
 - **Figlet**: loadFont, render
 - **Audio**: initAudio, playTone, playSound, registerSound, playBleep, playJump, playHit, playLaser, playPowerUp, playLanding, stopAll, playSample
 - **Animation**: easeLinear, easeInQuad, easeOutQuad, easeInOutQuad, easeInCubic, easeOutCubic, easeInOutCubic, easeInSine, easeOutSine, easeInOutSine, lerp, lerpColor, lerpStyle, newAnimation, newParticle

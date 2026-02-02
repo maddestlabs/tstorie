@@ -1,8 +1,6 @@
 ---
 title: "Displacement Shaders Demo"
-theme: "catppuccin"
-minWidth: 60
-minHeight: 20
+theme: "alleycat"
 ---
 
 # Displacement Shaders - Content Distortion Effects

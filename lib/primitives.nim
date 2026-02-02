@@ -163,6 +163,531 @@ proc fractalNoise2D*(x, y, octaves, scale, seed: int): int {.exportc: "pgFractal
     result = 0
 
 ## ============================================================================
+## PERLIN NOISE
+## Industry-standard gradient noise for natural-looking patterns
+## ============================================================================
+
+# Perlin permutation table - deterministically generated from seed
+# This ensures the same seed always produces the same noise pattern
+proc perlinPerm(i, seed: int): int {.inline.} =
+  ## Get permutation value for Perlin noise
+  (intHash(i, seed) and 0xFF)
+
+# Perlin gradient vectors (precomputed for integer math)
+# These represent unit vectors at various angles
+const PERLIN_GRADIENTS_2D = [
+  (1000, 0), (923, 382), (707, 707), (382, 923),
+  (0, 1000), (-382, 923), (-707, 707), (-923, 382),
+  (-1000, 0), (-923, -382), (-707, -707), (-382, -923),
+  (0, -1000), (382, -923), (707, -707), (923, -382)
+]
+
+proc perlinGrad2D(hash, x, y: int): int {.inline.} =
+  ## Compute dot product of gradient vector with distance vector
+  ## x, y: distance from grid point (0..1000)
+  let grad = PERLIN_GRADIENTS_2D[hash and 15]
+  result = (grad[0] * x + grad[1] * y) div 1000
+
+proc perlinFade(t: int): int {.inline.} =
+  ## Perlin's fade function: 6t^5 - 15t^4 + 10t^3
+  ## Smoother than smoothstep, reduces grid artifacts
+  ## t: 0..1000, returns 0..1000
+  let t2 = (t * t) div 1000
+  let t3 = (t2 * t) div 1000
+  let t4 = (t3 * t) div 1000
+  let t5 = (t4 * t) div 1000
+  result = ((6 * t5 - 15 * t4 + 10 * t3)) div 1
+
+proc perlinNoise2D*(x, y, scale, seed: int): int {.exportc: "pgPerlinNoise2D", autoExpose: "primitives".} =
+  ## 2D Perlin noise - smooth gradient noise
+  ## scale: Size of noise cells (e.g., 100 = cells are 100 units wide)
+  ## Returns value in range [0..65535]
+  ## 
+  ## Perlin noise is the industry standard for natural terrain and textures.
+  ## It uses gradient vectors at grid points for smooth, natural-looking patterns.
+  ## Better than value noise - no grid artifacts, more organic appearance.
+  let cellX = x div scale
+  let cellY = y div scale
+  let localX = (x mod scale * 1000) div scale  # 0..1000
+  let localY = (y mod scale * 1000) div scale  # 0..1000
+  
+  # Get gradient hashes at four corners
+  let aa = perlinPerm(perlinPerm(cellX, seed) + cellY, seed)
+  let ab = perlinPerm(perlinPerm(cellX, seed) + cellY + 1, seed)
+  let ba = perlinPerm(perlinPerm(cellX + 1, seed) + cellY, seed)
+  let bb = perlinPerm(perlinPerm(cellX + 1, seed) + cellY + 1, seed)
+  
+  # Compute dot products with distance vectors
+  let gx0 = perlinGrad2D(aa, localX, localY)
+  let gx1 = perlinGrad2D(ba, localX - 1000, localY)
+  let gy0 = perlinGrad2D(ab, localX, localY - 1000)
+  let gy1 = perlinGrad2D(bb, localX - 1000, localY - 1000)
+  
+  # Interpolate using fade curve
+  let u = perlinFade(localX)
+  let v = perlinFade(localY)
+  
+  let x1 = lerp(gx0, gx1, u)
+  let x2 = lerp(gy0, gy1, u)
+  let noise = lerp(x1, x2, v)
+  
+  # Map from [-1000..1000] to [0..65535]
+  result = ((noise + 1000) * 65535) div 2000
+
+# 3D Perlin gradient vectors
+const PERLIN_GRADIENTS_3D = [
+  (1000, 1000, 0), (-1000, 1000, 0), (1000, -1000, 0), (-1000, -1000, 0),
+  (1000, 0, 1000), (-1000, 0, 1000), (1000, 0, -1000), (-1000, 0, -1000),
+  (0, 1000, 1000), (0, -1000, 1000), (0, 1000, -1000), (0, -1000, -1000),
+  (1000, 1000, 0), (-1000, 1000, 0), (0, -1000, 1000), (0, -1000, -1000)
+]
+
+proc perlinGrad3D(hash, x, y, z: int): int {.inline.} =
+  ## Compute dot product of 3D gradient with distance vector
+  let grad = PERLIN_GRADIENTS_3D[hash and 15]
+  result = (grad[0] * x + grad[1] * y + grad[2] * z) div 1000
+
+proc perlinNoise3D*(x, y, z, scale, seed: int): int {.exportc: "pgPerlinNoise3D", autoExpose: "primitives".} =
+  ## 3D Perlin noise - for volumetric effects and 3D terrain
+  ## scale: Size of noise cells
+  ## Returns value in range [0..65535]
+  let cellX = x div scale
+  let cellY = y div scale
+  let cellZ = z div scale
+  let localX = (x mod scale * 1000) div scale
+  let localY = (y mod scale * 1000) div scale
+  let localZ = (z mod scale * 1000) div scale
+  
+  # Get gradient hashes at 8 corners of cube
+  let aaa = perlinPerm(perlinPerm(perlinPerm(cellX, seed) + cellY, seed) + cellZ, seed)
+  let aba = perlinPerm(perlinPerm(perlinPerm(cellX, seed) + cellY + 1, seed) + cellZ, seed)
+  let aab = perlinPerm(perlinPerm(perlinPerm(cellX, seed) + cellY, seed) + cellZ + 1, seed)
+  let abb = perlinPerm(perlinPerm(perlinPerm(cellX, seed) + cellY + 1, seed) + cellZ + 1, seed)
+  let baa = perlinPerm(perlinPerm(perlinPerm(cellX + 1, seed) + cellY, seed) + cellZ, seed)
+  let bba = perlinPerm(perlinPerm(perlinPerm(cellX + 1, seed) + cellY + 1, seed) + cellZ, seed)
+  let bab = perlinPerm(perlinPerm(perlinPerm(cellX + 1, seed) + cellY, seed) + cellZ + 1, seed)
+  let bbb = perlinPerm(perlinPerm(perlinPerm(cellX + 1, seed) + cellY + 1, seed) + cellZ + 1, seed)
+  
+  # Compute dot products
+  let g000 = perlinGrad3D(aaa, localX, localY, localZ)
+  let g100 = perlinGrad3D(baa, localX - 1000, localY, localZ)
+  let g010 = perlinGrad3D(aba, localX, localY - 1000, localZ)
+  let g110 = perlinGrad3D(bba, localX - 1000, localY - 1000, localZ)
+  let g001 = perlinGrad3D(aab, localX, localY, localZ - 1000)
+  let g101 = perlinGrad3D(bab, localX - 1000, localY, localZ - 1000)
+  let g011 = perlinGrad3D(abb, localX, localY - 1000, localZ - 1000)
+  let g111 = perlinGrad3D(bbb, localX - 1000, localY - 1000, localZ - 1000)
+  
+  # Interpolate
+  let u = perlinFade(localX)
+  let v = perlinFade(localY)
+  let w = perlinFade(localZ)
+  
+  let x1 = lerp(g000, g100, u)
+  let x2 = lerp(g010, g110, u)
+  let x3 = lerp(g001, g101, u)
+  let x4 = lerp(g011, g111, u)
+  let y1 = lerp(x1, x2, v)
+  let y2 = lerp(x3, x4, v)
+  let noise = lerp(y1, y2, w)
+  
+  # Map from [-1000..1000] to [0..65535]
+  result = ((noise + 1000) * 65535) div 2000
+
+## ============================================================================
+## SIMPLEX NOISE
+## Ken Perlin's improved noise - faster and less directional artifacts
+## ============================================================================
+
+proc simplexNoise2D*(x, y, scale, seed: int): int {.exportc: "pgSimplexNoise2D", autoExpose: "primitives".} =
+  ## 2D Simplex noise - faster and better looking than Perlin in 2D
+  ## scale: Size of noise cells
+  ## Returns value in range [0..65535]
+  ##
+  ## Simplex noise uses triangular grid instead of square grid.
+  ## Advantages: Fewer gradients to compute (3 vs 4), less directional bias.
+  
+  # Skew input space to determine which simplex cell we're in
+  const F2 = 366  # (sqrt(3)-1)/2 * 1000 ≈ 0.366
+  const G2 = 211  # (3-sqrt(3))/6 * 1000 ≈ 0.211
+  
+  let sx = x div scale
+  let sy = y div scale
+  let localX = (x mod scale * 1000) div scale
+  let localY = (y mod scale * 1000) div scale
+  
+  let s = ((localX + localY) * F2) div 1000
+  let i = sx + ((localX + s) div 1000)
+  let j = sy + ((localY + s) div 1000)
+  
+  let t = ((i + j) * G2) div 1000
+  let X0 = i - ((i + j) * G2) div 1000
+  let Y0 = j - t
+  let x0 = localX - (X0 * 1000)
+  let y0 = localY - (Y0 * 1000)
+  
+  # Determine which simplex we're in
+  var i1, j1: int
+  if x0 > y0:
+    i1 = 1; j1 = 0  # Lower triangle
+  else:
+    i1 = 0; j1 = 1  # Upper triangle
+  
+  # Offsets for middle and top corners
+  let x1 = x0 - i1 * 1000 + G2
+  let y1 = y0 - j1 * 1000 + G2
+  let x2 = x0 - 1000 + 2 * G2
+  let y2 = y0 - 1000 + 2 * G2
+  
+  # Get gradient hashes
+  let gi0 = perlinPerm(i + perlinPerm(j, seed), seed)
+  let gi1 = perlinPerm(i + i1 + perlinPerm(j + j1, seed), seed)
+  let gi2 = perlinPerm(i + 1 + perlinPerm(j + 1, seed), seed)
+  
+  # Calculate contributions from three corners
+  var n0, n1, n2: int
+  
+  let t0 = 500 - ((x0 * x0) div 1000 + (y0 * y0) div 1000)
+  if t0 > 0:
+    let t0sq = (t0 * t0) div 1000
+    n0 = (t0sq * t0sq * perlinGrad2D(gi0, x0, y0)) div 1000000
+  
+  let t1 = 500 - ((x1 * x1) div 1000 + (y1 * y1) div 1000)
+  if t1 > 0:
+    let t1sq = (t1 * t1) div 1000
+    n1 = (t1sq * t1sq * perlinGrad2D(gi1, x1, y1)) div 1000000
+  
+  let t2 = 500 - ((x2 * x2) div 1000 + (y2 * y2) div 1000)
+  if t2 > 0:
+    let t2sq = (t2 * t2) div 1000
+    n2 = (t2sq * t2sq * perlinGrad2D(gi2, x2, y2)) div 1000000
+  
+  # Sum and scale to [0..65535]
+  let noise = (n0 + n1 + n2) * 70  # Scale factor for proper range
+  result = ((noise + 1000) * 65535) div 2000
+
+proc simplexNoise3D*(x, y, z, scale, seed: int): int {.exportc: "pgSimplexNoise3D", autoExpose: "primitives".} =
+  ## 3D Simplex noise - significantly faster than 3D Perlin
+  ## scale: Size of noise cells
+  ## Returns value in range [0..65535]
+  ##
+  ## In 3D, Simplex noise is MUCH faster than Perlin (4 gradients vs 8).
+  ## Uses tetrahedral grid instead of cubic grid.
+  
+  const F3 = 333  # 1/3 * 1000
+  const G3 = 166  # 1/6 * 1000
+  
+  let sx = x div scale
+  let sy = y div scale
+  let sz = z div scale
+  let localX = (x mod scale * 1000) div scale
+  let localY = (y mod scale * 1000) div scale
+  let localZ = (z mod scale * 1000) div scale
+  
+  let s = ((localX + localY + localZ) * F3) div 1000
+  let i = sx + (localX + s) div 1000
+  let j = sy + (localY + s) div 1000
+  let k = sz + (localZ + s) div 1000
+  
+  let t = ((i + j + k) * G3) div 1000
+  let x0 = localX - ((i * 1000) - (i + j + k) * G3)
+  let y0 = localY - ((j * 1000) - (i + j + k) * G3)
+  let z0 = localZ - ((k * 1000) - (i + j + k) * G3)
+  
+  # Determine which simplex we're in (6 possibilities in 3D)
+  var i1, j1, k1, i2, j2, k2: int
+  if x0 >= y0:
+    if y0 >= z0:      # X Y Z order
+      i1=1; j1=0; k1=0; i2=1; j2=1; k2=0
+    elif x0 >= z0:    # X Z Y order
+      i1=1; j1=0; k1=0; i2=1; j2=0; k2=1
+    else:             # Z X Y order
+      i1=0; j1=0; k1=1; i2=1; j2=0; k2=1
+  else:
+    if y0 < z0:       # Z Y X order
+      i1=0; j1=0; k1=1; i2=0; j2=1; k2=1
+    elif x0 < z0:     # Y Z X order
+      i1=0; j1=1; k1=0; i2=0; j2=1; k2=1
+    else:             # Y X Z order
+      i1=0; j1=1; k1=0; i2=1; j2=1; k2=0
+  
+  # Offsets for corners
+  let x1 = x0 - i1 * 1000 + G3
+  let y1 = y0 - j1 * 1000 + G3
+  let z1 = z0 - k1 * 1000 + G3
+  let x2 = x0 - i2 * 1000 + 2 * G3
+  let y2 = y0 - j2 * 1000 + 2 * G3
+  let z2 = z0 - k2 * 1000 + 2 * G3
+  let x3 = x0 - 1000 + 3 * G3
+  let y3 = y0 - 1000 + 3 * G3
+  let z3 = z0 - 1000 + 3 * G3
+  
+  # Get gradient hashes
+  let gi0 = perlinPerm(i + perlinPerm(j + perlinPerm(k, seed), seed), seed)
+  let gi1 = perlinPerm(i + i1 + perlinPerm(j + j1 + perlinPerm(k + k1, seed), seed), seed)
+  let gi2 = perlinPerm(i + i2 + perlinPerm(j + j2 + perlinPerm(k + k2, seed), seed), seed)
+  let gi3 = perlinPerm(i + 1 + perlinPerm(j + 1 + perlinPerm(k + 1, seed), seed), seed)
+  
+  # Calculate contributions
+  var n0, n1, n2, n3: int
+  
+  let t0 = 600 - ((x0*x0 + y0*y0 + z0*z0) div 1000)
+  if t0 > 0:
+    let t0sq = (t0 * t0) div 1000
+    n0 = (t0sq * t0sq * perlinGrad3D(gi0, x0, y0, z0)) div 1000000
+  
+  let t1 = 600 - ((x1*x1 + y1*y1 + z1*z1) div 1000)
+  if t1 > 0:
+    let t1sq = (t1 * t1) div 1000
+    n1 = (t1sq * t1sq * perlinGrad3D(gi1, x1, y1, z1)) div 1000000
+  
+  let t2 = 600 - ((x2*x2 + y2*y2 + z2*z2) div 1000)
+  if t2 > 0:
+    let t2sq = (t2 * t2) div 1000
+    n2 = (t2sq * t2sq * perlinGrad3D(gi2, x2, y2, z2)) div 1000000
+  
+  let t3 = 600 - ((x3*x3 + y3*y3 + z3*z3) div 1000)
+  if t3 > 0:
+    let t3sq = (t3 * t3) div 1000
+    n3 = (t3sq * t3sq * perlinGrad3D(gi3, x3, y3, z3)) div 1000000
+  
+  # Sum and scale
+  let noise = (n0 + n1 + n2 + n3) * 32
+  result = ((noise + 1000) * 65535) div 2000
+
+## ============================================================================
+## WORLEY/CELLULAR NOISE
+## Creates organic cellular patterns - stone, water, cells, cracks
+## ============================================================================
+
+proc worleyNoise2D*(x, y, scale, seed: int): tuple[f1, f2: int] {.exportc: "pgWorleyNoise2D".} =
+  ## 2D Worley/Cellular noise - returns distances to two closest feature points
+  ## scale: Size of cells containing random points
+  ## Returns: (closest_distance, second_closest_distance) in range [0..65535]
+  ##
+  ## Worley noise is perfect for:
+  ## - Stone/rock textures (f1)
+  ## - Cell structures (f1)
+  ## - Cracks/veins (f2 - f1)
+  ## - Water caustics (f1 with animation)
+  ## - Organic patterns
+  
+  let cellX = x div scale
+  let cellY = y div scale
+  
+  var minDist1 = 999999999
+  var minDist2 = 999999999
+  
+  # Check 3x3 grid of cells around current position
+  for offsetY in -1..1:
+    for offsetX in -1..1:
+      let checkX = cellX + offsetX
+      let checkY = cellY + offsetY
+      
+      # Get random point position within this cell
+      let hash = intHash2D(checkX, checkY, seed)
+      let pointX = checkX * scale + (hash mod scale)
+      let pointY = checkY * scale + ((hash shr 8) mod scale)
+      
+      # Calculate distance squared to this point (inline to avoid dependency)
+      let dx = x - pointX
+      let dy = y - pointY
+      let dist = dx * dx + dy * dy
+      
+      # Update closest distances
+      if dist < minDist1:
+        minDist2 = minDist1
+        minDist1 = dist
+      elif dist < minDist2:
+        minDist2 = dist
+  
+  # Normalize to [0..65535]
+  # Scale factor depends on typical max distance
+  let maxDist = scale * scale * 2  # Diagonal across cell
+  result.f1 = min(65535, (minDist1 * 65535) div maxDist)
+  result.f2 = min(65535, (minDist2 * 65535) div maxDist)
+
+proc worleyNoise3D*(x, y, z, scale, seed: int): tuple[f1, f2: int] {.exportc: "pgWorleyNoise3D".} =
+  ## 3D Worley/Cellular noise - for volumetric cellular patterns
+  ## scale: Size of cells
+  ## Returns: (closest_distance, second_closest_distance) in range [0..65535]
+  
+  let cellX = x div scale
+  let cellY = y div scale
+  let cellZ = z div scale
+  
+  var minDist1 = 999999999
+  var minDist2 = 999999999
+  
+  # Check 3x3x3 grid of cells
+  for offsetZ in -1..1:
+    for offsetY in -1..1:
+      for offsetX in -1..1:
+        let checkX = cellX + offsetX
+        let checkY = cellY + offsetY
+        let checkZ = cellZ + offsetZ
+        
+        # Get random point position within this cell
+        let hash = intHash3D(checkX, checkY, checkZ, seed)
+        let pointX = checkX * scale + (hash mod scale)
+        let pointY = checkY * scale + ((hash shr 8) mod scale)
+        let pointZ = checkZ * scale + ((hash shr 16) mod scale)
+        
+        # Calculate distance
+        let dx = x - pointX
+        let dy = y - pointY
+        let dz = z - pointZ
+        let dist = dx*dx + dy*dy + dz*dz
+        
+        if dist < minDist1:
+          minDist2 = minDist1
+          minDist1 = dist
+        elif dist < minDist2:
+          minDist2 = dist
+  
+  let maxDist = scale * scale * 3
+  result.f1 = min(65535, (minDist1 * 65535) div maxDist)
+  result.f2 = min(65535, (minDist2 * 65535) div maxDist)
+
+## ============================================================================
+## DOMAIN WARPING
+## Warp coordinate space using noise to create complex organic patterns
+## ============================================================================
+
+proc domainWarp2D*(x, y, strength, seed: int): tuple[x, y: int] {.exportc: "pgDomainWarp2D".} =
+  ## Warp 2D coordinates using Perlin noise
+  ## strength: How much to warp (typically 100-500)
+  ## Returns: Warped (x, y) coordinates
+  ##
+  ## Domain warping is a powerful technique:
+  ## 1. Generate noise at (x,y)
+  ## 2. Use that noise to offset x and y
+  ## 3. Sample final noise at warped coordinates
+  ## Result: Much more complex, organic patterns than plain noise
+  
+  # Use two different noise octaves for x and y warping
+  let warpX = perlinNoise2D(x, y, 100, seed)
+  let warpY = perlinNoise2D(x, y, 100, seed + 1000)
+  
+  # Map noise [0..65535] to offset [-strength..strength]
+  let offsetX = ((warpX - 32768) * strength) div 32768
+  let offsetY = ((warpY - 32768) * strength) div 32768
+  
+  result = (x + offsetX, y + offsetY)
+
+proc domainWarp3D*(x, y, z, strength, seed: int): tuple[x, y, z: int] {.exportc: "pgDomainWarp3D".} =
+  ## Warp 3D coordinates using Perlin noise
+  ## strength: How much to warp
+  ## Returns: Warped (x, y, z) coordinates
+  
+  let warpX = perlinNoise3D(x, y, z, 100, seed)
+  let warpY = perlinNoise3D(x, y, z, 100, seed + 1000)
+  let warpZ = perlinNoise3D(x, y, z, 100, seed + 2000)
+  
+  let offsetX = ((warpX - 32768) * strength) div 32768
+  let offsetY = ((warpY - 32768) * strength) div 32768
+  let offsetZ = ((warpZ - 32768) * strength) div 32768
+  
+  result = (x + offsetX, y + offsetY, z + offsetZ)
+
+## ============================================================================
+## ADVANCED NOISE TECHNIQUES (FBM Variations)
+## Different ways to combine octaves for specific effects
+## ============================================================================
+
+proc ridgedNoise2D*(x, y, octaves, scale, seed: int): int {.exportc: "pgRidgedNoise2D", autoExpose: "primitives".} =
+  ## Ridged multifractal noise - creates sharp ridges like mountains
+  ## Perfect for: Mountain ridges, crystalline structures, sharp terrain features
+  ##
+  ## Unlike standard FBM, this inverts and sharpens the noise to create ridges.
+  var total = 0
+  var amplitude = 32768
+  var frequency = scale
+  var maxValue = 0
+  
+  for i in 0..<octaves:
+    var n = perlinNoise2D(x, y, frequency, seed + i)
+    n = 65535 - iabs(n - 32768) * 2  # Invert and sharpen
+    total += (n * amplitude) div 65535
+    maxValue += amplitude
+    amplitude = amplitude div 2
+    frequency = frequency div 2
+  
+  if maxValue > 0:
+    result = (total * 65535) div maxValue
+  else:
+    result = 0
+
+proc billowNoise2D*(x, y, octaves, scale, seed: int): int {.exportc: "pgBillowNoise2D", autoExpose: "primitives".} =
+  ## Billow noise - creates puffy cloud-like patterns
+  ## Perfect for: Clouds, steam, smoke, fluffy textures
+  ##
+  ## Takes absolute value of noise for billowy appearance.
+  var total = 0
+  var amplitude = 32768
+  var frequency = scale
+  var maxValue = 0
+  
+  for i in 0..<octaves:
+    var n = perlinNoise2D(x, y, frequency, seed + i)
+    n = iabs(n - 32768) * 2  # Take absolute value for billows
+    total += (n * amplitude) div 65535
+    maxValue += amplitude
+    amplitude = amplitude div 2
+    frequency = frequency div 2
+  
+  if maxValue > 0:
+    result = (total * 65535) div maxValue
+  else:
+    result = 0
+
+proc turbulenceNoise2D*(x, y, octaves, scale, seed: int): int {.exportc: "pgTurbulenceNoise2D", autoExpose: "primitives".} =
+  ## Turbulence noise - chaotic, swirling patterns
+  ## Perfect for: Fire, marble, chaotic energy, magic effects
+  ##
+  ## Similar to billow but with different octave combination.
+  var total = 0
+  var frequency = scale
+  
+  for i in 0..<octaves:
+    let n = perlinNoise2D(x, y, frequency, seed + i)
+    total += iabs(n - 32768)
+    frequency = frequency div 2
+  
+  # Average and normalize
+  result = min(65535, (total * 2) div octaves)
+
+proc warpedNoise2D*(x, y, octaves, scale, warpStrength, seed: int): int {.exportc: "pgWarpedNoise2D", autoExpose: "primitives".} =
+  ## Fractal noise with domain warping - creates complex organic patterns
+  ## Perfect for: Wood grain, marble, complex terrain, organic textures
+  ##
+  ## This is where it gets REALLY interesting - combines FBM with domain warping
+  ## for incredibly complex patterns that would be impossible with simple noise.
+  
+  # First warp pass
+  let (wx1, wy1) = domainWarp2D(x, y, warpStrength, seed)
+  
+  # Second warp pass (optional, for even more complexity)
+  let (wx2, wy2) = domainWarp2D(wx1, wy1, warpStrength div 2, seed + 1000)
+  
+  # Sample fractional noise at warped coordinates
+  var total = 0
+  var amplitude = 32768
+  var frequency = scale
+  var maxValue = 0
+  
+  for i in 0..<octaves:
+    total += (perlinNoise2D(wx2, wy2, frequency, seed + i) * amplitude) div 65535
+    maxValue += amplitude
+    amplitude = amplitude div 2
+    frequency = frequency div 2
+  
+  if maxValue > 0:
+    result = (total * 65535) div maxValue
+  else:
+    result = 0
+
+## ============================================================================
 ## GEOMETRIC PRIMITIVES
 ## Integer-based geometry operations
 ## ============================================================================
@@ -726,6 +1251,8 @@ proc colorGrayscale*(value: int): IColor {.exportc: "pgColorGrayscale".} =
 proc initPrimitivesModule*() =
   ## Called explicitly to ensure module initialization in WASM builds
   ## Manually queues all registration functions that were generated by {.autoExpose.} pragmas
+  
+  # Math primitives
   queuePluginRegistration(register_idiv)
   queuePluginRegistration(register_imod)
   queuePluginRegistration(register_iabs)
@@ -735,8 +1262,30 @@ proc initPrimitivesModule*() =
   queuePluginRegistration(register_lerp)
   queuePluginRegistration(register_smoothstep)
   queuePluginRegistration(register_map)
+  
+  # Basic hash & noise
   queuePluginRegistration(register_intHash)
   queuePluginRegistration(register_intHash2D)
+  
+  # Perlin noise
+  queuePluginRegistration(register_perlinNoise2D)
+  queuePluginRegistration(register_perlinNoise3D)
+  
+  # Simplex noise
+  queuePluginRegistration(register_simplexNoise2D)
+  queuePluginRegistration(register_simplexNoise3D)
+  
+  # Worley/Cellular noise - Note: Returns tuples, use in compiled Nim only
+  # (not exposed to nimini due to tuple return type)
+  
+  # Domain warping - Note: Returns tuples, use in compiled Nim only
+  # Use warpedNoise2D/3D for exposed warped noise functions
+  
+  # Advanced noise techniques
+  queuePluginRegistration(register_ridgedNoise2D)
+  queuePluginRegistration(register_billowNoise2D)
+  queuePluginRegistration(register_turbulenceNoise2D)
+  queuePluginRegistration(register_warpedNoise2D)
 
 when isMainModule:
   echo "Procedural Generation Primitives Library"

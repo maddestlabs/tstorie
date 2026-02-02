@@ -14,8 +14,10 @@
     <title>t|Storie ꭲꭼꭱꮇꮖꮑꭺꮮ ꭼꮑᏽꮖꮑꭼ</title>
     <style>
         @font-face {
-            font-family: '3270-Regular';
-            src: url('./assets/3270-Regular.ttf') format('truetype');
+            font-family: '3270-regular';
+            src: url('./assets/3270-regular-startup.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
         }
         
         * {
@@ -32,11 +34,11 @@
         
         body {
             background: #001111;
-            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-regular', 'Consolas', 'Monaco', monospace;
         }
         
         body.custom-font {
-            font-family: var(--custom-font-family), '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: var(--custom-font-family), 'monaspace-radon', 'Consolas', 'Monaco', monospace;
         }
         
         #container {
@@ -68,12 +70,12 @@
             font-smooth: never;
             -webkit-font-smoothing: none;
             -moz-osx-font-smoothing: grayscale;
-            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-regular', 'Consolas', 'Monaco', monospace;
             object-fit: fill;
         }
         
         #terminal.custom-font {
-            font-family: var(--custom-font-family), '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: var(--custom-font-family), 'monaspace-radon', 'Consolas', 'Monaco', monospace;
         }
         
         #loading {
@@ -160,7 +162,7 @@
             display: none;
             overflow-y: auto;
             box-shadow: 0 8px 32px rgba(0, 217, 142, 0.2);
-            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-regular', 'Consolas', 'Monaco', monospace;
             color: #00d98e;
         }
         
@@ -197,7 +199,7 @@
             border: 1px solid #00d98e;
             border-radius: 4px;
             color: #00d98e;
-            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-regular', 'Consolas', 'Monaco', monospace;
             font-size: 13px;
         }
         
@@ -262,7 +264,7 @@
             border: 1px solid #00d98e;
             border-radius: 4px;
             color: #00d98e;
-            font-family: '3270-Regular', 'Consolas', 'Monaco', monospace;
+            font-family: '3270-regular', 'Consolas', 'Monaco', monospace;
             font-size: 14px;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -1595,8 +1597,28 @@
             
             const specialParams = ['gist', 'demo', 'content', 'font', 'shader'];
             
+            console.log('Parsing URL params:', Array.from(urlParams.entries()));
+            
             for (const [key, value] of urlParams.entries()) {
                 if (!specialParams.includes(key)) {
+                    if (key === 'theme') {
+                        console.log('🎨 [THEME URL] Detected theme parameter:', value);
+                        if (!value || value.length === 0) {
+                            console.error('🎨 [THEME URL] ERROR: Theme parameter is EMPTY!');
+                            console.error('🎨 [THEME URL] HINT: Use + to separate colors instead of #');
+                            console.error('🎨 [THEME URL] Format: ?theme=RRGGBB+RRGGBB+RRGGBB+RRGGBB+RRGGBB+RRGGBB+RRGGBB');
+                            console.error('🎨 [THEME URL] Example: ?theme=FFFFFF+000000+FF0000+00FF00+0000FF+FFFF00+FF00FF');
+                        } else if (value.startsWith('#')) {
+                            console.log('🎨 [THEME URL] Detected custom hex theme with # separator (legacy, length:', value.length, ')');
+                            console.log('🎨 [THEME URL] TIP: Use + separator for cleaner URLs');
+                        } else if (value.includes('+') || value.includes(' ')) {
+                            console.log('🎨 [THEME URL] Detected custom hex theme with + separator (length:', value.length, ')');
+                        } else {
+                            console.log('🎨 [THEME URL] Detected built-in theme name:', value);
+                        }
+                    } else {
+                        console.log('Setting param:', key, '=', value);
+                    }
                     try {
                         // Allocate strings in WASM memory and call Nim function
                         const keyLen = lengthBytesUTF8(key) + 1;
@@ -1615,9 +1637,40 @@
                     } catch (e) {
                         console.error('Error setting param', key, ':', e);
                     }
+                } else {
+                    console.log('Skipping special param:', key);
                 }
             }
         }
+        
+        // JavaScript functions that WASM can call for theme debugging
+        window.tStorie_logFrontMatterTheme = function(themeName) {
+            console.log('\ud83c\udfa8 [FRONT MATTER] Theme specified in front matter:', themeName);
+        };
+        
+        window.tStorie_logUrlThemeDetected = function(themeName) {
+            console.log('\ud83c\udfa8 [URL OVERRIDE] URL theme parameter detected:', themeName);
+            if (themeName.length === 0) {
+                console.log('\ud83c\udfa8 [URL OVERRIDE] \u2717 Theme parameter is EMPTY - keeping front matter theme');
+                console.log('\ud83c\udfa8 [URL OVERRIDE] HINT: Make sure to URL-encode # as %23');
+            } else if (themeName.startsWith('#')) {
+                console.log('\ud83c\udfa8 [URL OVERRIDE] Parsing custom hex theme (length:', themeName.length, ')');
+            } else {
+                console.log('\ud83c\udfa8 [URL OVERRIDE] Applying built-in theme:', themeName);
+            }
+        };
+        
+        window.tStorie_logUrlThemeSuccess = function() {
+            console.log('\ud83c\udfa8 [URL OVERRIDE] \u2713 Theme stylesheet applied successfully');
+        };
+        
+        window.tStorie_logUrlThemeFailed = function(themeName) {
+            console.error('\ud83c\udfa8 [URL OVERRIDE] \u2717 Failed to parse theme:', themeName);
+        };
+        
+        window.tStorie_logNoUrlTheme = function() {
+            console.log('\ud83c\udfa8 [URL OVERRIDE] No theme URL parameter - using front matter theme');
+        };
         
         // Prevent browser default actions for keyboard shortcuts we handle
         // For Ctrl+A, we DON'T prevent default here - we let it reach Emscripten
@@ -1786,16 +1839,69 @@
                 });
         }
         
-        // Function to load a single shader by name
+        // Function to load a single shader by name (WebGPU-aware)
         function loadSingleShader(shaderName) {
             return new Promise(function(resolve, reject) {
-                var localShaderUrl = 'shaders/' + shaderName + '.js';
-                console.log('Loading shader:', shaderName, 'from', localShaderUrl);
+                // Detect actual backend being used - check hybrid renderer if available
+                var useWebGPU = false;
+                if (window.terminal && window.terminal.backend) {
+                    // Hybrid renderer exposes which backend it's using
+                    useWebGPU = window.terminal.backend === 'webgpu';
+                    console.log('[Shader] Using backend from hybrid renderer:', window.terminal.backend);
+                } else if (navigator.gpu !== undefined) {
+                    // Fallback: just check if WebGPU API exists
+                    useWebGPU = true;
+                    console.log('[Shader] WebGPU API detected, will attempt WGSL');
+                }
                 
+                // Determine shader path based on backend
+                var shaderDir = useWebGPU ? 'shaders/wgsl/' : 'shaders/';
+                var extension = useWebGPU ? '.wgsl.js' : '.js';
+                var backend = useWebGPU ? 'webgpu' : 'webgl';
+                var localShaderUrl = shaderDir + shaderName + extension;
+                
+                console.log('[Shader] Loading', shaderName, 'from', localShaderUrl, 
+                            '(backend:', backend + ')');
+                
+                // Try loading from local file
                 fetch(localShaderUrl)
                     .then(function(response) {
                         if (!response.ok) {
-                            // Local file not found, try loading from Gist
+                            // If WGSL not found, try fallback to GLSL
+                            if (useWebGPU) {
+                                console.warn('[Shader] WGSL version not found, falling back to GLSL:', shaderName);
+                                var fallbackUrl = 'shaders/' + shaderName + '.js';
+                                return fetch(fallbackUrl).then(function(fallbackResponse) {
+                                    if (fallbackResponse.ok) {
+                                        // Mark this as a fallback so we know to use WebGL
+                                        fallbackResponse._usedFallback = true;
+                                        return fallbackResponse;
+                                    }
+                                    // Neither WGSL nor GLSL found, try Gist
+                                    throw new Error('LOCAL_NOT_FOUND');
+                                });
+                            }
+                            // WebGL mode, file not found
+                            throw new Error('LOCAL_NOT_FOUND');
+                        }
+                        return response;
+                    })
+                    .then(function(response) {
+                        // Local file found, return its content
+                        return response.text().then(function(content) {
+                            return { 
+                                name: shaderName, 
+                                content: content, 
+                                source: 'local', 
+                                filename: shaderName + extension,
+                                backend: response._usedFallback ? 'webgl' : backend,
+                                fallback: response._usedFallback || false
+                            };
+                        });
+                    })
+                    .catch(function(error) {
+                        // Try loading from Gist as fallback
+                        if (error.message === 'LOCAL_NOT_FOUND') {
                             console.log('Local shader not found, trying Gist API for:', shaderName);
                             return fetch('https://api.github.com/gists/' + shaderName)
                                 .then(function(gistResponse) {
@@ -1816,16 +1922,20 @@
                                     
                                     if (jsFile) {
                                         console.log('Found shader file in gist:', jsFile.filename);
-                                        return { name: shaderName, content: jsFile.content, source: 'gist', filename: jsFile.filename };
+                                        return { 
+                                            name: shaderName, 
+                                            content: jsFile.content, 
+                                            source: 'gist', 
+                                            filename: jsFile.filename,
+                                            backend: 'webgl', // Gist shaders are typically WebGL
+                                            fallback: false
+                                        };
                                     } else {
                                         throw new Error('No .js file found in shader gist: ' + shaderName);
                                     }
                                 });
                         } else {
-                            // Local file found, return its content
-                            return response.text().then(function(content) {
-                                return { name: shaderName, content: content, source: 'local', filename: shaderName + '.js' };
-                            });
+                            throw error;
                         }
                     })
                     .then(resolve)
@@ -1885,6 +1995,34 @@
             try {
                 console.log('Initializing multi-shader system with', codes.length, 'shader(s):', codes.map(s => s.name).join(' → '));
                 console.log('Canvas found:', canvas.id, canvas.width, 'x', canvas.height);
+                
+            // Check if any shaders explicitly need WebGL fallback
+            const needsWebGLFallback = codes.some(s => s.backend === 'webgl' || s.fallback === true);
+            
+            // Detect WebGPU support and active backend
+            const hasWebGPU = navigator.gpu !== undefined && typeof initWebGPUShaderSystem === 'function';
+            const usingWebGPUBackend = window.terminal && window.terminal.backend === 'webgpu';
+            
+            // Only try WebGPU if: API available, function exists, backend is WebGPU, and no forced fallback
+            if (hasWebGPU && usingWebGPUBackend && !needsWebGLFallback) {
+                console.log('🚀 Using WebGPU shader system (high performance)');
+                try {
+                    initWebGPUShaderSystem(codes);
+                    return; // WebGPU initialization is async, will complete later
+                } catch (error) {
+                    console.warn('WebGPU shader system failed, falling back to WebGL:', error);
+                    // Fall through to WebGL
+                }
+            } else {
+                if (needsWebGLFallback) {
+                    console.log('⚠️  Shaders require WebGL (WGSL versions not found), using WebGL shader system');
+                } else if (!usingWebGPUBackend) {
+                    console.log('⚠️  Renderer is using WebGL backend, using WebGL shader system');
+                } else {
+                    console.log('⚠️  WebGPU not available, using WebGL shader system (compatibility mode)');
+                }
+            }
+            
                 
                 // Store original terminal canvas reference
                 const terminalCanvas = canvas;
@@ -2227,6 +2365,14 @@
     
     <!-- Load our WebGL terminal interface first -->
     <script src="tstorie-webgl.js"></script>
+    
+    <!-- WebGPU support (optional, with automatic WebGL fallback) -->
+    <script src="webgpu_bridge.js"></script>
+    <script src="webgpu_shader_system.js"></script>
+    <script src="tstorie-webgpu-render.js"></script>
+    <script src="tstorie-hybrid-renderer.js"></script>
+    <script src="webgpu_wasm_bridge.js"></script>
+    <script src="wgsl_runtime.js"></script>
     
     <!-- Then load the WASM module -->
     <script src="tstorie.wasm.js" onerror="document.getElementById('container').innerHTML = '<div class=\'error\'><h2>Failed to load WASM module</h2><p>Make sure tstorie.wasm.js exists in the same directory.</p></div>';"></script>

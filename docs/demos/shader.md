@@ -1,7 +1,6 @@
 ---
 title: "Terminal Shaders Demo"
 theme: "alleycat"
-shaders: "border+crt"
 fontsize: 24
 ---
 

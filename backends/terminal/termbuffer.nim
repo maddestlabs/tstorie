@@ -53,8 +53,8 @@ proc setOffset*(tb: var TermBuffer, x, y: int) =
   tb.offsetX = x
   tb.offsetY = y
 
-proc write*(tb: var TermBuffer, x, y: int, ch: string, style: Style) =
-  ## Write a single character at the given position
+proc writeCell*(tb: var TermBuffer, x, y: int, ch: string, style: Style) =
+  ## Write a single character cell at the given position
   ## Respects clipping and offset settings
   let adjustedX = x + tb.offsetX
   let adjustedY = y + tb.offsetY
@@ -74,8 +74,8 @@ proc write*(tb: var TermBuffer, x, y: int, ch: string, style: Style) =
     let idx = screenY * tb.width + screenX
     tb.cells[idx] = Cell(ch: ch, style: style)
 
-proc writeText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
-  ## Write a string of text at the given position
+proc writeCellText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
+  ## Write a string of text to character cells at the given position
   ## Handles UTF-8 multi-byte characters and double-width characters
   var currentX = x
   var i = 0
@@ -99,32 +99,32 @@ proc writeText*(tb: var TermBuffer, x, y: int, text: string, style: Style) =
     else:
       ch = "?"
     
-    tb.write(currentX, y, ch, style)
+    tb.writeCell(currentX, y, ch, style)
     
     # Advance by the display width (handles double-width characters like CJK)
     let displayWidth = getCharDisplayWidth(ch)
     
     # For double-width characters, write a space to the second cell
     if displayWidth == 2 and currentX + 1 < tb.width:
-      tb.write(currentX + 1, y, " ", style)  # Regular ASCII space (single-width)
+      tb.writeCell(currentX + 1, y, " ", style)  # Regular ASCII space (single-width)
     
     currentX += displayWidth
     i += charLen
 
-proc fillRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =
-  ## Fill a rectangle with the given character and style
+proc fillCellRect*(tb: var TermBuffer, x, y, w, h: int, ch: string, style: Style) =
+  ## Fill a rectangle of cells with the given character and style
   for dy in 0 ..< h:
     for dx in 0 ..< w:
-      tb.write(x + dx, y + dy, ch, style)
+      tb.writeCell(x + dx, y + dy, ch, style)
 
-proc clear*(tb: var TermBuffer, bgColor: tuple[r, g, b: uint8] = (0'u8, 0'u8, 0'u8)) =
+proc clearCells*(tb: var TermBuffer, bgColor: tuple[r, g, b: uint8] = (0'u8, 0'u8, 0'u8)) =
   ## Clear the buffer to a solid background color
   let defaultStyle = Style(fg: white(), bg: Color(r: bgColor.r, g: bgColor.g, b: bgColor.b), bold: false)
   for i in 0 ..< tb.cells.len:
     tb.cells[i] = Cell(ch: " ", style: defaultStyle)
 
-proc clearTransparent*(tb: var TermBuffer) =
-  ## Clear the buffer to transparent (empty strings allow compositing)
+proc clearCellsTransparent*(tb: var TermBuffer) =
+  ## Clear the buffer cells to transparent (empty strings allow compositing)
   let defaultStyle = Style(fg: white(), bg: black(), bold: false)
   for i in 0 ..< tb.cells.len:
     tb.cells[i] = Cell(ch: "", style: defaultStyle)
@@ -212,7 +212,7 @@ proc applySnapshot*(snapshot: BufferSnapshot, buffer: var TermBuffer) =
   for y in 0 ..< min(snapshot.height, buffer.height):
     for x in 0 ..< min(snapshot.width, buffer.width):
       let cell = snapshot.getCell(x, y)
-      buffer.write(x, y, cell.ch, cell.style)
+      buffer.writeCell(x, y, cell.ch, cell.style)
 
 proc blendSnapshots*(a, b: BufferSnapshot, t: float): BufferSnapshot =
   ## Blend two buffer snapshots together using linear interpolation

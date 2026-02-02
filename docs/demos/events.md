@@ -73,16 +73,9 @@ if event.type == "text":
     lastModifiers = lastModifiers & event.mods[i]
     i = i + 1
   
-  # SPECIAL: Shift+Q detection using event modifiers
+  # SPECIAL: Shift+Q detection (uppercase Q implies Shift was pressed)
   if event.text == "Q":
-    var hasShift = false
-    var j = 0
-    while j < len(event.mods):
-      if event.mods[j] == "shift":
-        hasShift = true
-      j = j + 1
-    if hasShift:
-      shiftQDetected = true
+    shiftQDetected = true
   
   return true
 

@@ -87,27 +87,6 @@ proc registerTStorieExportMetadata*() =
     storieLibs: @["canvas"],
     description: "Get current section metrics")
   
-  # Layout functions -> lib/layout
-  gFunctionMetadata["wrapText"] = FunctionMetadata(
-    storieLibs: @["layout"],
-    description: "Wrap text to fit within width")
-  
-  gFunctionMetadata["alignHorizontal"] = FunctionMetadata(
-    storieLibs: @["layout"],
-    description: "Align text horizontally")
-  
-  gFunctionMetadata["writeAligned"] = FunctionMetadata(
-    storieLibs: @["layout"],
-    description: "Write aligned text")
-  
-  gFunctionMetadata["writeWrapped"] = FunctionMetadata(
-    storieLibs: @["layout"],
-    description: "Write wrapped text")
-  
-  gFunctionMetadata["writeTextBox"] = FunctionMetadata(
-    storieLibs: @["layout"],
-    description: "Write text box with wrapping and alignment")
-  
   # Figlet functions -> lib/figlet  
   gFunctionMetadata["loadFont"] = FunctionMetadata(
     storieLibs: @["figlet"],

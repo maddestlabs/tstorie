@@ -4,7 +4,7 @@
 ## This module has no file I/O or platform-specific dependencies - it only processes string content.
 
 import strutils, tables
-import storie_types, storie_themes, magic
+import storie_types, storie_themes, wgsl_parser, ../src/magic
 export storie_types, storie_themes  # Re-export types so users get them automatically
 
 # Global table to store embedded figlet fonts from markdown
@@ -53,6 +53,9 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
   var themeColors: ThemeColors
   if frontMatter.hasKey("theme"):
     let themeName = frontMatter["theme"]
+    when defined(emscripten):
+      proc js_logFrontMatterTheme(name: cstring) {.importc: "tStorie_logFrontMatterTheme".}
+      js_logFrontMatterTheme(themeName.cstring)
     themeColors = getTheme(themeName)
     result = applyTheme(themeColors, themeName)
   else:
@@ -84,8 +87,8 @@ proc parseStyleSheet*(frontMatter: FrontMatter): StyleSheet =
       result[styleName]
     else:
       StyleConfig(
-        fg: themeColors.fgPrimary,      # Use theme's foreground
-        bg: themeColors.bgPrimary,      # Use theme's background
+        fg: themeColors.fg,      # Use theme's foreground
+        bg: themeColors.bg,      # Use theme's background
         bold: false,
         italic: false,
         underline: false,
@@ -801,6 +804,59 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
           currentSection.blocks.add(ContentBlock(
             kind: CodeBlock_Content,
             codeBlock: codeBlock
+          ))
+          hasCurrentSection = true
+      elif headerParts.len > 0 and headerParts[0] == "wgsl":
+        # WGSL GPU Shader block: ```wgsl compute:shaderName or ```wgsl
+        var shaderName = "shader_" & $(result.wgslShaders.len + 1)
+        
+        # Parse shader name from: wgsl compute:particlePhysics
+        for part in headerParts[1..^1]:
+          if ':' in part:
+            shaderName = part.split(':')[1].strip()
+            break
+        
+        # Extract shader code
+        var codeLines: seq[string] = @[]
+        inc i
+        while i < lines.len:
+          if lines[i].strip().startsWith("```"):
+            break
+          codeLines.add(lines[i])
+          inc i
+        
+        # Parse WGSL metadata
+        let shaderCode = codeLines.join("\n")
+        let wgslShader = parseWGSLShader(shaderName, shaderCode)
+        
+        # Add to shader collection
+        result.wgslShaders.add(wgslShader)
+        
+        # Add to current section as WGSL block
+        if hasCurrentSection:
+          currentSection.blocks.add(ContentBlock(
+            kind: WGSLBlock,
+            wgslShader: wgslShader
+          ))
+        else:
+          # Create default section if needed
+          inc sectionCounter
+          let sectionId = "section_" & $sectionCounter
+          currentSection = Section(
+            id: sectionId,
+            title: "",
+            level: 1,
+            blocks: @[],
+            metadata: initTable[string, string]()
+          )
+          currentSection.blocks.add(ContentBlock(
+            kind: HeadingBlock,
+            level: 1,
+            title: ""
+          ))
+          currentSection.blocks.add(ContentBlock(
+            kind: WGSLBlock,
+            wgslShader: wgslShader
           ))
           hasCurrentSection = true
       else:

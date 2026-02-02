@@ -1,8 +1,6 @@
 ---
 title: "Shader Primitives - Build Your Own Effects"
 theme: "catppuccin"
-minWidth: 40
-minHeight: 10
 ---
 
 # Shader Primitives - Compose Your Own Effects

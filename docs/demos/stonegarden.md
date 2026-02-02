@@ -2,13 +2,10 @@
 title: "Stone Garden"
 alttitle: "石庭/Sekitei"
 author: "Maddest Labs"
-minWidth: 20
-minHeight: 10
 chars: "岩僧石座固僧・苔霧松竹梅"
 doubleWidth: true
 theme: "stonegarden"
 font: "LXGW+WenKai+Mono+TC"
-shaders: "sand+clouds+blurgradual"
 ---
 
 # Stone Garden⠀

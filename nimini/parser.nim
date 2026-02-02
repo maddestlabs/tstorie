@@ -101,6 +101,32 @@ proc parseType(p: var Parser): TypeNode =
     # Simple placeholder - full parsing done elsewhere
     return newEnumType(@[])
   
+  # Check for array type: array[size, elementType]
+  # Arrays in Nim have a special syntax where the first parameter is an integer (size)
+  # and the second is the element type
+  if typeName == "array" and p.cur().kind == tkLBracket:
+    discard p.advance()
+    
+    # First parameter can be an integer literal (size) or a range
+    # For simplicity, we'll accept integers and treat them as type names
+    let sizeToken = p.cur()
+    var sizeType: TypeNode
+    
+    if sizeToken.kind == tkInt:
+      # Size specified as integer literal: array[21, int]
+      # Store the size as a simple type with the integer value as string
+      sizeType = newSimpleType(sizeToken.lexeme)
+      discard p.advance()
+    else:
+      # Size could be a range or identifier
+      sizeType = parseType(p)
+    
+    discard expect(p, tkComma, "Expected ',' after array size")
+    let elementType = parseType(p)
+    discard expect(p, tkRBracket, "Expected ']'")
+    
+    return newGenericType("array", @[sizeType, elementType])
+  
   # Check for generic types like UncheckedArray[T] or seq[T]
   if p.cur().kind == tkLBracket:
     discard p.advance()
@@ -600,10 +626,7 @@ proc parsePrefix(p: var Parser; allowDoNotation=true): Expr =
         pairs.add((pairKey, pairValue))
     
     discard expect(p, tkRBrace, "Expected '}'")
-    var err = newException(NiminiParseError, "Unexpected token in expression at line " & $t.line)
-    err.line = t.line
-    err.col = t.col
-    raise err
+    return newMap(pairs, t.line, t.col)
 
   else:
     var err = newException(NiminiParseError, "Unexpected token in expression at line " & $t.line)

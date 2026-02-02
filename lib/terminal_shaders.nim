@@ -769,7 +769,7 @@ proc renderPlasma*(buffer: var TermBuffer, x, y, width, height, frame: int,
       for dy in 0..<r:
         for dx in 0..<r:
           if col * r + dx < width and row * r + dy < height:
-            buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+            buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
 
 proc renderRipple*(buffer: var TermBuffer, x, y, width, height, frame: int,
                    centerX, centerY: int, speed: float = 0.1, frequency: float = 0.3, reduction: int = 1) =
@@ -805,7 +805,7 @@ proc renderRipple*(buffer: var TermBuffer, x, y, width, height, frame: int,
       for dy in 0..<r:
         for dx in 0..<r:
           if col * r + dx < width and row * r + dy < height:
-            buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+            buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
 
 proc renderFire*(buffer: var TermBuffer, x, y, width, height, frame: int,
                  intensity: float = 1.0, seed: int = 42, reduction: int = 1) =
@@ -842,7 +842,7 @@ proc renderFire*(buffer: var TermBuffer, x, y, width, height, frame: int,
       for dy in 0..<r:
         for dx in 0..<r:
           if col * r + dx < width and row * r + dy < height:
-            buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+            buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
 
 proc renderFractalNoise*(buffer: var TermBuffer, x, y, width, height, frame: int,
                          scale: int = 30, octaves: int = 4, seed: int = 42, reduction: int = 1) =
@@ -877,7 +877,7 @@ proc renderFractalNoise*(buffer: var TermBuffer, x, y, width, height, frame: int
       for dy in 0..<r:
         for dx in 0..<r:
           if col * r + dx < width and row * r + dy < height:
-            buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+            buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
 
 proc renderWave*(buffer: var TermBuffer, x, y, width, height, frame: int,
                  frequency: float = 0.3, speed: float = 0.1, reduction: int = 1) =
@@ -912,7 +912,7 @@ proc renderWave*(buffer: var TermBuffer, x, y, width, height, frame: int,
       for dy in 0..<r:
         for dx in 0..<r:
           if col * r + dx < width and row * r + dy < height:
-            buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+            buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
 
 proc renderTunnel*(buffer: var TermBuffer, x, y, width, height, frame: int,
                    centerX, centerY: int, speed: float = 0.05, reduction: int = 1) =
@@ -952,7 +952,7 @@ proc renderTunnel*(buffer: var TermBuffer, x, y, width, height, frame: int,
       for dy in 0..<r:
         for dx in 0..<r:
           if col * r + dx < width and row * r + dy < height:
-            buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+            buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
 
 proc renderMatrixRain*(buffer: var TermBuffer, x, y, width, height, frame: int,
                        speed: float = 0.5, density: float = 0.1, seed: int = 42, reduction: int = 1) =
@@ -990,7 +990,7 @@ proc renderMatrixRain*(buffer: var TermBuffer, x, y, width, height, frame: int,
         for dy in 0..<r:
           for dx in 0..<r:
             if col * r + dx < width and row * r + dy < height:
-              buffer.write(x + col * r + dx, y + row * r + dy, char, style)
+              buffer.writeCell(x + col * r + dx, y + row * r + dy, char, style)
       else:
         # Clear with transparent
         let style = Style(
@@ -1003,7 +1003,7 @@ proc renderMatrixRain*(buffer: var TermBuffer, x, y, width, height, frame: int,
         for dy in 0..<r:
           for dx in 0..<r:
             if col * r + dx < width and row * r + dy < height:
-              buffer.write(x + col * r + dx, y + row * r + dy, " ", style)
+              buffer.writeCell(x + col * r + dx, y + row * r + dy, " ", style)
 
 # ==============================================================================
 # DISPLACEMENT RENDERING
@@ -1063,7 +1063,7 @@ proc applyDisplacement*(destBuffer: var TermBuffer, sourceBuffer: TermBuffer,
          srcScreenY >= 0 and srcScreenY < sourceBuffer.height:
         let srcCell = sourceBuffer.getCell(srcScreenX, srcScreenY)
         # Write to destination
-        destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+        destBuffer.writeCell(screenX, screenY, srcCell.ch, srcCell.style)
 
 proc applyDisplacementInPlace*(buffer: var TermBuffer,
                                x, y, width, height: int,
@@ -1080,7 +1080,7 @@ proc applyDisplacementInPlace*(buffer: var TermBuffer,
   for row in 0..<height:
     for col in 0..<width:
       let cell = buffer.getCell(x + col, y + row)
-      tempBuffer.write(col, row, cell.ch, cell.style)
+      tempBuffer.writeCell(col, row, cell.ch, cell.style)
   
   # Apply displacement from temp buffer back to original
   for row in 0..<height:
@@ -1096,7 +1096,7 @@ proc applyDisplacementInPlace*(buffer: var TermBuffer,
       let srcY = clamp(row + int(dy), 0, height - 1)
       
       let srcCell = tempBuffer.getCell(srcX, srcY)
-      buffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+      buffer.writeCell(screenX, screenY, srcCell.ch, srcCell.style)
 
 proc applyDisplacementFromLayer*(destBuffer: var TermBuffer, 
                                   sourceBuffer: TermBuffer,
@@ -1172,13 +1172,13 @@ proc applyDisplacementFromLayer*(destBuffer: var TermBuffer,
           if srcScreenX >= 0 and srcScreenX < sourceBuffer.width and
              srcScreenY >= 0 and srcScreenY < sourceBuffer.height:
             let srcCell = sourceBuffer.getCell(srcScreenX, srcScreenY)
-            destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+            destBuffer.writeCell(screenX, screenY, srcCell.ch, srcCell.style)
         else:
           # No displacement, copy directly
           if screenX >= 0 and screenX < sourceBuffer.width and
              screenY >= 0 and screenY < sourceBuffer.height:
             let srcCell = sourceBuffer.getCell(screenX, screenY)
-            destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+            destBuffer.writeCell(screenX, screenY, srcCell.ch, srcCell.style)
   ##   x, y: Top-left corner of region
   ##   width, height: Size of region
   ##   strength: Displacement strength multiplier (typical: 0.5 to 2.0)
@@ -1240,7 +1240,7 @@ proc applyDisplacementFromLayer*(destBuffer: var TermBuffer,
         if srcScreenX >= 0 and srcScreenX < sourceBuffer.width and
            srcScreenY >= 0 and srcScreenY < sourceBuffer.height:
           let srcCell = sourceBuffer.getCell(srcScreenX, srcScreenY)
-          destBuffer.write(screenX, screenY, srcCell.ch, srcCell.style)
+          destBuffer.writeCell(screenX, screenY, srcCell.ch, srcCell.style)
 
 # ==============================================================================
 # HIGH-LEVEL API FOR NIMINI

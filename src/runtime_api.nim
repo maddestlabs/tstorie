@@ -6,7 +6,7 @@
 # Contents:
 # - Nimini integration helpers (type conversion, print, etc.)
 # - Style conversion between nimini and native types
-# - Unified drawing API (draw, clear, fillRect, writeTextBox)
+# - Unified drawing API (draw, clear, fillRect)
 # - Random number generation wrappers
 # - Global event handler management (render/update/input hooks)
 # - Theme and stylesheet management  
@@ -218,7 +218,7 @@ when defined(sdl3Backend):
     let style = if args.len >= 5: valueToStyle(args[4]) else: defaultStyle()
     
     # Write to layer buffer (not directly to canvas)
-    layer.buffer.writeText(x, y, text, style)
+    layer.buffer.writeCellText(x, y, text, style)
     
     return valNil()
   
@@ -237,7 +237,7 @@ when defined(sdl3Backend):
     # No args - clear all layers
     if args.len == 0:
       for layer in gAppState.layers:
-        layer.buffer.clear(bg)
+        layer.buffer.clearCells(bg)
       return valNil()
     
     # Resolve layer from first argument
@@ -255,9 +255,9 @@ when defined(sdl3Backend):
     let transparent = if args.len >= 2: toBool(args[1]) else: false
     
     if transparent:
-      layer.buffer.clearTransparent()
+      layer.buffer.clearCellsTransparent()
     else:
-      layer.buffer.clear(bg)
+      layer.buffer.clearCells(bg)
     
     return valNil()
   
@@ -294,7 +294,7 @@ when defined(sdl3Backend):
     let ch = args[5].s
     let style = if args.len >= 7: valueToStyle(args[6]) else: defaultStyle()
     
-    layer.buffer.fillRect(x, y, w, h, ch, style)
+    layer.buffer.fillCellRect(x, y, w, h, ch, style)
     
     return valNil()
 
@@ -402,7 +402,7 @@ proc draw(env: ref Env; args: seq[Value]): Value {.nimini.} =
   else:
     gTextStyle
   
-  layer.buffer.writeText(x, y, text, style)
+  layer.buffer.writeCellText(x, y, text, style)
   return valNil()
 
 proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -413,7 +413,7 @@ proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
   # No args - clear all layers
   if args.len == 0:
     for layer in gAppState.layers:
-      layer.buffer.clear(storieCtx.themeBackground)
+      layer.buffer.clearCells(storieCtx.themeBackground)
     return valNil()
   
   # Determine layer from first arg (supports both string and int)
@@ -440,9 +440,25 @@ proc clear(env: ref Env; args: seq[Value]): Value {.nimini.} =
   let transparent = if args.len >= 2: toBool(args[1]) else: false
   
   if transparent:
-    layer.buffer.clearTransparent()
+    layer.buffer.clearCellsTransparent()
   else:
-    layer.buffer.clear(storieCtx.themeBackground)
+    layer.buffer.clearCells(storieCtx.themeBackground)
+  return valNil()
+
+proc forceRedraw(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## forceRedraw()
+  ## Force a complete screen redraw on the next frame.
+  ## Useful after font changes, theme changes, or when display needs refreshing.
+  ## Works across all backends (SDL3, terminal, WebGL).
+  
+  when defined(sdl3Backend):
+    # SDL3: Invalidate dirty tracking to force complete redraw
+    if not globalCanvas.isNil:
+      globalCanvas.firstFrame = true
+      for i in 0..<globalCanvas.prevCells.len:
+        globalCanvas.prevCells[i].ch = ""
+  # Terminal/WebGL: Layers are redrawn every frame, no action needed
+  
   return valNil()
 
 proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -486,7 +502,7 @@ proc fillRect(env: ref Env; args: seq[Value]): Value {.nimini.} =
   else:
     gTextStyle
   
-  layer.buffer.fillRect(x, y, w, h, ch, style)
+  layer.buffer.fillCellRect(x, y, w, h, ch, style)
   return valNil()
 
 # ================================================================
@@ -728,12 +744,14 @@ proc nimini_getThemes(env: ref Env; args: seq[Value]): Value {.nimini.} =
   return valArray(themeValues)
 
 proc nimini_switchTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Switch to a different theme at runtime. Args: themeName (string)
+  ## Switch to a different theme at runtime. Args: themeName (string), [clearScreen (bool)]
   ## Returns: bool (true if successful)
+  ## If clearScreen is true, all layers will be cleared after theme switch (default: true)
   if args.len == 0 or storieCtx.isNil:
     return valBool(false)
   
   let themeName = args[0].s
+  let clearScreen = if args.len >= 2: toBool(args[1]) else: true
   
   # Apply the new theme
   let newStyleSheet = applyThemeByName(themeName)
@@ -741,11 +759,25 @@ proc nimini_switchTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
   # Update the stored stylesheet
   storieCtx.styleSheet = newStyleSheet
   
+  # Update theme background color if stylesheet has "default" style
+  if newStyleSheet.hasKey("default"):
+    storieCtx.themeBackground = newStyleSheet["default"].bg
+  
   # Also need to update the canvas stylesheet pointer if canvas is active
   if not canvasState.isNil:
     # Re-register canvas bindings to update the stylesheet pointer
     registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
     registerCanvasEditorBindings()
+  
+  # Optionally clear all layers to apply new theme immediately
+  if clearScreen:
+    for layer in gAppState.layers:
+      layer.buffer.clearCells(storieCtx.themeBackground)
+    when defined(sdl3Backend):
+      if not globalCanvas.isNil:
+        globalCanvas.firstFrame = true
+        for i in 0..<globalCanvas.prevCells.len:
+          globalCanvas.prevCells[i].ch = ""
   
   return valBool(true)
 
@@ -1236,80 +1268,6 @@ proc encodeInputEvent(event: InputEvent): Value =
   return valMap(table)
 
 # ================================================================
-# LAYOUT MODULE WRAPPERS
-# ================================================================
-
-proc writeTextBox(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Write text in a box with alignment and wrapping
-  ## Args: layer, x, y, width, height, text, [hAlign], [vAlign], [wrapMode], [style]
-  if args.len < 6:
-    return valNil()
-  
-  # Determine layer from first arg (supports both string and int)
-  let layer = if args[0].kind == vkInt:
-                let idx = args[0].i
-                if idx == 0: gDefaultLayer
-                else:
-                  # Try to get by z-order index from app state
-                  if idx < gAppState.layers.len: gAppState.layers[idx]
-                  else: return valNil()
-              elif args[0].kind == vkString:
-                let layerId = args[0].s
-                let foundLayer = getLayer(gAppState, layerId)
-                if foundLayer.isNil: return valNil()
-                foundLayer
-              else:
-                return valNil()
-  
-  let x = toInt(args[1])
-  let y = toInt(args[2])
-  let width = toInt(args[3])
-  let height = toInt(args[4])
-  let text = args[5].s
-  
-  # Default alignment and wrap mode
-  var hAlign = AlignLeft
-  var vAlign = AlignTop
-  var wrapMode = WrapWord
-  
-  # Parse optional hAlign parameter (arg 6)
-  if args.len >= 7:
-    case args[6].s
-    of "AlignLeft": hAlign = AlignLeft
-    of "AlignCenter": hAlign = AlignCenter
-    of "AlignRight": hAlign = AlignRight
-    of "AlignJustify": hAlign = AlignJustify
-    else: discard
-  
-  # Parse optional vAlign parameter (arg 7)
-  if args.len >= 8:
-    case args[7].s
-    of "AlignTop": vAlign = AlignTop
-    of "AlignMiddle": vAlign = AlignMiddle
-    of "AlignBottom": vAlign = AlignBottom
-    else: discard
-  
-  # Parse optional wrapMode parameter (arg 8)
-  if args.len >= 9:
-    case args[8].s
-    of "WrapNone": wrapMode = WrapNone
-    of "WrapWord": wrapMode = WrapWord
-    of "WrapChar": wrapMode = WrapChar
-    of "WrapEllipsis": wrapMode = WrapEllipsis
-    of "WrapJustify": wrapMode = WrapJustify
-    else: discard
-  
-  # Use theme's default style
-  let style = if not storieCtx.isNil and storieCtx.styleSheet.hasKey("default"):
-    storieCtx.styleSheet["default"].toStyle()
-  else:
-    gTextStyle
-  
-  discard layout.writeTextBox(layer.buffer, x, y, width, height, text, 
-                       hAlign, vAlign, wrapMode, style)
-  return valNil()
-
-# ================================================================
 # ANIMATION HELPERS (Nimini wrappers)
 # ================================================================
 
@@ -1431,6 +1389,306 @@ proc getEmbeddedContent(env: ref Env; args: seq[Value]): Value {.nimini.} =
   
   return valString("")
 
+# ================================================================
+# NOISE COMPOSER API (Nimini wrappers)
+# ================================================================
+
+# Store NoiseConfig objects in a table keyed by handle ID
+var gNoiseConfigs {.threadvar.}: Table[int, NoiseConfig]
+var gNextNoiseId {.threadvar.}: int
+var gNoiseSystemInit {.threadvar.}: bool
+
+proc initNoiseSystem() =
+  ## Initialize the noise config storage
+  if not gNoiseSystemInit:
+    gNoiseConfigs = initTable[int, NoiseConfig]()
+    gNextNoiseId = 1
+    gNoiseSystemInit = true
+
+proc nimini_noise(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Create a noise configuration: noise(noiseType)
+  ## Returns a handle to the noise configuration
+  if args.len < 1:
+    return valNil()
+  
+  # Initialize if needed
+  if not gNoiseSystemInit:
+    initNoiseSystem()
+  
+  let noiseTypeInt = args[0].i
+  let noiseType = NoiseType(noiseTypeInt)
+  
+  # Create noise config
+  let config = noise(noiseType)
+  
+  # Store it and return handle
+  let handle = gNextNoiseId
+  gNextNoiseId += 1
+  gNoiseConfigs[handle] = config
+  
+  return valPointer(cast[pointer](handle))
+
+proc getNoiseConfig(v: Value): NoiseConfig =
+  ## Extract NoiseConfig from a handle value
+  if v.kind != vkPointer:
+    raise newException(ValueError, "Expected noise config handle")
+  let handle = cast[int](v.ptrVal)
+  if not gNoiseConfigs.hasKey(handle):
+    raise newException(ValueError, "Invalid noise config handle")
+  return gNoiseConfigs[handle]
+
+proc setNoiseConfig(v: Value, config: NoiseConfig) =
+  ## Update a stored NoiseConfig
+  if v.kind != vkPointer:
+    raise newException(ValueError, "Expected noise config handle")
+  let handle = cast[int](v.ptrVal)
+  gNoiseConfigs[handle] = config
+
+proc nimini_noiseSeed(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set noise seed: config.seed(value)
+  if args.len < 2:
+    return args[0]
+  var config = getNoiseConfig(args[0])
+  config = config.seed(args[1].i)
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseScale(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set noise scale: config.scale(value)
+  if args.len < 2:
+    return args[0]
+  var config = getNoiseConfig(args[0])
+  config = config.scale(args[1].i)
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseOctaves(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set noise octaves: config.octaves(value)
+  if args.len < 2:
+    return args[0]
+  var config = getNoiseConfig(args[0])
+  config = config.octaves(args[1].i)
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseGain(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set noise gain: config.gain(value)
+  if args.len < 2:
+    return args[0]
+  var config = getNoiseConfig(args[0])
+  config = config.gain(args[1].i)
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseLacunarity(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set noise lacunarity: config.lacunarity(value)
+  if args.len < 2:
+    return args[0]
+  var config = getNoiseConfig(args[0])
+  config = config.lacunarity(args[1].i)
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseRidged(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set ridged FBM mode: config.ridged()
+  if args.len < 1:
+    return valNil()
+  var config = getNoiseConfig(args[0])
+  config = config.ridged()
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseBillow(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set billow FBM mode: config.billow()
+  if args.len < 1:
+    return valNil()
+  var config = getNoiseConfig(args[0])
+  config = config.billow()
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseTurbulence(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set turbulence FBM mode: config.turbulent()
+  if args.len < 1:
+    return valNil()
+  var config = getNoiseConfig(args[0])
+  config = config.turbulent()
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseWarp(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Set domain warp: config.warp(strength, [octaves])
+  if args.len < 2:
+    return args[0]
+  var config = getNoiseConfig(args[0])
+  let strength = args[1].i
+  let octaves = if args.len >= 3: args[2].i else: 1
+  config = config.warp(strength, octaves)
+  setNoiseConfig(args[0], config)
+  return args[0]
+
+proc nimini_noiseSample2D(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Sample 2D noise: config.sample2D(x, y)
+  if args.len < 3:
+    return valInt(0)
+  let config = getNoiseConfig(args[0])
+  let x = args[1].i
+  let y = args[2].i
+  let value = config.sample2D(x, y)
+  return valInt(value)
+
+proc nimini_noiseSample3D(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Sample 3D noise: config.sample3D(x, y, z)
+  if args.len < 4:
+    return valInt(0)
+  let config = getNoiseConfig(args[0])
+  let x = args[1].i
+  let y = args[2].i
+  let z = args[3].i
+  let value = config.sample3D(x, y, z)
+  return valInt(value)
+
+proc nimini_noiseToWGSL(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Generate WGSL shader: config.toWGSL()
+  if args.len < 1:
+    return valString("")
+  let config = getNoiseConfig(args[0])
+  let wgsl = config.toWGSL()
+  return valString(wgsl)
+
+# ============================================================================
+# Platform Detection
+# ============================================================================
+
+proc nimini_defined(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Check if a compile-time symbol is defined: defined("emscripten")
+  ## This mirrors Nim's compile-time defined() but works at runtime
+  ## 
+  ## Supported symbols:
+  ##   emscripten, web      - Web/WASM build
+  ##   native              - Native build (not web)
+  ##   windows             - Windows platform
+  ##   macosx, macos       - macOS platform
+  ##   linux               - Linux platform
+  ##   debug               - Debug build
+  ##   release             - Release build
+  if args.len < 1:
+    return valBool(false)
+  
+  let symbol = args[0].s
+  
+  # Web/WASM detection (case-insensitive)
+  when defined(emscripten):
+    if symbol == "emscripten" or symbol == "web" or 
+       symbol == "Emscripten" or symbol == "Web":
+      return valBool(true)
+    if symbol == "native" or symbol == "Native":
+      return valBool(false)
+  else:
+    if symbol == "emscripten" or symbol == "web" or
+       symbol == "Emscripten" or symbol == "Web":
+      return valBool(false)
+    if symbol == "native" or symbol == "Native":
+      return valBool(true)
+  
+  # Platform detection (case-insensitive)
+  when defined(windows):
+    if symbol == "windows" or symbol == "Windows":
+      return valBool(true)
+  
+  when defined(macosx):
+    if symbol == "macosx" or symbol == "macos" or
+       symbol == "MacOSX" or symbol == "MacOS" or symbol == "Macos":
+      return valBool(true)
+  
+  when defined(linux):
+    if symbol == "linux" or symbol == "Linux":
+      return valBool(true)
+  
+  # Build mode detection (case-insensitive)
+  when defined(debug):
+    if symbol == "debug" or symbol == "Debug":
+      return valBool(true)
+  
+  when defined(release):
+    if symbol == "release" or symbol == "Release":
+      return valBool(true)
+  
+  # Unknown symbol
+  return valBool(false)
+
+# ============================================================================
+# WebGPU Compute Execution (Web Only)
+# ============================================================================
+
+when defined(emscripten):
+  # JavaScript interop for WebGPU
+  proc js_webgpuIsSupported(): cint {.importc: "tStorie_webgpuIsSupported".}
+  proc js_webgpuIsReady(): cint {.importc: "tStorie_webgpuIsReady".}
+  proc js_webgpuStartExecution(wgslPtr: cstring, width, height, offsetX, offsetY: cint): cint {.importc: "tStorie_webgpuStartExecution".}
+  proc js_webgpuIsResultReady(): cint {.importc: "tStorie_webgpuIsResultReady".}
+  proc js_webgpuGetValue(index: cint): cint {.importc: "tStorie_webgpuGetValue".}
+  proc js_webgpuGetResultSize(): cint {.importc: "tStorie_webgpuGetResultSize".}
+  proc js_webgpuCancel() {.importc: "tStorie_webgpuCancel".}
+
+  proc nimini_webgpuSupported(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Check if WebGPU is supported in the browser
+    return valBool(js_webgpuIsSupported() != 0)
+
+  proc nimini_webgpuReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Check if WebGPU is initialized and ready to use
+    return valBool(js_webgpuIsReady() != 0)
+
+  proc nimini_webgpuStart(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Start GPU execution: webgpuStart(config, width, height, offsetX, offsetY)
+    ## Returns true if operation started, false if failed
+    ## Use webgpuIsReady() to check completion, then webgpuGet() to retrieve results
+    if args.len < 5:
+      return valBool(false)
+    
+    let config = getNoiseConfig(args[0])
+    let width = args[1].i
+    let height = args[2].i
+    let offsetX = args[3].i
+    let offsetY = args[4].i
+    
+    # Generate WGSL shader
+    let wgsl = config.toWGSL()
+    
+    # Start execution
+    let success = js_webgpuStartExecution(
+      wgsl.cstring,
+      width.cint,
+      height.cint,
+      offsetX.cint,
+      offsetY.cint
+    )
+    
+    return valBool(success != 0)
+
+  proc nimini_webgpuIsReady(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Check if GPU execution has completed and results are ready
+    return valBool(js_webgpuIsResultReady() != 0)
+
+  proc nimini_webgpuGet(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Get result value at index: webgpuGet(index)
+    ## Returns noise value [0..65535] or 0 if not ready/invalid index
+    if args.len < 1:
+      return valInt(0)
+    
+    let idx = args[0].i
+    let value = js_webgpuGetValue(idx.cint)
+    return valInt(value.int)
+
+  proc nimini_webgpuSize(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Get size of result buffer
+    return valInt(js_webgpuGetResultSize().int)
+
+  proc nimini_webgpuCancel(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Cancel any pending GPU operation
+    js_webgpuCancel()
+    return valNil()
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -1479,7 +1737,7 @@ proc createNiminiContext(state: AppState): NiminiContext =
     if gDefaultLayer.buffer.cells.len == 0:
       echo "[drawWrapper] ERROR: gDefaultLayer.buffer has no cells"
       return
-    gDefaultLayer.buffer.write(x, y, char, style)
+    gDefaultLayer.buffer.writeCell(x, y, char, style)
   
   # Register ASCII art bindings and dungeon generator
   registerAsciiArtBindings(drawWrapper, addr state)
@@ -1498,12 +1756,19 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerFigletBindings(addr gFigletFonts, addr gEmbeddedFigletFonts, 
                           addr gDefaultLayer, addr gAppState)
   
+  # Register TUI terminal bindings with layer system (for auto-rendering widgets)
+  initTUITerminalModule(addr gDefaultLayer, addr gAppState)
+  
+  # Note: TUI test module registration moved outside createNiminiContext
+  # since it needs storieCtx.styleSheet which isn't available here
+  
   # Explicitly initialize plugin modules BEFORE calling initPlugins()
   # This ensures registration functions are queued properly in WASM
   initDungeonGenModule()
   initPrimitivesModule()
   initGraphModule()
   initTUIHelpersModule()
+  registerWGSLBindings()
   
   # Initialize all auto-registered plugins (from lib/ modules with pragmas)
   initPlugins()
@@ -1523,22 +1788,24 @@ proc createNiminiContext(state: AppState): NiminiContext =
       randInt, randFloat,
       initCanvas,
       getEmbeddedContent,
-      setFillColor, width, height, text,
-      writeTextBox
+      setFillColor, width, height, text
     )
     # Register cell-based terminal functions for SDL3
     registerNative("draw", sdl3DrawCell)
     registerNative("clear", sdl3ClearCells)
     registerNative("fillRect", sdl3FillCellRect)
+    registerNative("forceRedraw", forceRedraw)
   else:
     # Terminal character-based rendering API
     exportNiminiProcs(
       print,
-      draw, clear, fillRect, writeTextBox,
+      draw, clear, fillRect,
       randInt, randFloat,
       initCanvas,
       getEmbeddedContent
     )
+    # Force redraw works on all backends
+    registerNative("forceRedraw", forceRedraw)
   
   # Register layer management functions
   registerNative("addLayer", nimini_addLayer)
@@ -1607,6 +1874,36 @@ proc createNiminiContext(state: AppState): NiminiContext =
   registerNative("easeOutSine", nimini_easeOutSine)
   registerNative("easeInOutSine", nimini_easeInOutSine)
   
+  # Register noise composer API
+  registerNative("noise", nimini_noise)
+  registerNative("noiseSeed", nimini_noiseSeed)
+  registerNative("noiseScale", nimini_noiseScale)
+  registerNative("noiseOctaves", nimini_noiseOctaves)
+  registerNative("noiseGain", nimini_noiseGain)
+  registerNative("noiseLacunarity", nimini_noiseLacunarity)
+  registerNative("noiseRidged", nimini_noiseRidged)
+  registerNative("noiseBillow", nimini_noiseBillow)
+  registerNative("noiseTurbulence", nimini_noiseTurbulence)
+  registerNative("noiseTurbulent", nimini_noiseTurbulence)  # Alias
+  registerNative("noiseWarp", nimini_noiseWarp)
+  registerNative("noiseSample", nimini_noiseSample2D)  # Alias for 2D sampling
+  registerNative("noiseSample2D", nimini_noiseSample2D)
+  registerNative("noiseSample3D", nimini_noiseSample3D)
+  registerNative("noiseToWGSL", nimini_noiseToWGSL)
+  
+  # Register platform detection
+  registerNative("defined", nimini_defined)
+  
+  # Register WebGPU compute API (web only)
+  when defined(emscripten):
+    registerNative("webgpuSupported", nimini_webgpuSupported)
+    registerNative("webgpuReady", nimini_webgpuReady)
+    registerNative("webgpuStart", nimini_webgpuStart)
+    registerNative("webgpuIsReady", nimini_webgpuIsReady)
+    registerNative("webgpuGet", nimini_webgpuGet)
+    registerNative("webgpuSize", nimini_webgpuSize)
+    registerNative("webgpuCancel", nimini_webgpuCancel)
+  
   # Note: Figlet functions are now registered via exportNiminiProcs above.
   # The metadata (storieLibs, description, dependencies) for the export system
   # can be re-added later as pragma parameters when we enhance the macro system.
@@ -1627,6 +1924,16 @@ proc createNiminiContext(state: AppState): NiminiContext =
   defineVar(runtimeEnv, "DIR_UP", valInt(DIR_UP))
   defineVar(runtimeEnv, "DIR_DOWN", valInt(DIR_DOWN))
   defineVar(runtimeEnv, "DIR_CENTER", valInt(DIR_CENTER))
+  
+  # Register noise type constants
+  defineVar(runtimeEnv, "ntPerlin2D", valInt(ord(ntPerlin2D)))
+  defineVar(runtimeEnv, "ntPerlin3D", valInt(ord(ntPerlin3D)))
+  defineVar(runtimeEnv, "ntSimplex2D", valInt(ord(ntSimplex2D)))
+  defineVar(runtimeEnv, "ntSimplex3D", valInt(ord(ntSimplex3D)))
+  defineVar(runtimeEnv, "ntWorley2D", valInt(ord(ntWorley2D)))
+  defineVar(runtimeEnv, "ntWorley3D", valInt(ord(ntWorley3D)))
+  defineVar(runtimeEnv, "ntValue2D", valInt(ord(ntValue2D)))
+  defineVar(runtimeEnv, "ntFractal2D", valInt(ord(ntFractal2D)))
   
   let ctx = NiminiContext(env: runtimeEnv)
   
@@ -2030,6 +2337,14 @@ proc initStorieContext(state: AppState) =
   registerCanvasBindings(addr gDefaultLayer.buffer, addr gAppState, addr storieCtx.styleSheet)
   registerCanvasEditorBindings()
   
+  # Register TUI module (production retained mode UI system)
+  # Set TUI module global references first
+  tui_bindings.gDefaultLayerRef = addr gDefaultLayer
+  tui_bindings.gAppStateRef = addr gAppState
+  tui_bindings.gStorieStyleSheet = addr storieCtx.styleSheet
+  tui.gStorieStyleSheet = addr storieCtx.styleSheet  # Also set in tui module for themed styles
+  registerTUIBindings(storieCtx.niminiContext.env)
+  
   # Register layer effects bindings
   registerLayerFxBindings(storieCtx.niminiContext.env)
   
@@ -2042,13 +2357,23 @@ proc initStorieContext(state: AppState) =
       setDocumentTitle(storieCtx.frontMatter["title"])
   
   # Check for theme parameter and apply if present (overrides front matter theme)
+  when defined(emscripten):
+    proc js_logUrlThemeDetected(name: cstring) {.importc: "tStorie_logUrlThemeDetected".}
+    proc js_logUrlThemeSuccess() {.importc: "tStorie_logUrlThemeSuccess".}
+    proc js_logUrlThemeFailed(name: cstring) {.importc: "tStorie_logUrlThemeFailed".}
+    proc js_logNoUrlTheme() {.importc: "tStorie_logNoUrlTheme".}
+  
   if hasParamDirect("theme"):
     let themeName = getParamDirect("theme")
+    when defined(emscripten):
+      js_logUrlThemeDetected(themeName.cstring)
     if themeName.len > 0:
       when not defined(emscripten):
         echo "Applying theme from parameter: ", themeName
       try:
         let newStyleSheet = applyThemeByName(themeName)
+        when defined(emscripten):
+          js_logUrlThemeSuccess()
         # Update storieCtx and state with new stylesheet
         storieCtx.styleSheet = newStyleSheet
         state.styleSheet = newStyleSheet
@@ -2065,10 +2390,15 @@ proc initStorieContext(state: AppState) =
         registerLayerFxBindings(storieCtx.niminiContext.env)
         # Clear and redraw all layers with new theme background
         for layer in state.layers:
-          layer.buffer.clear(state.themeBackground)
+          layer.buffer.clearCells(state.themeBackground)
       except:
         when not defined(emscripten):
           echo "Warning: Theme '", themeName, "' not found"
+        when defined(emscripten):
+          js_logUrlThemeFailed(themeName.cstring)
+  else:
+    when defined(emscripten):
+      js_logNoUrlTheme()
   
   # Execute init code blocks
   when not defined(emscripten):
@@ -2123,7 +2453,7 @@ proc checkMinimumDimensions*(state: AppState): bool =
   gShowingDimensionWarning = true
   
   # Clear screen and render centered warning message
-  state.currentBuffer.clear((0'u8, 0'u8, 0'u8))
+  state.currentBuffer.clearCells((0'u8, 0'u8, 0'u8))
   
   # Build the message lines
   var lines: seq[string] = @[]
@@ -2147,7 +2477,7 @@ proc checkMinimumDimensions*(state: AppState): bool =
     let lineX = (state.termWidth - line.len) div 2
     let lineY = centerY + i
     if lineY >= 0 and lineY < state.termHeight:
-      state.currentBuffer.writeText(lineX, lineY, line, warnStyle)
+      state.currentBuffer.writeCellText(lineX, lineY, line, warnStyle)
   
   return false
 
@@ -2191,15 +2521,27 @@ onRender = proc(state: AppState) =
       var errStyle = defaultStyle()
       errStyle.fg = red()
       errStyle.bold = true
-      state.currentBuffer.writeText(5, 5, "ERROR: storieCtx is nil!", errStyle)
+      state.currentBuffer.writeCellText(5, 5, "ERROR: storieCtx is nil!", errStyle)
     # Fallback rendering if no context
     let msg = "No " & gMarkdownFile & " found or parsing failed"
     let x = (state.termWidth - msg.len) div 2
     let y = state.termHeight div 2
     var fallbackStyle = defaultStyle()
     fallbackStyle.fg = cyan()
-    state.currentBuffer.writeText(x, y, msg, fallbackStyle)
+    state.currentBuffer.writeCellText(x, y, msg, fallbackStyle)
     return
+  
+  # UIContext integration: Reset per-frame state for immediate-mode UI
+  # This allows UI widgets to track hover/click state properly
+  if not storieCtx.niminiContext.isNil and not storieCtx.niminiContext.env.isNil:
+    let env = storieCtx.niminiContext.env
+    # Check if there's a "ui" variable in the environment
+    if "ui" in env.vars:
+      let uiValue = getVar(env, "ui")
+      if uiValue.kind == vkPointer:
+        # Cast to UIContext and begin frame
+        let uiCtx = cast[UIContext](uiValue.ptrVal)
+        uiBeginFrame(uiCtx, state.lastMouseX, state.lastMouseY)
   
   # 1. Execute global render handlers first (modules like canvas)
   for handler in storieCtx.globalRenderHandlers:
@@ -2233,13 +2575,13 @@ onRender = proc(state: AppState) =
         lastError = "No on:render blocks"
     # No render blocks
     # Fallback if no render blocks found
-    state.currentBuffer.clear()
+    state.currentBuffer.clearCells()
     let msg = "No render blocks found in " & gMarkdownFile
     let x = (state.termWidth - msg.len) div 2
     let y = state.termHeight div 2
     var fallbackInfoStyle = defaultStyle()
     fallbackInfoStyle.fg = yellow()
-    state.currentBuffer.writeText(x, y, msg, fallbackInfoStyle)
+    state.currentBuffer.writeCellText(x, y, msg, fallbackInfoStyle)
     
     # Show what blocks we DO have
     when defined(emscripten) and not defined(sdl3Backend):
@@ -2248,7 +2590,7 @@ onRender = proc(state: AppState) =
       var debugY = y + 2
       for codeBlock in storieCtx.codeBlocks:
         let info = "Found: on:" & codeBlock.lifecycle
-        state.currentBuffer.writeText(x, debugY, info, debugStyle)
+        state.currentBuffer.writeCellText(x, debugY, info, debugStyle)
         debugY += 1
     return
   
@@ -2271,7 +2613,7 @@ onRender = proc(state: AppState) =
     var debugStyle = defaultStyle()
     debugStyle.fg = green()
     debugStyle.bold = true
-    gDefaultLayer.buffer.writeText(2, 2, "Blocks: " & $storieCtx.codeBlocks.len & " Render: " & $renderBlockCount & " Exec: " & $executedCount, debugStyle)
+    gDefaultLayer.buffer.writeCellText(2, 2, "Blocks: " & $storieCtx.codeBlocks.len & " Render: " & $renderBlockCount & " Exec: " & $executedCount, debugStyle)
 
     # Publish executedCount to WASM HUD
     lastRenderExecutedCount = executedCount
@@ -2280,15 +2622,15 @@ onRender = proc(state: AppState) =
       var errorStyle = defaultStyle()
       errorStyle.fg = red()
       errorStyle.bold = true
-      gDefaultLayer.buffer.writeText(2, 3, "Render execution FAILED!", errorStyle)
+      gDefaultLayer.buffer.writeCellText(2, 3, "Render execution FAILED!", errorStyle)
       # Also show last error if available
       if lastError.len > 0:
-        gDefaultLayer.buffer.writeText(2, 4, "Error: " & lastError, errorStyle)
+        gDefaultLayer.buffer.writeCellText(2, 4, "Error: " & lastError, errorStyle)
     
     # Also show frame count to verify rendering is happening
     var fpsStyle = defaultStyle()
     fpsStyle.fg = yellow()
-    gDefaultLayer.buffer.writeText(2, 0, "Frame: " & $state.frameCount, fpsStyle)
+    gDefaultLayer.buffer.writeCellText(2, 0, "Frame: " & $state.frameCount, fpsStyle)
 
 # Define input handler as a separate proc, then assign
 proc inputHandler(state: AppState, event: InputEvent): bool =
@@ -2310,6 +2652,19 @@ proc inputHandler(state: AppState, event: InputEvent): bool =
   # Apps that need Release events can check event.action in their handlers
   if event.kind == KeyEvent and event.keyAction == Release:
     return false
+  
+  # UIContext integration: Let UI system capture input first (if any UI contexts exist)
+  # This allows immediate-mode UI widgets to respond to events before user code
+  # UI contexts are stored in nimini environment by initUI()
+  if not storieCtx.niminiContext.isNil and not storieCtx.niminiContext.env.isNil:
+    let env = storieCtx.niminiContext.env
+    # Check if there's a "ui" variable in the environment
+    if "ui" in env.vars:
+      let uiValue = getVar(env, "ui")
+      if uiValue.kind == vkPointer:
+        # Cast to UIContext and process input
+        let uiCtx = cast[UIContext](uiValue.ptrVal)
+        uiProcessInput(uiCtx, event)
   
   # 1. Execute global input handlers first (allow modules to intercept)
   for handler in storieCtx.globalInputHandlers:

@@ -145,6 +145,7 @@ NIM_OPTS="c
   --passL:--js-library --passL:web/document_bridge.js \
   --passL:--js-library --passL:web/font_metrics_bridge.js \
   --passL:--js-library --passL:web/file_drop_bridge.js \
+  --passL:--js-library --passL:web/webgpu_bridge_extern.js \
   -o:$OUTPUT_DIR/tstorie.wasm.js \
   tstorie.nim"
 
@@ -191,7 +192,7 @@ else
     fi
 fi
 
-# Check for required supporting files and copy WebGL renderer
+# Check for required supporting files and copy renderers
 if [ ! -f "$OUTPUT_DIR/tstorie-webgl.js" ]; then
     if [ -f "web/tstorie-webgl.js" ]; then
         cp web/tstorie-webgl.js "$OUTPUT_DIR/tstorie-webgl.js"
@@ -202,6 +203,18 @@ if [ ! -f "$OUTPUT_DIR/tstorie-webgl.js" ]; then
         echo "         The WebGL renderer is required for the WASM build."
     fi
 fi
+
+# Copy WebGPU files for progressive enhancement (WebGPU → WebGL fallback)
+for file in "webgpu_bridge.js" "webgpu_shader_system.js" "tstorie-webgpu-render.js" "tstorie-hybrid-renderer.js" "webgpu_wasm_bridge.js" "wgsl_runtime.js"; do
+    if [ -f "web/$file" ]; then
+        cp "web/$file" "$OUTPUT_DIR/$file"
+        echo "  - $OUTPUT_DIR/$file (WebGPU support - copied)"
+    elif [ -f "docs/$file" ]; then
+        # wgsl_runtime.js is in docs/ not web/
+        cp "docs/$file" "$OUTPUT_DIR/$file"
+        echo "  - $OUTPUT_DIR/$file (WGSL runtime - copied)"
+    fi
+done
 
 if [ ! -f "$OUTPUT_DIR/index.html" ]; then
     echo ""

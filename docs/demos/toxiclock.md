@@ -1,8 +1,8 @@
 ---
 title: "ToxiClock"
 author: "Maddest Labs"
-fontsize: 26
 ---
+
 # Highly Toxic Digital Clock with Embedded Figlet Font
 
 ```nim on:init
