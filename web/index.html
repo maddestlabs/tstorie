@@ -1848,10 +1848,11 @@
                     // Hybrid renderer exposes which backend it's using
                     useWebGPU = window.terminal.backend === 'webgpu';
                     console.log('[Shader] Using backend from hybrid renderer:', window.terminal.backend);
-                } else if (navigator.gpu !== undefined) {
-                    // Fallback: just check if WebGPU API exists
-                    useWebGPU = true;
-                    console.log('[Shader] WebGPU API detected, will attempt WGSL');
+                } else {
+                    // If backend is null or undefined, default to WebGL shaders
+                    // Don't check navigator.gpu because initialization might have failed
+                    useWebGPU = false;
+                    console.log('[Shader] No backend detected or backend is null, defaulting to WebGL shaders');
                 }
                 
                 // Determine shader path based on backend
@@ -2331,16 +2332,27 @@
                             
                             gl.drawArrays(gl.TRIANGLES, 0, 6);
                         }
-                        
-                        // Continue render loop
-                        this.animationId = requestAnimationFrame(() => this.render());
+                    },
+                    
+                    // Callback for synchronized rendering
+                    onTerminalRenderComplete: null
+                };
+                
+                // Instead of independent loop, sync with terminal render cycle
+                // This eliminates flickering by ensuring we only sample fully rendered frames
+                let renderRequested = false;
+                shaderSystem.onTerminalRenderComplete = function() {
+                    if (!renderRequested) {
+                        renderRequested = true;
+                        // Use microtask to render immediately after terminal
+                        Promise.resolve().then(() => {
+                            renderRequested = false;
+                            shaderSystem.render();
+                        });
                     }
                 };
                 
-                // Start continuous render loop
-                shaderSystem.render();
-                
-                console.log('Shader system initialized successfully');
+                console.log('Shader system initialized successfully (synchronized mode)');
                 progress.textContent = '';
             } catch (e) {
                 console.error('Failed to initialize shader system:', e);

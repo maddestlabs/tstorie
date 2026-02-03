@@ -611,8 +611,12 @@ class TStorieTerminal {
         if (!Module._emHandleMouseClick) return;
         
         const rect = this.canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / this.charWidth);
-        const y = Math.floor((e.clientY - rect.top) / this.charHeight);
+        // Use CSS pixel dimensions (style.width/height) not canvas dimensions
+        // since getBoundingClientRect returns CSS pixels
+        const cssCharWidth = rect.width / this.cols;
+        const cssCharHeight = rect.height / this.rows;
+        const x = Math.floor((e.clientX - rect.left) / cssCharWidth);
+        const y = Math.floor((e.clientY - rect.top) / cssCharHeight);
         
         const shift = e.shiftKey ? 1 : 0;
         const alt = e.altKey ? 1 : 0;
@@ -624,8 +628,12 @@ class TStorieTerminal {
         if (!Module._emHandleMouseRelease) return;
         
         const rect = this.canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / this.charWidth);
-        const y = Math.floor((e.clientY - rect.top) / this.charHeight);
+        // Use CSS pixel dimensions (style.width/height) not canvas dimensions
+        // since getBoundingClientRect returns CSS pixels
+        const cssCharWidth = rect.width / this.cols;
+        const cssCharHeight = rect.height / this.rows;
+        const x = Math.floor((e.clientX - rect.left) / cssCharWidth);
+        const y = Math.floor((e.clientY - rect.top) / cssCharHeight);
         
         const shift = e.shiftKey ? 1 : 0;
         const alt = e.altKey ? 1 : 0;
@@ -638,8 +646,12 @@ class TStorieTerminal {
         if (!Module._emHandleMouseMove) return;
         
         const rect = this.canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / this.charWidth);
-        const y = Math.floor((e.clientY - rect.top) / this.charHeight);
+        // Use CSS pixel dimensions (style.width/height) not canvas dimensions
+        // since getBoundingClientRect returns CSS pixels
+        const cssCharWidth = rect.width / this.cols;
+        const cssCharHeight = rect.height / this.rows;
+        const x = Math.floor((e.clientX - rect.left) / cssCharWidth);
+        const y = Math.floor((e.clientY - rect.top) / cssCharHeight);
         
         if (x !== this.mouseX || y !== this.mouseY) {
             this.mouseX = x;
@@ -655,8 +667,12 @@ class TStorieTerminal {
         }
         
         const rect = this.canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / this.charWidth);
-        const y = Math.floor((e.clientY - rect.top) / this.charHeight);
+        // Use CSS pixel dimensions (style.width/height) not canvas dimensions
+        // since getBoundingClientRect returns CSS pixels
+        const cssCharWidth = rect.width / this.cols;
+        const cssCharHeight = rect.height / this.rows;
+        const x = Math.floor((e.clientX - rect.left) / cssCharWidth);
+        const y = Math.floor((e.clientY - rect.top) / cssCharHeight);
         
         const shift = e.shiftKey ? 1 : 0;
         const alt = e.altKey ? 1 : 0;
@@ -768,6 +784,12 @@ class TStorieTerminal {
                 }
                 
                 this.render();
+                
+                // Notify shader system that terminal render is complete
+                // This ensures shader system samples a fully rendered frame
+                if (window.shaderSystem && window.shaderSystem.onTerminalRenderComplete) {
+                    window.shaderSystem.onTerminalRenderComplete();
+                }
             }
             
             requestAnimationFrame(animate);
@@ -830,8 +852,6 @@ async function inittstorie() {
         // Initialize WASM module
         if (Module._emInit) {
             console.log('Calling Module._emInit...');
-            const cols = terminal.renderer ? terminal.renderer.cols : terminal.cols;
-            const rows = terminal.renderer ? terminal.renderer.rows : terminal.rows;
             Module._emInit(cols, rows);
             console.log('Module._emInit completed');
         } else {

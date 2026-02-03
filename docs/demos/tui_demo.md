@@ -1,7 +1,7 @@
 ---
 name: "TUI Demo - UI System Test"
-theme: "coffee"
-shaders: "paper+ruledlines"
+theme: "neotopia"
+shaders: "invert+ruledlines+paper"
 ---
 
 This demo showcases all TUI widgets and features:

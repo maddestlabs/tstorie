@@ -53,16 +53,39 @@ async function initWebGPUShaderSystem(shaderCodes) {
     webgpuCanvas.style.width = '100%';
     webgpuCanvas.style.height = '100%';
     webgpuCanvas.style.outline = 'none';
+    webgpuCanvas.style.zIndex = '1'; // Explicitly above terminal
     webgpuCanvas.tabIndex = terminalCanvas.tabIndex || 0;
     
     // Keep terminal canvas visible but behind the WebGPU canvas
     // We need it visible to copy from it
     terminalCanvas.style.position = 'absolute';
+    terminalCanvas.style.top = '0';
+    terminalCanvas.style.left = '0';
     terminalCanvas.style.zIndex = '-1';
     terminalCanvas.style.pointerEvents = 'none';
+    terminalCanvas.style.visibility = 'visible'; // Explicitly set visible for copying
     
     // Insert WebGPU canvas
     terminalCanvas.parentNode.insertBefore(webgpuCanvas, terminalCanvas.nextSibling);
+    
+    // Function to sync WebGPU canvas dimensions on window resize
+    function syncWebGPUCanvasDimensions() {
+      const dpr = window.devicePixelRatio || 1;
+      const newWidth = window.innerWidth * dpr;
+      const newHeight = window.innerHeight * dpr;
+      
+      // Only resize if dimensions actually changed
+      if (webgpuCanvas.width !== newWidth || webgpuCanvas.height !== newHeight) {
+        webgpuCanvas.width = newWidth;
+        webgpuCanvas.height = newHeight;
+        console.log('[WebGPU Shaders] Canvas resized to:', newWidth, 'x', newHeight);
+      }
+    }
+    
+    // Watch for window resize events
+    window.addEventListener('resize', () => {
+      requestAnimationFrame(syncWebGPUCanvasDimensions);
+    });
     
     // Forward input events
     ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'wheel', 'contextmenu'].forEach(eventType => {
@@ -261,12 +284,22 @@ async function initWebGPUShaderSystem(shaderCodes) {
     console.log('[WebGPU Shaders] Shader chain initialized:', 
                 shaderPipelines.map(p => p.name).join(' → '));
     
-    // Start continuous render loop
-    function renderLoop() {
-      renderWebGPUShaderChain();
-      requestAnimationFrame(renderLoop);
-    }
-    renderLoop();
+    // Instead of independent render loop, hook into terminal's render cycle
+    // This eliminates flickering by ensuring shader system only samples fully rendered frames
+    let renderRequested = false;
+    
+    window.shaderSystem.onTerminalRenderComplete = function() {
+      if (!renderRequested) {
+        renderRequested = true;
+        // Use setImmediate-like behavior via Promise microtask
+        Promise.resolve().then(async () => {
+          renderRequested = false;
+          await renderWebGPUShaderChain();
+        });
+      }
+    };
+    
+    console.log('[WebGPU Shaders] Synchronized with terminal render loop');
     console.log('[WebGPU Shaders] Render loop started');
     console.log('[WebGPU Shaders] WebGPU canvas:', webgpuCanvas.id, webgpuCanvas.width + 'x' + webgpuCanvas.height);
     console.log('[WebGPU Shaders] Terminal canvas:', terminalCanvas.id, terminalCanvas.width + 'x' + terminalCanvas.height);
@@ -323,8 +356,7 @@ function renderWebGPUShaderChain() {
     // Check if terminal has content
     if (terminalCanvas.width === 0 || terminalCanvas.height === 0) {
       console.warn('[WebGPU Shaders] Terminal canvas has zero dimensions, skipping frame');
-      requestAnimationFrame(renderWebGPUShaderChain);
-      return;
+      return; // Skip this frame, render loop will retry
     }
     
     // Copy terminal canvas to texture (only needed for shaders with bindings)

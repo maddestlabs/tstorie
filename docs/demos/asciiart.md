@@ -1,6 +1,7 @@
 ---
 title: "ASCII Art Demo"
 theme: "alleycat"
+shaders: "invert+ruledlines+paper"
 ---
 
 # ASCII Art Demoascii

@@ -408,7 +408,7 @@ class TStorieWebGPURender {
         
         // Allocate cell buffer
         const maxCells = this.cols * this.rows;
-        const floatsPerCell = 16; // cellPos(2) + fgColor(4) + bgColor(4) + glyphUV(4) + style(1) + charWidth(1)
+        const floatsPerCell = 16;
         this.cellData = new Float32Array(maxCells * floatsPerCell);
         
         const bufferSize = this.cellData.byteLength;
@@ -420,8 +420,8 @@ class TStorieWebGPURender {
         
         // Update uniforms with DPR
         const uniformData = new Float32Array([
-            this.canvas.width, this.canvas.height,              // resolution (in pixels with DPR)
-            this.charWidth * dpr, this.charHeight * dpr        // charSize (in pixels with DPR)
+            this.canvas.width, this.canvas.height,
+            this.charWidth * dpr, this.charHeight * dpr
         ]);
         this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
     }
@@ -621,7 +621,45 @@ class TStorieWebGPURender {
     
     resize() {
         if (!this.initialized) return;
-        this.setupCanvas();
+        
+        // Recalculate based on window size and current font
+        const availWidth = window.innerWidth;
+        const availHeight = window.innerHeight;
+        
+        this.cols = Math.max(20, Math.floor(availWidth / this.charWidth));
+        this.rows = Math.max(10, Math.floor(availHeight / this.charHeight));
+        
+        // Set canvas size with device pixel ratio
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = this.cols * this.charWidth * dpr;
+        this.canvas.height = this.rows * this.charHeight * dpr;
+        this.canvas.style.width = (this.cols * this.charWidth) + 'px';
+        this.canvas.style.height = (this.rows * this.charHeight) + 'px';
+        
+        // Reallocate cell buffer
+        const maxCells = this.cols * this.rows;
+        const floatsPerCell = 16;
+        this.cellData = new Float32Array(maxCells * floatsPerCell);
+        
+        const bufferSize = this.cellData.byteLength;
+        if (this.cellBuffer) this.cellBuffer.destroy();
+        this.cellBuffer = this.device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+            label: 'Cell Instance Buffer'
+        });
+        
+        // Update uniforms with DPR
+        const uniformData = new Float32Array([
+            this.canvas.width, this.canvas.height,
+            this.charWidth * dpr, this.charHeight * dpr
+        ]);
+        this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+        
+        // Notify WASM module of new dimensions
+        if (typeof Module !== 'undefined' && Module._emResize) {
+            Module._emResize(this.cols, this.rows);
+        }
     }
     
     setFontSize(newSize) {
@@ -650,6 +688,28 @@ class TStorieWebGPURender {
         this.resize();
         
         console.log('[WebGPU Render] Font size changed to:', newSize, 'px');
+    }
+    
+    setFontScale(scale) {
+        // Scale the current font size
+        const newSize = Math.round(this.fontSize * scale);
+        this.setFontSize(newSize);
+    }
+    
+    getCharPixelWidth() {
+        return this.charWidth;
+    }
+    
+    getCharPixelHeight() {
+        return this.charHeight;
+    }
+    
+    getViewportPixelWidth() {
+        return window.innerWidth;
+    }
+    
+    getViewportPixelHeight() {
+        return window.innerHeight;
     }
     
     // Glyph caching methods (identical to WebGL version)
@@ -850,13 +910,6 @@ class TStorieWebGPURender {
         return [1, 1, 1, 1]; // Default white
     }
     
-    // Resize terminal
-    resize(cols, rows) {
-        this.cols = cols;
-        this.rows = rows;
-        this.setupCanvas();
-    }
-    
     // Cleanup
     destroy() {
         if (this.cellBuffer) this.cellBuffer.destroy();
@@ -878,6 +931,12 @@ class TStorieWebGPURender {
                 }
                 
                 this.render();
+                
+                // Notify shader system that terminal render is complete
+                // This ensures shader system samples a fully rendered frame
+                if (window.shaderSystem && window.shaderSystem.onTerminalRenderComplete) {
+                    window.shaderSystem.onTerminalRenderComplete();
+                }
             }
             
             requestAnimationFrame(animate);

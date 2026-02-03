@@ -4,9 +4,8 @@ author: "Maddest Labs"
 minWidth: 20
 minHeight: 14
 chars: "█ *⚑₁₂₃₄₅₆₇₈"
-theme: "coffee"
+theme: "solarlight"
 fontsize: 30
-shaders: "ruledlines+paper"
 ---
 
 # Minesweeper

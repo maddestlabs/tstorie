@@ -256,6 +256,22 @@ class TStorieHybridRenderer {
     /**
      * API compatibility methods for existing TStorie code
      */
+    get cols() {
+        return this.renderer ? this.renderer.cols : 80;
+    }
+    
+    get rows() {
+        return this.renderer ? this.renderer.rows : 24;
+    }
+    
+    get charWidth() {
+        return this.renderer ? this.renderer.charWidth : 10;
+    }
+    
+    get charHeight() {
+        return this.renderer ? this.renderer.charHeight : 20;
+    }
+    
     getCharPixelWidth() {
         return this.getCharDimensions().width;
     }

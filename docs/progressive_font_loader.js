@@ -2,12 +2,12 @@
  * Progressive Font Loader for SDL3 Build
  * 
  * Strategy:
- * 1. App starts with minimal 3270-startup.ttf (8KB, bundled in WASM)
- * 2. After 2 seconds (app is interactive), load 3270-full.ttf (209KB)
+ * 1. App starts with minimal 3270-Regular.ttf (250KB, bundled in WASM)
+ * 2. After 2 seconds (app is interactive), load 3270NerdFont-Regular.ttf (2.6MB)
  * 3. Hot-swap font when loaded, invalidate glyph cache
  * 
  * This gives users fast startup while eventually providing full glyph coverage
- * using the classic IBM 3270 terminal font
+ * (programming icons, powerline symbols, etc.)
  */
 
 console.log('[Font Loader] Script loaded');
@@ -31,9 +31,9 @@ window.progressiveFontLoader = {
     // The font is already preloaded in the WASM binary, just need to switch to it
     // Check if file exists in virtual FS
     try {
-      const exists = Module.FS.analyzePath('/fonts/iosevka-full.ttf').exists;
+      const exists = Module.FS.analyzePath('/fonts/3270NerdFont-Regular.ttf').exists;
       if (!exists) {
-        console.error('[Progressive Font] iosevka-full.ttf not found in virtual FS');
+        console.error('[Progressive Font] 3270NerdFont-Regular.ttf not found in virtual FS');
         this.loading = false;
         return;
       }
@@ -45,7 +45,7 @@ window.progressiveFontLoader = {
         try {
           // Call back into WASM to reload the font
           if (Module._emReloadFontSDL3) {
-            const fontPath = '/fonts/iosevka-full.ttf';
+            const fontPath = '/fonts/3270NerdFont-Regular.ttf';
             const ptr = Module.allocateUTF8(fontPath);
             
             // Hot-swap the font (updates internal pointer, clears glyph cache)
