@@ -1246,7 +1246,7 @@ proc applyDisplacementFromLayer*(destBuffer: var TermBuffer,
 # HIGH-LEVEL API FOR NIMINI
 # ==============================================================================
 
-proc initShader*(effectId: int, layerId: int, x, y, width, height: int, reduction: int = 1) =
+proc initTermShader*(effectId: int, layerId: int, x, y, width, height: int, reduction: int = 1) =
   ## Initialize shader state
   ## reduction: resolution divisor (1=full res, 2=half res, 4=quarter res, etc.)
   gShaderState = ShaderState(
@@ -1261,33 +1261,33 @@ proc initShader*(effectId: int, layerId: int, x, y, width, height: int, reductio
     reduction: max(1, reduction)
   )
 
-proc updateShader*() =
+proc updateTermShader*() =
   ## Update shader animation (call in on:update)
   if gShaderState != nil and not gShaderState.paused:
     gShaderState.frame += 1
 
-proc pauseShader*() =
+proc pauseTermShader*() =
   ## Pause shader animation
   if gShaderState != nil:
     gShaderState.paused = true
 
-proc resumeShader*() =
+proc resumeTermShader*() =
   ## Resume shader animation
   if gShaderState != nil:
     gShaderState.paused = false
 
-proc resetShader*() =
+proc resetTermShader*() =
   ## Reset shader to frame 0
   if gShaderState != nil:
     gShaderState.frame = 0
 
-proc setShaderEffect*(effectId: int) =
+proc setTermShaderEffect*(effectId: int) =
   ## Change shader effect
   if gShaderState != nil:
     gShaderState.effectId = effectId
     gShaderState.frame = 0
 
-proc drawShader*(buffer: var TermBuffer) =
+proc drawTermShader*(buffer: var TermBuffer) =
   ## Render current shader to buffer (call in on:render)
   if gShaderState == nil:
     return

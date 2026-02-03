@@ -1,7 +1,6 @@
 ---
 title: "Timing & Events Demo"
 theme: "catppuccin"
-shaders: "invert+ruledlines+paper+lightnight"
 fontsize: 16
 ---
 

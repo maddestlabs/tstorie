@@ -70,7 +70,7 @@ let shader = getShader("doubleValues")
 # Returns table: {name, code, kind, uniforms, bindings, workgroupSize}
 ```
 
-### `updateShader(name, uniforms)`
+### `updateComputeShader(name, uniforms)`
 Update uniform values before next execution.
 
 ```nim
@@ -80,7 +80,7 @@ uniforms["time"] = getTime()
 uniforms["velocity"] = 2.5
 uniforms["attraction"] = 0.05
 
-updateShader("particlePhysics", uniforms)
+updateComputeShader("particlePhysics", uniforms)
 ```
 
 **Note:** Nimini doesn't support JavaScript object literal syntax `{key: value}`. Use `newTable()` and assign fields individually.
@@ -161,7 +161,7 @@ uniforms["attractorX"] = float(mouseX)
 uniforms["attractorY"] = float(mouseY)
 uniforms["attraction"] = 0.05
 
-updateShader("particlePhysics", uniforms)
+updateComputeShader("particlePhysics", uniforms)
 
 # Run physics on GPU
 runComputeShader("particlePhysics", 

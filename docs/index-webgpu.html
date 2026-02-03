@@ -471,9 +471,9 @@
             }
             
             // Shaders
-            const shaderParam = urlParams.get('shader');
-            if (shaderParam) {
-                const activeShaders = shaderParam.split(/\s+/).map(s => s.trim()).filter(s => s);
+            const shadersParam = urlParams.get('shaders') || urlParams.get('shader');
+            if (shadersParam) {
+                const activeShaders = shadersParam.split(/\s+/).map(s => s.trim()).filter(s => s);
                 shaderCheckboxes.forEach(checkbox => {
                     checkbox.checked = activeShaders.includes(checkbox.value);
                 });
@@ -513,7 +513,7 @@
                 .filter(cb => cb.checked)
                 .map(cb => cb.value);
             if (selectedShaders.length > 0) {
-                newParams.set('shader', selectedShaders.join(' '));
+                newParams.set('shaders', selectedShaders.join(' '));
             }
             
             // Theme
@@ -1420,12 +1420,13 @@
         
         const fontUrl = urlParams.get('font');
         const fontSizeParam = urlParams.get('fontsize');
-        const shaderParam = urlParams.get('shader');
+        const shadersParam = urlParams.get('shaders') || urlParams.get('shader');
         const themeParam = urlParams.get('theme');
         
         // Parse multiple shaders separated by '+' (which becomes space in URL params)
-        // e.g., ?shader=invert+crt will load both invert and crt shaders
-        const shaderNames = shaderParam ? shaderParam.split(/\s+/).map(s => s.trim()).filter(s => s) : [];
+        // e.g., ?shaders=invert+crt will load both invert and crt shaders
+        // Back-compat: ?shader= is still accepted.
+        const shaderNames = shadersParam ? shadersParam.split(/\s+/).map(s => s.trim()).filter(s => s) : [];
         
         // Gist/demo loading state
         let gistMarkdown = null;

@@ -68,8 +68,8 @@ fn fragmentMain(
         dist
     );
 
-    // Multiply base by ambient + spotlight contribution
-    let lighting: f32 = uniforms.ambient + spot * uniforms.intensity;
+    // Lighting multiplier: ambient at edges, intensity at center
+    let lighting: f32 = mix(uniforms.ambient, uniforms.intensity, spot);
     let litColor: vec3f = baseColor.rgb * lighting;
     return vec4f(litColor, baseColor.a);
 }
@@ -78,10 +78,10 @@ fn fragmentMain(
         uniforms: {
             // IMPORTANT: insertion order here must match Uniforms fields after resolution
             lightPos: [0.5, 0.5], // Center of screen
-            radius: 0.65,
-            softness: 0.75,
-            intensity: 0.92,
-            ambient: 0.08
+            radius: 0.25,
+            softness: 0.25,
+            intensity: 1.25,
+            ambient: 0.25
         }
     };
 }

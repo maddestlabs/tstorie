@@ -6,13 +6,13 @@ tStorie now supports chaining multiple shaders together for complex visual effec
 
 ```bash
 # Single shader (works as before)
-?shader=invert
+?shaders=invert
 
 # Chain multiple shaders
-?shader=invert+crt
+?shaders=invert+crt
 
 # Three or more shaders
-?shader=blur+invert+crt
+?shaders=blur+invert+crt
 ```
 
 ## How It Works
@@ -32,11 +32,11 @@ Shader order affects the final result:
 
 ```bash
 # These produce different results:
-?shader=invert+crt     # Inverts colors, THEN applies CRT effect
-?shader=crt+invert     # Applies CRT effect, THEN inverts colors
+?shaders=invert+crt     # Inverts colors, THEN applies CRT effect
+?shaders=crt+invert     # Applies CRT effect, THEN inverts colors
 
-?shader=blur+graphpaper   # Blurs terminal, then overlays graph paper
-?shader=graphpaper+blur   # Overlays graph paper, then blurs everything
+?shaders=blur+graphpaper   # Blurs terminal, then overlays graph paper
+?shaders=graphpaper+blur   # Overlays graph paper, then blurs everything
 ```
 
 ## Available Shaders
@@ -54,25 +54,25 @@ Current shaders in `docs/shaders/`:
 
 ### Subtle Effects
 ```bash
-?shader=blur+crt
+?shaders=blur+crt
 # Softens text before applying CRT for smoother scanlines
 ```
 
 ### Dramatic Effects
 ```bash
-?shader=invert+crtbloom
+?shaders=invert+crtbloom
 # Inverted colors with glowing CRT bloom
 ```
 
 ### Paper Textures
 ```bash
-?shader=graphpaper+blur
+?shaders=graphpaper+blur
 # Graph paper with slightly softened lines
 ```
 
 ### Testing Variations
 ```bash
-?shader=blur+blur+blur
+?shaders=blur+blur+blur
 # Triple blur for extreme softness
 ```
 
@@ -175,8 +175,8 @@ Single shader URLs continue to work exactly as before:
 
 ```bash
 # These are equivalent:
-?shader=crt
-?shader=crt+          # Trailing + ignored
+?shaders=crt
+?shaders=crt+          # Trailing + ignored
 ```
 
 ## Limitations
@@ -190,7 +190,7 @@ Single shader URLs continue to work exactly as before:
 
 Potential additions:
 
-- Shader parameters: `?shader=blur(radius:5)+crt`
+- Shader parameters: `?shaders=blur(radius:5)+crt` (also accepts `?shader=` for back-compat)
 - Shader library browser
 - Visual shader chain editor
 - Per-shader enable/disable toggle

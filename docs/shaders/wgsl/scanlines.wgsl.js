@@ -27,10 +27,16 @@ fn vertexMain(
 
 struct Uniforms {
     time: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
     resolution: vec2f,
+    _pad3: f32,
+    _pad4: f32,
     scanlineStrength: f32,
     scanlineWidth: f32,
     scanlineSpeed: f32,
+    _pad5: f32,
 }
 @group(0) @binding(2) var<uniform> uniforms: Uniforms;
 
@@ -45,7 +51,9 @@ fn fragmentMain(
                 var color: vec3f = textureSample(contentTexture, contentTextureSampler, uv).rgb;
                 
                 // Calculate scanline pattern
-                var scanline: f32 = sin((uv.y + uniforms.time * uniforms.scanlineSpeed) * uniforms.resolution.y * 3.14159 / uniforms.scanlineWidth);
+                // Protect against invalid width (e.g., mis-packed uniforms reading as 0)
+                var width: f32 = max(uniforms.scanlineWidth, 0.0001);
+                var scanline: f32 = sin((uv.y + uniforms.time * uniforms.scanlineSpeed) * uniforms.resolution.y * 3.14159 / width);
                 
                 // Convert from -1.0,1.0 to 0.0,1.0 range and apply strength
                 scanline = uniforms.scanlineStrength + (1.0 - uniforms.scanlineStrength) * (scanline * 0.5 + 0.5);

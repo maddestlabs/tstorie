@@ -1,7 +1,8 @@
 ---
 title: "Terminal Shaders Demo"
-theme: "alleycat"
+theme: "outrun"
 fontsize: 24
+shaders: "border+crt"
 ---
 
 # Terminal Shaders - Procedural Visual Effects
@@ -28,19 +29,19 @@ var effectName6 = "Matrix Rain - Digital cascade"
 # Max useful reduction: ~8 (beyond that, too few pixels render)
 var renderHeight = termHeight - 4
 var reduction = 8  # Default to half resolution for better performance
-initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
 
 print "Terminal shaders initialized with native rendering"
 ```
 
 ```nim on:update
 # Update shader animation every frame
-updateShader()
+updateTermShader()
 ```
 
 ```nim on:render
 # Draw the current shader effect
-drawShader(0)
+drawTermShader(0)
 
 # Get effect name based on index
 var effectName = "Unknown"
@@ -88,33 +89,33 @@ if event.type == "text":
     # Next effect
     currentEffect = (currentEffect + 1) mod numEffects
     var renderHeight = termHeight - 4
-    initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+    initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
   elif key == "p" or key == "P":
     # Previous effect
     currentEffect = (currentEffect - 1 + numEffects) mod numEffects
     var renderHeight = termHeight - 4
-    initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+    initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
   elif key == "+" or key == "=":
     # Increase resolution (decrease reduction)
     if reduction > 1:
       reduction = reduction div 2
       var renderHeight = termHeight - 4
-      initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+      initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
       print "Resolution: " & $(termWidth div reduction) & "x" & $(renderHeight div reduction)
   elif key == "-" or key == "_":
     # Decrease resolution (increase reduction)
     if reduction < 8:
       reduction = reduction * 2
       var renderHeight = termHeight - 4
-      initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+      initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
       print "Resolution: " & $(termWidth div reduction) & "x" & $(renderHeight div reduction)
   elif key == "s" or key == "S":
     # Toggle pause (changed from P to S to avoid conflict with Previous)
-    pauseShader()
+    pauseTermShader()
     print "Animation paused"
   elif key == "r" or key == "R":
     # Reset animation
-    resetShader()
+    resetTermShader()
     print "Animation reset"
 
 elif event.type == "mouse":
@@ -127,12 +128,12 @@ elif event.type == "mouse":
       # Click on left side - previous effect
       currentEffect = (currentEffect - 1 + numEffects) mod numEffects
       var renderHeight = termHeight - 4
-      initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+      initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
     elif mouseX > rightThird:
       # Click on right side - next effect
       currentEffect = (currentEffect + 1) mod numEffects
       var renderHeight = termHeight - 4
-      initShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
+      initTermShader(currentEffect, 0, 0, 1, termWidth, renderHeight, reduction)
 ```
 
 ## Available Effects
@@ -178,7 +179,7 @@ All effects are rendered **natively in Nim** for maximum performance:
 - Direct buffer manipulation (no per-pixel nimini calls)
 - Tight loops run at native speed
 - Character and color computed inline
-- Simple API: `initShader()`, `updateShader()`, `drawShader()`
+- Simple API: `initTermShader()`, `updateTermShader()`, `drawTermShader()`
 
 Compare this to the manual implementation where each pixel required:
 - A nimini function call

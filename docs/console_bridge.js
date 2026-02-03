@@ -18,7 +18,13 @@ mergeInto(LibraryManager.library, {
   },
   
   tStorie_logUrlThemeSuccess: function(themeValuePtr) {
-    const themeValue = UTF8ToString(themeValuePtr);
+    // Nim currently calls this with no args; tolerate null/0/undefined.
+    let themeValue = '';
+    try {
+      if (themeValuePtr) themeValue = UTF8ToString(themeValuePtr);
+    } catch {
+      themeValue = '';
+    }
     console.log('✅ [URL OVERRIDE] Successfully applied URL theme:', themeValue);
   },
   
@@ -29,5 +35,24 @@ mergeInto(LibraryManager.library, {
   
   tStorie_logNoUrlTheme: function() {
     console.log('ℹ️  [URL PARAM] No URL theme parameter - using front matter or default theme');
+  },
+
+  // Publish active theme background color for shaders/JS.
+  // Called on theme apply/switch (not per-frame).
+  tStorie_setThemeBackground: function(r, g, b) {
+    const rr = (r | 0) & 255;
+    const gg = (g | 0) & 255;
+    const bb = (b | 0) & 255;
+
+    const rgb01 = [rr / 255, gg / 255, bb / 255];
+
+    window.__tstorieTheme = window.__tstorieTheme || {};
+    window.__tstorieTheme.backgroundRgb255 = [rr, gg, bb];
+    window.__tstorieTheme.backgroundRgb01 = rgb01;
+
+    // If the WebGPU shader system is active, seed its live cache.
+    if (window.shaderSystem && window.shaderSystem.backend === 'webgpu') {
+      window.shaderSystem.liveThemeBackgroundRgb01 = rgb01;
+    }
   }
 });

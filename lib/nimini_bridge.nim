@@ -764,10 +764,10 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
   # TERMINAL SHADERS API
   # ================================================================
   
-  env.vars["initShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## initShader(effectId: int, layerId: int, x: int, y: int, width: int, height: int)
+  env.vars["initTermShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## initTermShader(effectId: int, layerId: int, x: int, y: int, width: int, height: int)
     if args.len < 6:
-      raise newException(ValueError, "initShader() requires 6 arguments: effectId, layerId, x, y, width, height")
+      raise newException(ValueError, "initTermShader() requires 6 arguments: effectId, layerId, x, y, width, height")
     
     let effectId = args[0].i
     let layerId = args[1].i
@@ -776,18 +776,18 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
     let width = args[4].i
     let height = args[5].i
     
-    initShader(effectId, layerId, x, y, width, height)
+    initTermShader(effectId, layerId, x, y, width, height)
     return valNil()
   
-  env.vars["updateShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## updateShader() - Update shader animation (call in on:update)
-    updateShader()
+  env.vars["updateTermShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## updateTermShader() - Update shader animation (call in on:update)
+    updateTermShader()
     return valNil()
   
-  env.vars["drawShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## drawShader(layerId: int|string) - Draw shader to specified layer (call in on:render)
+  env.vars["drawTermShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## drawTermShader(layerId: int|string) - Draw shader to specified layer (call in on:render)
     if args.len < 1:
-      raise newException(ValueError, "drawShader() requires 1 argument: layerId")
+      raise newException(ValueError, "drawTermShader() requires 1 argument: layerId")
     
     # Use unified layer system (gAppState.layers for both terminal and SDL3)
     var layer: Layer = nil
@@ -801,32 +801,32 @@ proc registerTstorieApis*(env: ref Env, appState: AppState) =
       layer = getLayer(appState, layerId)
     
     if not layer.isNil:
-      drawShader(layer.buffer)
+      drawTermShader(layer.buffer)
     
     return valNil()
   
-  env.vars["setShaderEffect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## setShaderEffect(effectId: int) - Change shader effect and reset animation
+  env.vars["setTermShaderEffect"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## setTermShaderEffect(effectId: int) - Change shader effect and reset animation
     if args.len < 1:
-      raise newException(ValueError, "setShaderEffect() requires 1 argument: effectId")
+      raise newException(ValueError, "setTermShaderEffect() requires 1 argument: effectId")
     
     let effectId = args[0].i
-    setShaderEffect(effectId)
+    setTermShaderEffect(effectId)
     return valNil()
   
-  env.vars["pauseShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## pauseShader() - Pause shader animation
-    pauseShader()
+  env.vars["pauseTermShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## pauseTermShader() - Pause shader animation
+    pauseTermShader()
     return valNil()
   
-  env.vars["resumeShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## resumeShader() - Resume shader animation
-    resumeShader()
+  env.vars["resumeTermShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## resumeTermShader() - Resume shader animation
+    resumeTermShader()
     return valNil()
   
-  env.vars["resetShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
-    ## resetShader() - Reset shader to frame 0
-    resetShader()
+  env.vars["resetTermShader"] = valNativeFunc proc(e: ref Env, args: seq[Value]): Value =
+    ## resetTermShader() - Reset shader to frame 0
+    resetTermShader()
     return valNil()
   
   # ================================================================

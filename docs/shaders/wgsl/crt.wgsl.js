@@ -4,6 +4,8 @@
 function getShaderConfig() {
     // WGSL shader (WebGPU) - Auto-converted from GLSL {
     return {
+        // Enables pointer remapping (screen UV -> content UV) so curved CRT effects remain interactive.
+        coordinateTransform: 'crt',
         vertexShader: `struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(0) vUv: vec2f,
@@ -27,7 +29,12 @@ fn vertexMain(
 
 struct Uniforms {
     time: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
     resolution: vec2f,
+    _pad3: f32,
+    _pad4: f32,
     curveStrength: f32,
     frameSize: f32,
     frameHue: f32,
@@ -35,72 +42,115 @@ struct Uniforms {
     frameLight: f32,
     frameReflect: f32,
     frameGrain: f32,
+    _pad5: f32,
 }
 @group(0) @binding(2) var<uniform> uniforms: Uniforms;
 
-f32 random(c: vec2f) {
-                return fract(sin(dot(c.xy, vec2f(12.9898, 78.233))) * 43758.5453);
-            }
+fn random(c: vec2f) -> f32 {
+    return fract(sin(dot(c, vec2f(12.9898, 78.233))) * 43758.5453);
+}
 
-vec3f hsl2rgb(c: vec3f) {
-                var K: vec4f = vec4f(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-                var p: vec3f = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-                return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-            }
+fn hsl2rgb(c: vec3f) -> vec3f {
+    let K: vec4f = vec4f(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    let p: vec3f = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, vec3f(0.0), vec3f(1.0)), c.y);
+}
+
+fn mirror01(x: f32) -> f32 {
+    var v: f32 = x;
+    if (v < 0.0) {
+        v = -v;
+    }
+    if (v > 1.0) {
+        v = 2.0 - v;
+    }
+    return v;
+}
 
 @fragment
 fn fragmentMain(
     @location(0) vUv: vec2f
 ) -> @location(0) vec4f {
+    let iTime: f32 = uniforms.time;
+    let iResolution: vec2f = uniforms.resolution;
 
-                var iTime: f32 = uniforms.time;
-                var iResolution: vec2f = uniforms.resolution;
-                var uv: vec2f = vUv;
-                var center: vec2f = vec2f(0.5, 0.5);
-                var distanceFromCenter: f32 = length(uv - center);
-                var px: f32 = 1.0 / iResolution.x;
-                var frame: f32 = uniforms.frameSize * px;
-                
-                // Apply CRT curvature to UV coordinates
-                uv = vUv + (vUv - center) * pow(distanceFromCenter, 5.0) * uniforms.curveStrength;
-                
-                // Determine if we're in the frame region
-                var isFrame: bool = (uv.x < frame || uv.x > (1.0 - frame) || 
-                               uv.y < frame || uv.y > (1.0 - frame));
-                
-                // Calculate content UV (everything inside the frame)
-                var contentUV: vec2f = (uv - vec2f(frame, frame)) / (1.0 - 2.0 * frame);
-                
-                var color: vec3f;
-                
-                if (isFrame) {
-                    // Frame rendering with gradient and grain
-                    var frameVal: f32 = 100.0;
-                    var nX: f32 = frameVal / iResolution.x;
-                    var nY: f32 = frameVal / iResolution.y;
-                    var intensity: f32 = 0.0;
-                    var distX: f32 = min(uv.x, 1.0 - uv.x);
-                    var distY: f32 = min(uv.y, 1.0 - uv.y);
-                    var minDist: f32 = min(distX, distY);
-                    intensity = mix(uniforms.frameLight, 0.0, minDist / max(nX, nY) * 4.0);
-                    color = hsl2rgb(vec3f(uniforms.frameHue, uniforms.frameSat, intensity));
-                    color *= 1.0 - uniforms.frameGrain * random(uv);
-                    
-                    // Reflection effect on frame - mirror and blur the content
-                    var reflectedUV: vec2f = contentUV;
-                    if (reflectedUV.x < 0.0) reflectedUV.x = -reflectedUV.x;
-                    else if (reflectedUV.x > 1.0) reflectedUV.x = 2.0 - reflectedUV.x;
-                    if (reflectedUV.y < 0.0) reflectedUV.y = -reflectedUV.y;
-                    else if (reflectedUV.y > 1.0) reflectedUV.y = 2.0 - reflectedUV.y;
-                    
-                    // Simple blur for reflection
-                    var blurred: vec3f = vec3f(0.0);
-                    var blur: f32 = 2.0 / iResolution.x;
-                    for (var x: i32 = -1; x <= 1.0; x++) {
-                        for (var y: i32 = -1; y <= 1.0; y++) {
-                            var blurPos: vec2f = reflectedUV + vec2f(float(x) * blur, float(y) * blur);
-                            blurred += textureSample(contentTexture, contentTextureSampler, blurPos).rgb;
-                        }
+    var uv: vec2f = vUv;
+    let center: vec2f = vec2f(0.5, 0.5);
+    let distanceFromCenter: f32 = length(uv - center);
+
+    // Frame thickness in UV units (frameSize is in pixels)
+    let px: f32 = 1.0 / max(iResolution.x, 1.0);
+    let frame: f32 = uniforms.frameSize * px;
+
+    // Apply CRT curvature (matches original GLSL)
+    uv = vUv + (vUv - center) * pow(distanceFromCenter, 5.0) * uniforms.curveStrength;
+
+    // Determine if we're in the frame region
+    let isFrame: bool = (uv.x < frame || uv.x > (1.0 - frame) || uv.y < frame || uv.y > (1.0 - frame));
+
+    // Calculate content UV (everything inside the frame)
+    let denom: f32 = max(1.0 - 2.0 * frame, 0.0001);
+    let contentUV: vec2f = (uv - vec2f(frame, frame)) / denom;
+
+    var color: vec3f = vec3f(0.0);
+
+    if (isFrame) {
+        // Frame rendering with gradient and grain
+        let frameVal: f32 = 100.0;
+        let nX: f32 = frameVal / max(iResolution.x, 1.0);
+        let nY: f32 = frameVal / max(iResolution.y, 1.0);
+
+        let distX: f32 = min(uv.x, 1.0 - uv.x);
+        let distY: f32 = min(uv.y, 1.0 - uv.y);
+        let minDist: f32 = min(distX, distY);
+
+        let ramp: f32 = (minDist / max(nX, nY)) * 4.0;
+        let intensity: f32 = mix(uniforms.frameLight, 0.0, ramp);
+        color = hsl2rgb(vec3f(uniforms.frameHue, uniforms.frameSat, intensity));
+        color *= 1.0 - uniforms.frameGrain * random(uv);
+
+        // Reflection effect on frame - mirror and blur the content
+        var reflectedUV: vec2f = contentUV;
+        if (reflectedUV.x < 0.0) {
+            reflectedUV.x = -reflectedUV.x;
+        } else if (reflectedUV.x > 1.0) {
+            reflectedUV.x = 2.0 - reflectedUV.x;
+        }
+        if (reflectedUV.y < 0.0) {
+            reflectedUV.y = -reflectedUV.y;
+        } else if (reflectedUV.y > 1.0) {
+            reflectedUV.y = 2.0 - reflectedUV.y;
+        }
+
+        // Simple blur for reflection (matches original radius)
+        var blurred: vec3f = vec3f(0.0);
+        let blur: f32 = 2.0 / max(iResolution.x, 1.0);
+        for (var x: i32 = -1; x <= 1; x = x + 1) {
+            for (var y: i32 = -1; y <= 1; y = y + 1) {
+                let blurPos: vec2f = reflectedUV + vec2f(f32(x) * blur, f32(y) * blur);
+                blurred += textureSampleLevel(contentTexture, contentTextureSampler, blurPos, 0.0).rgb;
+            }
+        }
+        blurred = blurred / 9.0;
+        color += blurred * uniforms.frameReflect * 0.5;
+
+        // Animated light source on frame
+        let lightX: f32 = 0.5 + sin(iTime * 1.75) * 0.35;
+        let lightPos: vec2f = vec2f(lightX, 0.2);
+        let lightDist: f32 = length(uv - lightPos);
+        let lightFalloff: f32 = pow(clamp(1.0 - (lightDist / 1.5), 0.0, 1.0), 0.85);
+        color *= mix(0.25, 2.5, lightFalloff);
+    } else {
+        // CRT content area - sample texture only if in bounds
+        if (contentUV.x < 0.0 || contentUV.x > 1.0 || contentUV.y < 0.0 || contentUV.y > 1.0) {
+            color = vec3f(0.0);
+        } else {
+            color = textureSampleLevel(contentTexture, contentTextureSampler, contentUV, 0.0).rgb;
+        }
+    }
+
+    return vec4f(color, 1.0);
+}
 `,
         
         uniforms: {

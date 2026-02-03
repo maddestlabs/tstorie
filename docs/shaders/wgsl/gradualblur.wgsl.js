@@ -112,7 +112,7 @@ fn fragmentMain(
             focusRadius: 0.2,
 
             // Blur intensity (pixels at edges)
-            blurRadius: 1.5,
+            blurRadius: 2.5,
 
             // Falloff control
             falloffPower: 1.15,

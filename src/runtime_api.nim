@@ -762,6 +762,10 @@ proc nimini_switchTheme(env: ref Env; args: seq[Value]): Value {.nimini.} =
   # Update theme background color if stylesheet has "default" style
   if newStyleSheet.hasKey("default"):
     storieCtx.themeBackground = newStyleSheet["default"].bg
+
+  when defined(emscripten):
+    proc js_setThemeBackground(r, g, b: cint) {.importc: "tStorie_setThemeBackground".}
+    js_setThemeBackground(storieCtx.themeBackground.r.cint, storieCtx.themeBackground.g.cint, storieCtx.themeBackground.b.cint)
   
   # Also need to update the canvas stylesheet pointer if canvas is active
   if not canvasState.isNil:
@@ -2242,6 +2246,10 @@ proc initStorieContext(state: AppState) =
   if doc.styleSheet.hasKey("body"):
     storieCtx.themeBackground = doc.styleSheet["body"].bg
     state.themeBackground = storieCtx.themeBackground
+
+    when defined(emscripten):
+      proc js_setThemeBackground(r, g, b: cint) {.importc: "tStorie_setThemeBackground".}
+      js_setThemeBackground(storieCtx.themeBackground.r.cint, storieCtx.themeBackground.g.cint, storieCtx.themeBackground.b.cint)
     # Debug: print stylesheet contents
     when not defined(emscripten):
       echo "Stylesheet loaded with ", doc.styleSheet.len, " styles:"
@@ -2250,6 +2258,10 @@ proc initStorieContext(state: AppState) =
   else:
     storieCtx.themeBackground = (0'u8, 0'u8, 0'u8)
     state.themeBackground = (0'u8, 0'u8, 0'u8)
+
+    when defined(emscripten):
+      proc js_setThemeBackground(r, g, b: cint) {.importc: "tStorie_setThemeBackground".}
+      js_setThemeBackground(0.cint, 0.cint, 0.cint)
   
   when defined(emscripten) and not defined(sdl3Backend):
     if storieCtx.codeBlocks.len == 0 and lastError.len == 0 and not gWaitingForGist:
@@ -2381,6 +2393,10 @@ proc initStorieContext(state: AppState) =
         if newStyleSheet.hasKey("body"):
           storieCtx.themeBackground = newStyleSheet["body"].bg
           state.themeBackground = storieCtx.themeBackground
+
+        when defined(emscripten):
+          proc js_setThemeBackground(r, g, b: cint) {.importc: "tStorie_setThemeBackground".}
+          js_setThemeBackground(storieCtx.themeBackground.r.cint, storieCtx.themeBackground.g.cint, storieCtx.themeBackground.b.cint)
         # Re-initialize canvas module with new stylesheet
         initCanvasModule(addr gAppState, addr storieCtx.sectionMgr, addr storieCtx.styleSheet)
         # Re-register canvas bindings with new stylesheet pointer

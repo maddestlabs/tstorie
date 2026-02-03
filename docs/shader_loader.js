@@ -2,7 +2,7 @@
  * WebGPU-aware Shader Loader for TStorie
  * 
  * Automatically loads WGSL shaders for WebGPU, GLSL for WebGL
- * Supports front matter (shaders=) and URL parameters (?shader=)
+ * Supports front matter (shaders=) and URL parameters (?shaders=)
  * 
  * Features:
  * - Auto-detects active backend (WebGPU vs WebGL)

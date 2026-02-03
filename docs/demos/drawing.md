@@ -1,7 +1,6 @@
 ---
 title: "Manual Drawing & Compositing Demo"
-theme: "neotopia"
-shaders: "invert+ruledlines+paper"
+theme: "solarlight"
 ---
 
 # Drawing API Showcase

@@ -27,9 +27,16 @@ fn vertexMain(
 
 struct Uniforms {
     time: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
     resolution: vec2f,
+    _pad3: f32,
+    _pad4: f32,
     vignetteStart: f32,
     vignetteLvl: f32,
+    _pad5: f32,
+    _pad6: f32,
 }
 @group(0) @binding(2) var<uniform> uniforms: Uniforms;
 
@@ -45,7 +52,8 @@ fn fragmentMain(
                 
                 // Vignette using edge multiplication
                 var vignetteUV: vec2f = uv * (vec2f(1.0) - vec2f(uv.y, uv.x));
-                var vignette: f32 = pow(vignetteUV.x * vignetteUV.y * uniforms.vignetteLvl, uniforms.vignetteStart);
+                var base: f32 = max(vignetteUV.x * vignetteUV.y * uniforms.vignetteLvl, 0.000001);
+                var vignette: f32 = pow(base, uniforms.vignetteStart);
                 
                 color *= vignette;
                 

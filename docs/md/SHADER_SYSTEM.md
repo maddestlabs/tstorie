@@ -7,7 +7,7 @@ The TStorie web runtime supports loading WebGL shaders from GitHub Gists to appl
 Add the `shader` URL parameter to load a shader from a gist:
 
 ```
-index.html?shader=YOUR_GIST_ID
+index.html?shaders=YOUR_GIST_ID (also accepts ?shader=)
 ```
 
 Combine with other parameters:
@@ -216,7 +216,7 @@ See the `web/` directory for complete examples:
 1. Create a new file with `.js` extension
 2. Paste your shader code
 3. Create a public gist on GitHub
-4. Use the gist ID in the URL: `?shader=YOUR_GIST_ID`
+4. Use the gist ID in the URL: `?shaders=YOUR_GIST_ID` (also accepts `?shader=` for back-compat)
 
 ## Troubleshooting
 

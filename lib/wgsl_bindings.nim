@@ -2,7 +2,7 @@
 ##
 ## Provides nimini API for GPU compute shaders:
 ## - getShader(name) - Get shader by name
-## - updateShader(name, uniforms) - Update uniform values
+## - updateComputeShader(name, uniforms) - Update uniform values
 ## - runComputeShader(name, inputData, outputData) - Execute compute shader
 ##
 ## Architecture:
@@ -186,9 +186,9 @@ proc nimini_listShaders*(env: ref Env; args: seq[Value]): Value {.nimini.} =
     js_logReturnShaders(cint(names.len))
   return valArray(names)
 
-proc nimini_updateShader*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Update shader uniforms
-  ## Usage: updateShader("particlePhysics", {time: 1.5, velocity: 2.0})
+proc nimini_updateComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Update compute shader uniforms
+  ## Usage: updateComputeShader("particlePhysics", {time: 1.5, velocity: 2.0})
   ## 
   ## This prepares uniform data for the next shader execution.
   ## Implementation:
@@ -310,7 +310,7 @@ proc registerWGSLBindings*() =
     registerNative("listShaders", nimini_listShaders)
   )
   queuePluginRegistration(proc() =
-    registerNative("updateShader", nimini_updateShader)
+    registerNative("updateComputeShader", nimini_updateComputeShader)
   )
   queuePluginRegistration(proc() =
     registerNative("runComputeShader", nimini_runComputeShader)

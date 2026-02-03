@@ -23,7 +23,7 @@ Core examples:
 - [drawing.md](https://maddestlabs.github.io/tstorie?content=drawing) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/drawing.md)
 - [tui.md](https://maddestlabs.github.io/tstorie?content=tui) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui.md)
 - [tui3.md](https://maddestlabs.github.io/tstorie?content=tui3) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/tui3.md)
-- [shader.md](https://maddestlabs.github.io/tstorie?content=shader) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/shader.md)
+- [termshaders.md](https://maddestlabs.github.io/tstorie?content=termshaders) | [Source](https://github.com/maddestlabs/tstorie/blob/main/docs/demos/termshaders.md)
 
 Gist Example:
 - [tstorie_rainclock.md](https://maddestlabs.github.io/tstorie/?content=863a4175989370857ccd67cb5492ac11&shader=crt&font=Zeyada) | [Source Gist](https://gist.github.com/R3V1Z3/863a4175989370857ccd67cb5492ac11)

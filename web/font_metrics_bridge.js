@@ -114,6 +114,18 @@ mergeInto(LibraryManager.library, {
   // Load shader chain (semicolon-separated shader names)
   emLoadShaders: function(shadersPtr) {
     if (typeof window === 'undefined') return;
+
+    // If URL explicitly specifies shaders, it takes precedence over front matter.
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlShaders = (urlParams.get('shaders') || urlParams.get('shader') || '').trim();
+      if (urlShaders) {
+        console.log('[WASM] URL shaders specified; ignoring front matter shaders:', urlShaders);
+        return;
+      }
+    } catch (e) {
+      // ignore URL parsing issues and proceed with front matter
+    }
     
     const shadersStr = UTF8ToString(shadersPtr);
     if (!shadersStr) return;

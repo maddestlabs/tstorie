@@ -5,6 +5,168 @@
  * Similar to WebGL shader chain but using modern WebGPU architecture
  */
 
+function parseCssColorToRgb01(cssColor) {
+  if (!cssColor || typeof cssColor !== 'string') return null;
+
+  const c = cssColor.trim();
+
+  // #rgb or #rrggbb
+  if (c[0] === '#') {
+    const hex = c.slice(1);
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) return [r / 255, g / 255, b / 255];
+    }
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) return [r / 255, g / 255, b / 255];
+    }
+  }
+
+  // rgb()/rgba() in comma or space separated forms
+  // Examples: rgb(0, 20, 20), rgba(0, 20, 20, 0.9), rgb(0 20 20 / 0.9)
+  const m = c.match(/rgba?\((.*)\)/i);
+  if (m) {
+    const parts = m[1]
+      .replace(/\//g, ' ')
+      .split(/[\s,]+/)
+      .map(p => p.trim())
+      .filter(Boolean);
+
+    const r = Number(parts[0]);
+    const g = Number(parts[1]);
+    const b = Number(parts[2]);
+    if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) return [r / 255, g / 255, b / 255];
+  }
+
+  return null;
+}
+
+function parseCssColorToRgba01(cssColor) {
+  if (!cssColor || typeof cssColor !== 'string') return null;
+  const c = cssColor.trim();
+
+  if (c[0] === '#') {
+    const rgb = parseCssColorToRgb01(c);
+    return rgb ? [rgb[0], rgb[1], rgb[2], 1.0] : null;
+  }
+
+  const m = c.match(/rgba?\((.*)\)/i);
+  if (!m) return null;
+
+  const parts = m[1]
+    .replace(/\//g, ' ')
+    .split(/[\s,]+/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  const r = Number(parts[0]);
+  const g = Number(parts[1]);
+  const b = Number(parts[2]);
+  let a = parts.length >= 4 ? Number(parts[3]) : 1.0;
+
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return null;
+  if (!Number.isFinite(a)) a = 1.0;
+  a = Math.max(0, Math.min(1, a));
+
+  return [r / 255, g / 255, b / 255, a];
+}
+
+function getLiveThemeBackgroundRgb01(system) {
+  // Prefer a value derived from the real rendered terminal pixels (most reliable).
+  // This is set during the terminalCanvas -> texture copy step.
+  const cached = system?.liveThemeBackgroundRgb01;
+  if (Array.isArray(cached) && cached.length === 3 && cached.every(Number.isFinite)) return cached;
+
+  try {
+    const t = window.terminal;
+
+    // Common theme locations (xterm-like and custom)
+    const theme =
+      t?.theme ||
+      t?.options?.theme ||
+      (typeof t?.getOption === 'function' ? t.getOption('theme') : null);
+    const fromTheme = parseCssColorToRgb01(theme?.background);
+    if (fromTheme) return fromTheme;
+
+    // Computed styles (works even when theme is applied via CSS).
+    // Walk up the DOM tree so we don't get stuck on a transparent canvas.
+    let el = t?.element || system?.terminalCanvas || document.getElementById('terminal') || document.body;
+    while (el) {
+      const bg = window.getComputedStyle(el).backgroundColor;
+      const rgba = parseCssColorToRgba01(bg);
+      if (rgba && rgba[3] > 0) return [rgba[0], rgba[1], rgba[2]];
+      el = el.parentElement;
+    }
+  } catch {
+    // ignore
+  }
+
+  return [0, 0, 0];
+}
+
+function computeLikelyBackgroundRgb01FromImageData(imageData) {
+  try {
+    if (!imageData || !imageData.data || !imageData.width || !imageData.height) return null;
+
+    const w = imageData.width;
+    const h = imageData.height;
+    const d = imageData.data;
+
+    const samplePoints = [
+      [0, 0], [2, 2],
+      [w - 1, 0], [Math.max(0, w - 3), 2],
+      [0, h - 1], [2, Math.max(0, h - 3)],
+      [w - 1, h - 1], [Math.max(0, w - 3), Math.max(0, h - 3)]
+    ];
+
+    const counts = new Map();
+    let sumR = 0, sumG = 0, sumB = 0, n = 0;
+
+    for (const [x0, y0] of samplePoints) {
+      const x = Math.max(0, Math.min(w - 1, x0 | 0));
+      const y = Math.max(0, Math.min(h - 1, y0 | 0));
+      const idx = (y * w + x) * 4;
+      const r = d[idx] | 0;
+      const g = d[idx + 1] | 0;
+      const b = d[idx + 2] | 0;
+      const a = d[idx + 3] | 0;
+
+      // Ignore fully transparent samples (shouldn't happen for the terminal canvas, but safe).
+      if (a === 0) continue;
+
+      sumR += r; sumG += g; sumB += b; n++;
+      const key = `${r},${g},${b}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    if (n === 0) return null;
+
+    // If a clear majority exists, use it; otherwise use the average of samples.
+    let bestKey = null;
+    let bestCount = 0;
+    for (const [k, c] of counts.entries()) {
+      if (c > bestCount) {
+        bestCount = c;
+        bestKey = k;
+      }
+    }
+
+    if (bestKey && bestCount >= 2) {
+      const [r, g, b] = bestKey.split(',').map(Number);
+      if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) return [r / 255, g / 255, b / 255];
+    }
+
+    return [sumR / (255 * n), sumG / (255 * n), sumB / (255 * n)];
+  } catch {
+    return null;
+  }
+}
+
 async function initWebGPUShaderSystem(shaderCodes) {
   console.log('[WebGPU Shaders] Initializing shader chain system');
   
@@ -87,15 +249,199 @@ async function initWebGPUShaderSystem(shaderCodes) {
       requestAnimationFrame(syncWebGPUCanvasDimensions);
     });
     
-    // Forward input events
-    ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'wheel', 'contextmenu'].forEach(eventType => {
-      webgpuCanvas.addEventListener(eventType, function(e) {
-        if (eventType === 'contextmenu') {
-          e.preventDefault();
+    // ------------------------------------------------------------
+    // Input forwarding + optional pointer remapping
+    // ------------------------------------------------------------
+    function clamp01(v) {
+      return Math.max(0, Math.min(1, v));
+    }
+
+    function clientToUv(clientX, clientY, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return { x: 0.5, y: 0.5 };
+      return {
+        x: (clientX - rect.left) / rect.width,
+        y: (clientY - rect.top) / rect.height
+      };
+    }
+
+    function uvToClient(uv, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        clientX: rect.left + uv.x * rect.width,
+        clientY: rect.top + uv.y * rect.height
+      };
+    }
+
+    function getLiveCellSize() {
+      try {
+        const system = window.shaderSystem;
+        const t = window.terminal;
+        if (t && t.cols && t.rows && system && system.terminalCanvas && system.terminalCanvas.width > 0 && system.terminalCanvas.height > 0) {
+          return {
+            x: system.terminalCanvas.width / t.cols,
+            y: system.terminalCanvas.height / t.rows
+          };
         }
-        const clonedEvent = new e.constructor(e.type, e);
-        terminalCanvas.dispatchEvent(clonedEvent);
-      });
+        if (t && typeof t.charWidth === 'number' && typeof t.charHeight === 'number') {
+          const dpr = window.devicePixelRatio || 1;
+          return { x: t.charWidth * dpr, y: t.charHeight * dpr };
+        }
+      } catch {
+        // ignore
+      }
+      return { x: 10, y: 20 };
+    }
+
+    function applyCoordinateTransform(transformName, uv, shaderUniforms, resolution) {
+      if (!transformName) return { uv, inside: true };
+
+      // CRT mapping: screen UV -> content UV (matches docs/shaders/crt.js + WGSL port)
+      if (transformName === 'crt') {
+        const curveStrength = Number(shaderUniforms?.curveStrength ?? 0);
+        const frameSize = Number(shaderUniforms?.frameSize ?? 0);
+        const resX = Math.max(1, Number(resolution?.x ?? resolution?.[0] ?? terminalCanvas.width ?? 1));
+
+        const centerX = 0.5;
+        const centerY = 0.5;
+        const dx = uv.x - centerX;
+        const dy = uv.y - centerY;
+        const dist = Math.hypot(dx, dy);
+
+        const warp = Math.pow(dist, 5) * curveStrength;
+        const warpedX = uv.x + dx * warp;
+        const warpedY = uv.y + dy * warp;
+
+        const frame = frameSize / resX;
+        const denom = Math.max(1e-6, 1 - 2 * frame);
+        const contentX = (warpedX - frame) / denom;
+        const contentY = (warpedY - frame) / denom;
+        const inside = contentX >= 0 && contentX <= 1 && contentY >= 0 && contentY <= 1;
+
+        return {
+          uv: { x: clamp01(contentX), y: clamp01(contentY) },
+          inside
+        };
+      }
+
+      // Border mapping: uv -> contentUV (matches docs/shaders/wgsl/border.wgsl.js)
+      // Interprets borderSize as "cells", converted to pixels via live cellSize.
+      if (transformName === 'border') {
+        const borderCells = Number(shaderUniforms?.borderSize ?? 0);
+        const cell = getLiveCellSize();
+
+        const resX = Math.max(1, Number(resolution?.x ?? resolution?.[0] ?? terminalCanvas.width ?? 1));
+        const resY = Math.max(1, Number(resolution?.y ?? resolution?.[1] ?? terminalCanvas.height ?? 1));
+
+        const cellPx = Math.max(0, Math.min(cell.x, cell.y));
+        const borderPx = Math.max(0, borderCells) * cellPx;
+        const borderX = borderPx / resX;
+        const borderY = borderPx / resY;
+
+        const inside = uv.x >= borderX && uv.x <= (1 - borderX) && uv.y >= borderY && uv.y <= (1 - borderY);
+        const denomX = Math.max(1e-6, 1 - 2 * borderX);
+        const denomY = Math.max(1e-6, 1 - 2 * borderY);
+        const contentX = (uv.x - borderX) / denomX;
+        const contentY = (uv.y - borderY) / denomY;
+
+        return {
+          uv: { x: clamp01(contentX), y: clamp01(contentY) },
+          inside
+        };
+      }
+
+      return { uv, inside: true };
+    }
+
+    function getPointerTransformChain() {
+      const system = window.shaderSystem;
+      if (!system || system.backend !== 'webgpu' || !Array.isArray(system.pipelines)) return null;
+
+      // Compose transforms from last -> first. Each transform maps output-UV back to input-UV.
+      const chain = [];
+      for (let i = system.pipelines.length - 1; i >= 0; i--) {
+        const p = system.pipelines[i];
+        if (p && p.coordinateTransform) chain.push(p);
+      }
+      return chain.length ? chain : null;
+    }
+
+    function buildForwardedEvent(originalEvent, mappedClientX, mappedClientY) {
+      const common = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX: mappedClientX,
+        clientY: mappedClientY,
+        screenX: originalEvent.screenX,
+        screenY: originalEvent.screenY,
+        ctrlKey: originalEvent.ctrlKey,
+        shiftKey: originalEvent.shiftKey,
+        altKey: originalEvent.altKey,
+        metaKey: originalEvent.metaKey,
+        button: originalEvent.button,
+        buttons: originalEvent.buttons,
+        detail: originalEvent.detail
+      };
+
+      if (originalEvent.type === 'wheel') {
+        return new WheelEvent('wheel', {
+          ...common,
+          deltaX: originalEvent.deltaX,
+          deltaY: originalEvent.deltaY,
+          deltaZ: originalEvent.deltaZ,
+          deltaMode: originalEvent.deltaMode
+        });
+      }
+
+      return new MouseEvent(originalEvent.type, common);
+    }
+
+    function forwardEventToTerminal(e) {
+      // Keep a pointer state for uniforms/debug
+      if (e.type === 'mousemove' || e.type === 'mousedown' || e.type === 'mouseup' || e.type === 'click') {
+        window.__shaderPointer = { clientX: e.clientX, clientY: e.clientY };
+      }
+
+      if (e.type === 'contextmenu') {
+        e.preventDefault();
+      }
+
+      // Keyboard events can be forwarded verbatim
+      if (e.type === 'keydown' || e.type === 'keyup' || e.type === 'keypress') {
+        terminalCanvas.dispatchEvent(new e.constructor(e.type, e));
+        return;
+      }
+
+      const chain = getPointerTransformChain();
+      if (!chain) {
+        terminalCanvas.dispatchEvent(new e.constructor(e.type, e));
+        return;
+      }
+
+      let uv = clientToUv(e.clientX, e.clientY, webgpuCanvas);
+      let inside = true;
+
+      for (const p of chain) {
+        const mapped = applyCoordinateTransform(
+          p.coordinateTransform,
+          uv,
+          p.uniforms,
+          { x: terminalCanvas.width, y: terminalCanvas.height }
+        );
+        uv = mapped.uv;
+        inside = inside && mapped.inside;
+      }
+
+      // If click happens outside any mapped content region, swallow it to avoid mis-clicks
+      if (!inside && e.type !== 'mousemove' && e.type !== 'wheel') return;
+
+      const client = uvToClient(uv, terminalCanvas);
+      terminalCanvas.dispatchEvent(buildForwardedEvent(e, client.clientX, client.clientY));
+    }
+
+    ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'mousemove', 'click', 'wheel', 'contextmenu'].forEach(eventType => {
+      webgpuCanvas.addEventListener(eventType, forwardEventToTerminal);
     });
     
     // Get WebGPU context
@@ -186,7 +532,10 @@ async function initWebGPUShaderSystem(shaderCodes) {
           module: shaderModule,
           uniforms: getShaderConfig.uniforms || {},
           hasBindings: hasBindings,
-          usesUniformsBuffer: usesUniformsBuffer
+          usesUniformsBuffer: usesUniformsBuffer,
+          // Optional coordinate mapping used for pointer correction.
+          // Defaults CRT shader to 'crt' so curved monitor effects remain interactive.
+          coordinateTransform: getShaderConfig.coordinateTransform || (shader.name === 'crt' ? 'crt' : null)
         });
         
         console.log('[WebGPU Shaders] ✓ Compiled:', shader.name);
@@ -381,6 +730,16 @@ function renderWebGPUShaderChain() {
         ctx2d.drawImage(terminalCanvas, 0, 0);
         
         const imageData = ctx2d.getImageData(0, 0, terminalCanvas.width, terminalCanvas.height);
+
+        // Cache a best-effort background color derived from the actual rendered pixels.
+        // This is more reliable than reading theme objects/CSS when themeing is applied in WASM.
+        const bgRgb01 = computeLikelyBackgroundRgb01FromImageData(imageData);
+        if (bgRgb01) {
+          system.liveThemeBackgroundRgb01 = bgRgb01;
+          if (system.frameCount === 0) {
+            console.log('[WebGPU Shaders] Live background (from pixels):', bgRgb01);
+          }
+        }
         
         if (system.frameCount === 0) {
           console.log('[WebGPU Shaders] Got image data:', imageData.width + 'x' + imageData.height);
@@ -469,6 +828,12 @@ function renderWebGPUShaderChain() {
             console.log(`[WebGPU Shaders] ${shader.name} cellSize:`, value, 'terminal:', t.cols + 'x' + t.rows, 'canvas:', system.terminalCanvas.width + 'x' + system.terminalCanvas.height);
           }
         }
+
+        // Special handling for backgroundColor: optionally pull from active theme.
+        // Opt-in by setting backgroundColor to 'theme' (or null) in the shader config.
+        if (name === 'backgroundColor' && (value === 'theme' || value === null)) {
+          value = getLiveThemeBackgroundRgb01(system);
+        }
         
         if (system.frameCount === 0 && name !== 'cellSize') {
           console.log(`[WebGPU Shaders] ${shader.name} uniform ${name}:`, value);
@@ -488,6 +853,13 @@ function renderWebGPUShaderChain() {
             uniformArray.push(0);
           } else if (value.length === 4) {
             uniformArray.push(value[0], value[1], value[2], value[3]);
+          }
+        } else if (typeof value === 'string') {
+          // Support simple keyword uniforms (currently only backgroundColor: 'theme')
+          if (name === 'backgroundColor' && value === 'theme') {
+            const rgb = getLiveThemeBackgroundRgb01(system);
+            uniformArray.push(rgb[0], rgb[1], rgb[2]);
+            uniformArray.push(0);
           }
         }
       }

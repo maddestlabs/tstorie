@@ -5,7 +5,7 @@ This directory contains example WebGL shaders that can be loaded at runtime via 
 ## Quick Start
 
 1. Upload one of the shader files to a GitHub Gist
-2. Use the gist ID in the URL: `?shader=YOUR_GIST_ID`
+2. Use the gist ID in the URL: `?shaders=YOUR_GIST_ID` (also accepts `?shader=` for back-compat)
 3. Combine with other parameters as needed
 
 ## Example Shaders
@@ -40,7 +40,7 @@ Advanced CRT shader based on Apocalypse CRT with:
 2. Modify the GLSL code in `fragmentShader`
 3. Add/remove uniforms as needed
 4. Upload to a GitHub Gist
-5. Test with `?shader=GIST_ID`
+5. Test with `?shaders=GIST_ID`
 
 ## Shader Structure
 
@@ -68,7 +68,7 @@ Your shader automatically receives:
 
 ```bash
 # Load with CRT shader
-?shader=abc123def456
+?shaders=abc123def456
 
 # Combine with story and custom font
 ?gist=story123&shader=shader456&font=Fira+Code

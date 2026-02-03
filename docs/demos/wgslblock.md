@@ -127,7 +127,7 @@ time = time + 0.05
 
 if useGPU and defined("web"):
   # Update shader uniforms using map literal syntax!
-  updateShader("waveEffect", {time: time, mouseX: mouseX, mouseY: mouseY, amplitude: amplitude, frequency: frequency})
+  updateComputeShader("waveEffect", {time: time, mouseX: mouseX, mouseY: mouseY, amplitude: amplitude, frequency: frequency})
   
   # Run compute shader to update particle positions
   shaderResult = runComputeShader("waveEffect", basePositions, positions)
