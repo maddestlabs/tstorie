@@ -164,6 +164,19 @@ const shaderCache = new Map();
 // Uniform storage: name → {uniformData}
 const shaderUniforms = new Map();
 
+// Compute shader pipeline cache: code hash → pipeline
+const computePipelineCache = new Map();
+
+// Hash function for compute shader code
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return hash.toString(36);
+}
+
 /**
  * Update shader uniform values (called from nimini)
  * @param {string} name - Shader name
@@ -188,26 +201,43 @@ window.runComputeShader = async function(code, inputData, outputData, workgroupS
     console.log('  Output length:', outputData.length);
     console.log('  Workgroup size:', workgroupSize);
     
-    if (!window.webgpuDevice || !window.webgpuDevice.device) {
+    if (!window.webgpuBridge || !window.webgpuBridge.device) {
         console.warn('[WGSL Runtime] WebGPU not initialized');
         return false;
     }
     
-    const device = window.webgpuDevice.device;
-    console.log('[WGSL Runtime] Using device:', device);
+    const device = window.webgpuBridge.device;
+    const codeHash = hashString(code);
+    console.log('[WGSL Runtime] Code hash:', codeHash);
     
     try {
-        // Create shader module
-        console.log('[WGSL Runtime] Creating shader module...');
-        const shaderModule = device.createShaderModule({
-            code: code,
-            label: 'Compute Shader'
-        });
-        console.log('[WGSL Runtime] Shader module created');
+        // Get or create cached pipeline
+        let pipeline = computePipelineCache.get(codeHash);
+        if (!pipeline) {
+            console.log('[WGSL Runtime] Compiling new compute pipeline...');
+            const shaderModule = device.createShaderModule({
+                code: code,
+                label: 'Compute Shader'
+            });
+            
+            // Use async pipeline creation (faster, non-blocking)
+            pipeline = await device.createComputePipelineAsync({
+                layout: 'auto',
+                compute: { 
+                    module: shaderModule, 
+                    entryPoint: 'main' 
+                }
+            });
+            
+            computePipelineCache.set(codeHash, pipeline);
+            console.log('[WGSL Runtime] ✓ Pipeline cached');
+        } else {
+            console.log('[WGSL Runtime] ✓ Using cached pipeline');
+        }
         
         // Create buffers
         const inputBuffer = device.createBuffer({
-            size: inputData.length * 4,  // float32
+            size: inputData.length * 4,  // u32 = 4 bytes
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
             mappedAtCreation: true
         });
@@ -215,22 +245,17 @@ window.runComputeShader = async function(code, inputData, outputData, workgroupS
         inputBuffer.unmap();
         
         const outputBuffer = device.createBuffer({
-            size: outputData.length * 4,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+          size: outputData.length * 4,
+          // COPY_DST so we can initialize from outputData.
+          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
         });
+        // Initialize output buffer with the current contents of outputData.
+        // This enables patterns where the compute shader reads initial values from the output buffer.
+        device.queue.writeBuffer(outputBuffer, 0, outputData);
         
         const stagingBuffer = device.createBuffer({
             size: outputData.length * 4,
             usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-        });
-        
-        // Create pipeline
-        const pipeline = device.createComputePipeline({
-            layout: 'auto',
-            compute: {
-                module: shaderModule,
-                entryPoint: 'main'
-            }
         });
         
         // Create bind group
@@ -288,7 +313,181 @@ window.runComputeShader = async function(code, inputData, outputData, workgroupS
  * @returns {boolean}
  */
 window.webgpuComputeSupported = function() {
-    return window.webgpuDevice && window.webgpuDevice.device !== null;
+    return window.webgpuBridge && window.webgpuBridge.device !== null;
+};
+
+/**
+ * Run a compute shader asynchronously with callback (called from nimini)
+ * @param {number} codePtr - WASM pointer to shader code string
+ * @param {number} inputPtr - WASM pointer to input float array
+ * @param {number} inputLen - Input array length
+ * @param {number} outputPtr - WASM pointer to output float array
+ * @param {number} outputLen - Output array length
+ * @param {number} workX - Workgroup X size
+ * @param {number} workY - Workgroup Y size
+ * @param {number} workZ - Workgroup Z size
+ * @param {number} callbackId - Callback ID to invoke when done
+ * @returns {number} - 1 on success, 0 on failure
+ */
+window.tStorie_runComputeShaderAsync = async function(codePtr, inputPtr, inputLen, outputPtr, outputLen, workX, workY, workZ, callbackId) {
+    if (!window.webgpuBridge?.device) {
+        console.warn('[WGSL Runtime] WebGPU not initialized');
+        return 0;
+    }
+    
+    const device = window.webgpuBridge.device;
+    
+    try {
+        // Convert WASM pointers to JavaScript
+        const code = UTF8ToString(codePtr);
+        const inputData = new Float32Array(HEAPF32.buffer, inputPtr, inputLen);
+        const outputData = new Float32Array(HEAPF32.buffer, outputPtr, outputLen);
+        const workgroupSize = [workX, workY, workZ];
+        
+        console.log('[WGSL Async] Starting compute shader, callback ID:', callbackId,
+          'outputPtr:', outputPtr, 'outputLen:', outputLen,
+          'heapBytes:', (typeof HEAPU8 !== 'undefined' ? HEAPU8.length : 'n/a'));
+        
+        // Use cached pipeline
+        const codeHash = hashString(code);
+        
+        let pipeline = computePipelineCache.get(codeHash);
+        if (!pipeline) {
+            const shaderModule = device.createShaderModule({ code, label: 'Compute' });
+            pipeline = await device.createComputePipelineAsync({
+                layout: 'auto',
+                compute: { module: shaderModule, entryPoint: 'main' }
+            });
+            computePipelineCache.set(codeHash, pipeline);
+            console.log('[WGSL Async] ✓ Pipeline cached');
+        } else {
+            console.log('[WGSL Async] ✓ Using cached pipeline');
+        }
+        
+        // Execute GPU work (same as sync version)
+        const inputBuffer = device.createBuffer({
+            size: inputLen * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            mappedAtCreation: true
+        });
+        new Float32Array(inputBuffer.getMappedRange()).set(inputData);
+        inputBuffer.unmap();
+        
+        const outputBuffer = device.createBuffer({
+          size: outputLen * 4,
+          // COPY_DST so we can initialize from outputData.
+          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+        });
+        // Initialize output buffer with the current contents of outputData.
+        // This enables patterns where the compute shader reads initial values from the output buffer.
+        device.queue.writeBuffer(outputBuffer, 0, outputData);
+        
+        const stagingBuffer = device.createBuffer({
+            size: outputLen * 4,
+            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+        });
+        
+        const bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: { buffer: inputBuffer } },
+                { binding: 1, resource: { buffer: outputBuffer } }
+            ]
+        });
+        
+        const commandEncoder = device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(pipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        
+        const workgroupCount = Math.ceil(outputLen / workgroupSize[0]);
+        passEncoder.dispatchWorkgroups(workgroupCount, workgroupSize[1], workgroupSize[2]);
+        passEncoder.end();
+        
+        commandEncoder.copyBufferToBuffer(outputBuffer, 0, stagingBuffer, 0, outputLen * 4);
+        device.queue.submit([commandEncoder.finish()]);
+        
+        // Wait for GPU completion (non-blocking for browser)
+        await device.queue.onSubmittedWorkDone();
+        
+        // Read back results
+        await stagingBuffer.mapAsync(GPUMapMode.READ);
+        const results = new Float32Array(stagingBuffer.getMappedRange());
+        
+        // Copy results back to WASM memory
+        // IMPORTANT: Get current buffer after async operations (memory may have grown)
+        // HEAP8 is a global that gets updated by Emscripten's updateMemoryViews()
+        const currentOutputData = new Float32Array(HEAPF32.buffer, outputPtr, outputLen);
+        currentOutputData.set(results.subarray(0, outputLen));
+        
+        stagingBuffer.unmap();
+        
+        // Cleanup
+        inputBuffer.destroy();
+        outputBuffer.destroy();
+        stagingBuffer.destroy();
+        
+        console.log('[WGSL Async] ✓ Compute complete, invoking callback', callbackId,
+          'outputPtr:', outputPtr, 'outputLen:', outputLen,
+          'heapBytes:', (typeof HEAPU8 !== 'undefined' ? HEAPU8.length : 'n/a'));
+        
+        // Invoke callback (exported from WASM)
+        Module._invokeComputeCallback(callbackId);
+        
+        return 1;  // Success
+        
+    } catch (error) {
+        console.error('[WGSL Async] Compute shader execution failed:', error);
+        return 0;
+    }
+};
+
+/**
+ * Run a compute shader synchronously (fire-and-forget, called from nimini)
+ * @param {number} codePtr - WASM pointer to shader code string
+ * @param {number} inputPtr - WASM pointer to input float array
+ * @param {number} inputLen - Input array length
+ * @param {number} outputPtr - WASM pointer to output float array
+ * @param {number} outputLen - Output array length
+ * @param {number} workX - Workgroup X size
+ * @param {number} workY - Workgroup Y size
+ * @param {number} workZ - Workgroup Z size
+ * @returns {number} - 1 on success, 0 on failure
+ */
+window.tStorie_runComputeShaderSync = function(codePtr, inputPtr, inputLen, outputPtr, outputLen, workX, workY, workZ) {
+    if (!window.webgpuBridge?.device) {
+        console.warn('[WGSL Runtime] WebGPU not initialized');
+        return 0;
+    }
+    
+    try {
+        // Convert WASM pointers to JavaScript
+        const code = UTF8ToString(codePtr);
+        const inputData = Array.from(new Float32Array(HEAPF32.buffer, inputPtr, inputLen));
+        const outputData = new Float32Array(HEAPF32.buffer, outputPtr, outputLen);
+        const workgroupSize = [workX, workY, workZ];
+        
+        console.log('[WGSL Sync] Starting compute shader (fire-and-forget)');
+        
+        // Call the async version and let it run in background
+        window.runComputeShader(code, inputData, outputData, workgroupSize)
+            .then(result => {
+                console.log('[WGSL Sync] ✓ Compute completed');
+                // Copy results back to WASM memory
+                for (let i = 0; i < outputLen && i < result.length; i++) {
+                    outputData[i] = result[i];
+                }
+            })
+            .catch(error => {
+                console.error('[WGSL Sync] Compute failed:', error);
+            });
+        
+        return 1;  // Started successfully
+        
+    } catch (error) {
+        console.error('[WGSL Sync] Failed to start compute shader:', error);
+        return 0;
+    }
 };
 
 console.log('[WGSL Runtime] Loaded - GPU compute shader support enabled');

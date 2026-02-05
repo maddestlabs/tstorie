@@ -2332,16 +2332,27 @@
                             
                             gl.drawArrays(gl.TRIANGLES, 0, 6);
                         }
-                        
-                        // Continue render loop
-                        this.animationId = requestAnimationFrame(() => this.render());
+                    },
+                    
+                    // Callback for synchronized rendering
+                    onTerminalRenderComplete: null
+                };
+                
+                // Instead of independent loop, sync with terminal render cycle
+                // This eliminates flickering by ensuring we only sample fully rendered frames
+                let renderRequested = false;
+                shaderSystem.onTerminalRenderComplete = function() {
+                    if (!renderRequested) {
+                        renderRequested = true;
+                        // Use microtask to render immediately after terminal
+                        Promise.resolve().then(() => {
+                            renderRequested = false;
+                            shaderSystem.render();
+                        });
                     }
                 };
                 
-                // Start continuous render loop
-                shaderSystem.render();
-                
-                console.log('Shader system initialized successfully');
+                console.log('Shader system initialized successfully (synchronized mode)');
                 progress.textContent = '';
             } catch (e) {
                 console.error('Failed to initialize shader system:', e);
@@ -2373,8 +2384,15 @@
     <script src="tstorie-webgpu-render.js"></script>
     <script src="tstorie-hybrid-renderer.js"></script>
     <script src="webgpu_wasm_bridge.js"></script>
+    <script src="wgsl_runtime.js"></script>
     
     <!-- Then load the WASM module -->
     <script src="tstorie.wasm.js" onerror="document.getElementById('container').innerHTML = '<div class=\'error\'><h2>Failed to load WASM module</h2><p>Make sure tstorie.wasm.js exists in the same directory.</p></div>';"></script>
+    <!-- WebGPU Phase 6: Full rendering + compute -->
+    <script src="webgpu_bridge.js"></script>
+    <script src="webgpu_shader_system.js"></script>
+    <script src="tstorie-webgpu-render.js"></script>
+    <script src="tstorie-hybrid-renderer.js"></script>
+    <script src="webgpu_wasm_bridge.js"></script>
 </body>
 </html>

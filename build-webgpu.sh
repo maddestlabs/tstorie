@@ -133,7 +133,7 @@ NIM_OPTS="c
   $RELEASE_MODE
   --nimcache:nimcache_wasm
   --passL:-s --passL:ALLOW_MEMORY_GROWTH=1
-  --passL:-s --passL:EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emGetCellWidth','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseRelease','_emHandleMouseMove','_emHandleMouseWheel','_emSetWaitingForGist','_emLoadMarkdownFromJS','_emCheckDropTarget','_emHandleDroppedFile','_emscripten_setParam_internal']
+    --passL:-s --passL:EXPORTED_FUNCTIONS=['_malloc','_free','_emInit','_emUpdate','_emResize','_emGetCell','_emGetCellFgR','_emGetCellFgG','_emGetCellFgB','_emGetCellBgR','_emGetCellBgG','_emGetCellBgB','_emGetCellBold','_emGetCellItalic','_emGetCellUnderline','_emGetCellWidth','_emHandleKeyPress','_emHandleTextInput','_emHandleMouseClick','_emHandleMouseRelease','_emHandleMouseMove','_emHandleMouseWheel','_emSetWaitingForGist','_emLoadMarkdownFromJS','_emCheckDropTarget','_emHandleDroppedFile','_emscripten_setParam_internal','_invokeComputeCallback']
   --passL:-s --passL:EXPORTED_RUNTIME_METHODS=['ccall','cwrap','allocateUTF8','UTF8ToString','lengthBytesUTF8','stringToUTF8']
   --passL:-s --passL:MODULARIZE=0
   --passL:-s --passL:EXPORT_NAME='Module'

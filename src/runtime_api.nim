@@ -1634,6 +1634,9 @@ when defined(emscripten):
   proc js_webgpuGetValue(index: cint): cint {.importc: "tStorie_webgpuGetValue".}
   proc js_webgpuGetResultSize(): cint {.importc: "tStorie_webgpuGetResultSize".}
   proc js_webgpuCancel() {.importc: "tStorie_webgpuCancel".}
+  
+  # Emscripten helper for running JavaScript
+  proc emscripten_run_script(script: cstring) {.importc, header: "<emscripten.h>".}
 
   proc nimini_webgpuSupported(env: ref Env; args: seq[Value]): Value {.nimini.} =
     ## Check if WebGPU is supported in the browser

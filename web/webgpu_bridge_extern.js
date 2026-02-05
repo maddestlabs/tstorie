@@ -64,5 +64,21 @@ mergeInto(LibraryManager.library, {
       return window.tStorie_injectWGSLShader(name, vertex, fragment, uniformsJson);
     }
     return 0;
+  },
+  
+  tStorie_runComputeShaderAsync: function(codePtr, inputPtr, inputLen, outputPtr, outputLen, workX, workY, workZ, callbackId) {
+    if (typeof window !== 'undefined' && window.tStorie_runComputeShaderAsync) {
+      // Call the async function (it will handle the callback)
+      window.tStorie_runComputeShaderAsync(codePtr, inputPtr, inputLen, outputPtr, outputLen, workX, workY, workZ, callbackId);
+      return 1;
+    }
+    return 0;
+  },
+  
+  tStorie_runComputeShaderSync: function(codePtr, inputPtr, inputLen, outputPtr, outputLen, workX, workY, workZ) {
+    if (typeof window !== 'undefined' && window.tStorie_runComputeShaderSync) {
+      return window.tStorie_runComputeShaderSync(codePtr, inputPtr, inputLen, outputPtr, outputLen, workX, workY, workZ);
+    }
+    return 0;
   }
 });

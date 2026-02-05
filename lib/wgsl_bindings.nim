@@ -25,112 +25,146 @@ when defined(emscripten):
   # Bridge function defined in webgpu_bridge_extern.js
   proc tStorie_injectWGSLShader(namePtr: cstring, vertexPtr: cstring, 
                                 fragmentPtr: cstring, uniformsPtr: cstring): cint {.importc.}
-
-# ================================================================
-# JAVASCRIPT BRIDGE (EM_JS)
-# ================================================================
-
-when defined(emscripten):
-  # EM_JS implementations - bridge to wgsl_runtime.js
-  {.emit: """/*INCLUDESECTION*/
-#include <emscripten.h>
-
-EM_JS(void, js_updateShaderUniforms, 
-     (const char* namePtr, int nameLen, const char* uniformsJson), {
-  const name = UTF8ToString(namePtr, nameLen);
-  const uniforms = JSON.parse(UTF8ToString(uniformsJson));
-  if (typeof window.updateShaderUniforms !== 'undefined') {
-    window.updateShaderUniforms(name, uniforms);
-  } else {
-    console.warn('updateShaderUniforms not available - is wgsl_runtime.js loaded?');
-  }
-});
-
-EM_JS(int, js_runComputeShader, 
-     (const char* code, 
-      const float* inputPtr, int inputLen,
-      float* outputPtr, int outputLen,
-      int workX, int workY, int workZ), {
-  const codeStr = UTF8ToString(code);
-  const input = new Float32Array(HEAPF32.buffer, inputPtr >> 2, inputLen);
-  const output = new Float32Array(HEAPF32.buffer, outputPtr >> 2, outputLen);
   
-  console.log('[EM_JS Bridge] runComputeShader called');
-  console.log('  Code length:', codeStr.length);
-  console.log('  Input length:', inputLen);
-  console.log('  Output length:', outputLen);
-  console.log('  Workgroup:', workX, workY, workZ);
-  console.log('  window.runComputeShader exists?', typeof window.runComputeShader !== 'undefined');
+  # Bridge function for async compute shader execution
+  # Implemented in wgsl_runtime.js as window.tStorie_runComputeShaderAsync
+  proc tStorie_runComputeShaderAsync(codePtr: cstring,
+                                     inputPtr: ptr cfloat, inputLen: cint,
+                                     outputPtr: ptr cfloat, outputLen: cint,
+                                     workX, workY, workZ: cint,
+                                     callbackId: cint): cint {.importc.}
   
-  if (typeof window.runComputeShader !== 'undefined') {
-    // Call async WebGPU function
-    window.runComputeShader(
-      codeStr, 
-      Array.from(input), 
-      Array.from(output), 
-      [workX, workY, workZ]
-    ).then(result => {
-      console.log('[EM_JS Bridge] GPU compute completed, result length:', result.length);
-      // Copy results back to WASM memory
-      for (let i = 0; i < result.length && i < outputLen; i++) {
-        output[i] = result[i];
-      }
-    }).catch(err => {
-      console.error('[EM_JS Bridge] GPU compute shader failed:', err);
-    });
-    return 1; // Success (async)
-  } else {
-    console.warn('[EM_JS Bridge] runComputeShader not available - is wgsl_runtime.js loaded?');
-    return 0; // WebGPU not available
-  }
-});
-
-EM_JS(void, js_logRegisterShaders, (int count), {
-  console.log("[WGSL-NIM] registerWGSLShaders called with", count, "shaders");
-});
-
-EM_JS(void, js_logAfterRegister, (int count), {
-  console.log("[WGSL-NIM] gShaders after assignment:", count);
-});
-
-EM_JS(void, js_logListShaders, (int count), {
-  console.log("[WGSL-NIM] listShaders called, gShaders.len =", count);
-});
-
-EM_JS(void, js_logReturnShaders, (int count), {
-  console.log("[WGSL-NIM] Returning", count, "shader names");
-});
-  """.}
+  # Bridge function for synchronous compute shader execution (fire-and-forget)
+  # Implemented in wgsl_runtime.js as window.tStorie_runComputeShaderSync
+  proc tStorie_runComputeShaderSync(codePtr: cstring,
+                                    inputPtr: ptr cfloat, inputLen: cint,
+                                    outputPtr: ptr cfloat, outputLen: cint,
+                                    workX, workY, workZ: cint): cint {.importc.}
   
-  # Nim wrapper procs that call the EM_JS functions
-  proc js_updateShaderUniforms(namePtr: cstring, nameLen: cint, uniformsJson: cstring) =
-    {.emit: "`js_updateShaderUniforms`(`namePtr`, `nameLen`, `uniformsJson`);".}
-  
-  proc js_runComputeShader(code: cstring, 
-                           inputPtr: ptr cfloat, inputLen: cint,
-                           outputPtr: ptr cfloat, outputLen: cint,
-                           workX, workY, workZ: cint): cint =
-    {.emit: "return `js_runComputeShader`(`code`, `inputPtr`, `inputLen`, `outputPtr`, `outputLen`, `workX`, `workY`, `workZ`);".}
-  
-  proc js_logRegisterShaders(count: cint) =
-    {.emit: "`js_logRegisterShaders`(`count`);".}
-  
-  proc js_logAfterRegister(count: cint) =
-    {.emit: "`js_logAfterRegister`(`count`);".}
-  
-  proc js_logListShaders(count: cint) =
-    {.emit: "`js_logListShaders`(`count`);".}
-  
-  proc js_logReturnShaders(count: cint) =
-    {.emit: "`js_logReturnShaders`(`count`);".}
+  # Emscripten helper for running JavaScript
+  proc emscripten_run_script(script: cstring) {.importc, header: "<emscripten.h>".}
+  proc emscripten_run_script_int(script: cstring): cint {.importc, header: "<emscripten.h>".}
 
 # ================================================================
 # GLOBAL SHADER REGISTRY
 # ================================================================
-  proc emscripten_run_script*(script: cstring) {.importc, header: "<emscripten.h>".}
 
 # Global shader registry (populated by setMarkdownContent)
 var gShaders*: seq[WGSLShader] = @[]
+
+# Compute shader callback management
+type ComputeCallback = ref object
+  callback: Value
+  env: ref Env
+  outputData: Value
+  outputPtr: ptr cfloat
+  outputLen: int
+  outputOwned: bool
+  outputAsInts: bool
+
+  # Keep buffers alive until JS callback fires.
+  # Without this, JS writes into freed/moved seq memory.
+  inputArr: seq[cfloat]
+
+var gComputeCallbacks = initTable[int, ComputeCallback]()
+var gNextCallbackId = 1
+
+proc invokeComputeCallback(callbackId: cint) {.exportc, cdecl.} =
+  ## Called from JavaScript when GPU compute completes
+  when defined(emscripten):
+    emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback enter')")
+
+  if not gComputeCallbacks.hasKey(callbackId.int):
+    when defined(emscripten):
+      emscripten_run_script("console.warn('[WGSL-NIM] invokeComputeCallback missing id')")
+    return
+  
+  let callbackData = gComputeCallbacks[callbackId.int]
+
+  # Remove from registry early to avoid any chance of re-entrancy.
+  # callbackData is a ref object, so it remains valid after deletion.
+  gComputeCallbacks.del(callbackId.int)
+
+  when defined(emscripten):
+    emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback copying')")
+
+  # Copy results from the pinned output buffer into the Nimini output array.
+  # JS writes into callbackData.outputPtr via the pointer we passed.
+  if callbackData != nil and callbackData.outputData != nil and callbackData.outputData.kind == vkArray:
+    let outPtr = callbackData.outputPtr
+    if outPtr == nil or callbackData.outputLen <= 0:
+      when defined(emscripten):
+        emscripten_run_script("console.warn('[WGSL-NIM] invokeComputeCallback no output buffer')")
+    else:
+      when defined(emscripten):
+        let outPtrInt = cast[uint](outPtr)
+        emscripten_run_script((
+          "console.log('[WGSL-NIM] outPtr', " & $outPtrInt &
+          ", 'outLen', " & $callbackData.outputLen &
+          ", 'outDataLen', " & $callbackData.outputData.arr.len &
+          ", 'heapBytes', HEAPU8.length);"
+        ).cstring)
+
+      let outBuf = cast[ptr UncheckedArray[cfloat]](outPtr)
+      let n = min(callbackData.outputData.arr.len, callbackData.outputLen)
+
+      var rangeOk: cint = 1
+      when defined(emscripten):
+        # If this fails, the pointer/len combination would read past the end of WASM memory.
+        let byteEndExpr = "((" & $cast[uint](outPtr) & " + " & $(n * 4) & ") <= HEAPU8.length) ? 1 : 0"
+        rangeOk = emscripten_run_script_int(byteEndExpr.cstring)
+
+      if rangeOk == 0:
+        when defined(emscripten):
+          emscripten_run_script("console.error('[WGSL-NIM] output buffer range exceeds HEAPU8; skipping copy to avoid trap')")
+      else:
+        var i = 0
+        while i < n:
+          when defined(emscripten):
+            if i == 1:
+              emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback i=1 pre-read')")
+
+          let f = outBuf[i].float
+
+          when defined(emscripten):
+            if i == 1:
+              emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback i=1 post-read')")
+
+          let existing = callbackData.outputData.arr[i]
+          if existing == nil:
+            if callbackData.outputAsInts:
+              callbackData.outputData.arr[i] = valInt(int(f))
+            else:
+              callbackData.outputData.arr[i] = valFloat(f)
+          else:
+            if callbackData.outputAsInts:
+              existing.kind = vkInt
+              existing.i = int(f)
+              existing.f = float(existing.i)
+            else:
+              existing.kind = vkFloat
+              existing.f = f
+              existing.i = int(f)
+
+          when defined(emscripten):
+            if i == 0:
+              emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback copied i=0')")
+            if i == 1:
+              emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback copied i=1')")
+          inc i
+
+  when defined(emscripten):
+    emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback calling cb')")
+
+  if callbackData != nil and callbackData.callback.kind == vkFunction:
+    discard callFunctionValue(callbackData.callback, @[], callbackData.env)
+
+  when defined(emscripten):
+    emscripten_run_script("console.log('[WGSL-NIM] invokeComputeCallback done')")
+
+  # Free the owned output buffer after we're done copying.
+  if callbackData != nil and callbackData.outputOwned and callbackData.outputPtr != nil:
+    deallocShared(callbackData.outputPtr)
 
 proc registerWGSLShaders*(shaders: seq[WGSLShader]) =
   ## Register WGSL shaders from parsed markdown with comprehensive safety validation
@@ -168,22 +202,19 @@ proc registerWGSLShaders*(shaders: seq[WGSLShader]) =
         inc failureCount
         continue
       
-      # Only process fragment shaders for now
-      if shader.kind != FragmentShader:
-        echo "[WGSL-NIM] ○ SKIPPED - Not a fragment shader: ", shader.name
-        continue
-      
-      echo "[WGSL-NIM] ✓ Validated: ", shader.name, " (", shader.uniforms.len, " uniforms)"
-      
-      # Determine vertex/fragment split
-      var vertexShader = ""
-      var fragmentShader = shader.code
-      
-      let hasVertexShader = "@vertex" in shader.code and "fn vertexMain" in shader.code
-      
-      if not hasVertexShader:
-        # Fragment-only shader - add default vertex shader
-        vertexShader = """
+      # Process fragment shaders
+      if shader.kind == FragmentShader:
+        echo "[WGSL-NIM] ✓ Validated: ", shader.name, " (", shader.uniforms.len, " uniforms)"
+        
+        # Determine vertex/fragment split
+        var vertexShader = ""
+        var fragmentShader = shader.code
+        
+        let hasVertexShader = "@vertex" in shader.code and "fn vertexMain" in shader.code
+        
+        if not hasVertexShader:
+          # Fragment-only shader - add default vertex shader
+          vertexShader = """
 struct VertexOutput {
   @builtin(position) position: vec4f,
   @location(0) uv: vec2f,
@@ -197,45 +228,62 @@ fn vertexMain(@location(0) pos: vec2f) -> VertexOutput {
   return output;
 }
 """
+        
+        # Build uniforms JSON with sensible defaults
+        # Use 1.0 for tint/color uniforms (neutral = no change)
+        # Use 0.0 for time and other additive values
+        var uniformsJson = "{"
+        if shader.uniforms.len > 0:
+          var first = true
+          for uniformName in shader.uniforms:
+            if not first: uniformsJson.add(",")
+            let safeName = uniformName.replace("\"", "\\\"")
+            
+            # Smart defaults based on uniform name
+            let defaultValue = 
+              if "time" in uniformName.toLower: "0.0"
+              elif "tint" in uniformName.toLower or "color" in uniformName.toLower: "1.0"
+              elif uniformName.toLower in ["resolution", "cellsize"]: "1.0"
+              else: "1.0"  # Default to 1.0 (neutral multiplier)
+            
+            uniformsJson.add("\"" & safeName & "\": " & defaultValue)
+            first = false
+        uniformsJson.add("}")
+        uniformsJson = sanitizeJSON(uniformsJson)
+        
+        echo "[WGSL-NIM] Injecting via bridge: ", shader.name
+        
+        # Call JS bridge
+        let result = tStorie_injectWGSLShader(
+          shader.name.cstring,
+          vertexShader.cstring,
+          fragmentShader.cstring,
+          uniformsJson.cstring
+        )
+        
+        if result == 1:
+          echo "[WGSL-NIM] ✓ Successfully injected: ", shader.name
+          inc successCount
+        else:
+          echo "[WGSL-NIM] ✗ FAILED to inject: ", shader.name
+          inc failureCount
       
-      # Build uniforms JSON with sensible defaults
-      # Use 1.0 for tint/color uniforms (neutral = no change)
-      # Use 0.0 for time and other additive values
-      var uniformsJson = "{"
-      if shader.uniforms.len > 0:
-        var first = true
-        for uniformName in shader.uniforms:
-          if not first: uniformsJson.add(",")
-          let safeName = uniformName.replace("\"", "\\\"")
-          
-          # Smart defaults based on uniform name
-          let defaultValue = 
-            if "time" in uniformName.toLower: "0.0"
-            elif "tint" in uniformName.toLower or "color" in uniformName.toLower: "1.0"
-            elif uniformName.toLower in ["resolution", "cellsize"]: "1.0"
-            else: "1.0"  # Default to 1.0 (neutral multiplier)
-          
-          uniformsJson.add("\"" & safeName & "\": " & defaultValue)
-          first = false
-      uniformsJson.add("}")
-      uniformsJson = sanitizeJSON(uniformsJson)
-      
-      echo "[WGSL-NIM] Injecting via bridge: ", shader.name
-      
-      # Call JS bridge
-      let result = tStorie_injectWGSLShader(
-        shader.name.cstring,
-        vertexShader.cstring,
-        fragmentShader.cstring,
-        uniformsJson.cstring
-      )
-      
-      if result == 1:
-        echo "[WGSL-NIM] ✓ Successfully injected: ", shader.name
+      elif shader.kind == ComputeShader:
+        # === COMPUTE SHADER SAFETY VALIDATION ===
+        let computeValid = validateComputeShader(shader)
+        if not computeValid.valid:
+          echo "[WGSL-NIM] ✗ REJECTED - Invalid compute shader: ", shader.name
+          echo formatValidationErrors(computeValid.errors)
+          inc failureCount
+          continue
+        
+        echo "[WGSL-NIM] ✓ Registered compute shader: ", shader.name, " workgroup=", shader.workgroupSize
+        # Compute shaders stored in gShaders, called via runComputeShader()
         inc successCount
+      
       else:
-        echo "[WGSL-NIM] ✗ FAILED to inject: ", shader.name
-        inc failureCount
+        echo "[WGSL-NIM] ○ SKIPPED - Unsupported shader type: ", shader.name
+        continue
     
     echo "[WGSL-NIM] Registration complete: ", successCount, " success, ", failureCount, " failed"
   else:
@@ -288,13 +336,9 @@ proc nimini_listShaders*(env: ref Env; args: seq[Value]): Value {.nimini.} =
   ## List all available shader names
   ## Usage: listShaders()
   ## Returns: array of shader names
-  when defined(emscripten):
-    js_logListShaders(cint(gShaders.len))
   var names: seq[Value] = @[]
   for shader in gShaders:
     names.add(valString(shader.name))
-  when defined(emscripten):
-    js_logReturnShaders(cint(names.len))
   return valArray(names)
 
 proc nimini_updateComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini.} =
@@ -340,8 +384,10 @@ proc nimini_updateComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini
       first = false
     uniformsJson.add("}")
     
-    # Call JavaScript bridge
-    js_updateShaderUniforms(name.cstring, name.len.cint, uniformsJson.cstring)
+    # Call JavaScript bridge using emscripten_run_script
+    let script = "if(window.updateShaderUniforms){window.updateShaderUniforms('" & 
+                 name & "'," & uniformsJson & ");}"
+    emscripten_run_script(script.cstring)
   else:
     # Native: Future SDL3 GPU implementation
     discard
@@ -349,13 +395,16 @@ proc nimini_updateComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini
   return valBool(true)
 
 proc nimini_runComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini.} =
-  ## Execute a compute shader
+  ## Execute a compute shader (fire-and-forget, non-blocking)
   ## Usage: runComputeShader("particlePhysics", inputData, outputData)
   ##
   ## inputData: array of numbers (will be copied to GPU buffer)
-  ## outputData: array (will be filled with GPU results)
+  ## outputData: array (will be filled with GPU results asynchronously)
   ##
-  ## Returns: true on success, false on failure
+  ## Note: This version is non-blocking. Results appear in outputData
+  ## after GPU completes. Use runComputeShaderAsync for callback notification.
+  ##
+  ## Returns: true if shader started successfully, false on failure
   if args.len < 3:
     return valBool(false)
   
@@ -391,8 +440,8 @@ proc nimini_runComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini.} 
     
     var outputArr = newSeq[cfloat](outputData.arr.len)
     
-    # Call JavaScript bridge
-    let success = js_runComputeShader(
+    # Call JavaScript bridge (now uses cached pipeline)
+    let success = tStorie_runComputeShaderSync(
       shader.code.cstring,
       if inputArr.len > 0: addr inputArr[0] else: nil, inputArr.len.cint,
       if outputArr.len > 0: addr outputArr[0] else: nil, outputArr.len.cint,
@@ -400,15 +449,115 @@ proc nimini_runComputeShader*(env: ref Env; args: seq[Value]): Value {.nimini.} 
       shader.workgroupSize.y.cint,
       shader.workgroupSize.z.cint
     )
-    
-    # Note: Results are written asynchronously to outputArr by JavaScript
-    # The output array in nimini will be updated in-place via HEAPF32
+
+    # Copy results back into the Nimini output array immediately.
+    # Sync bridge fills outputArr before returning.
+    if outputData.kind == vkArray:
+      let n = min(outputData.arr.len, outputArr.len)
+      let outputAsInts = (outputData.arr.len > 0 and outputData.arr[0].kind == vkInt)
+      var i = 0
+      while i < n:
+        let f = outputArr[i].float
+        if outputAsInts:
+          outputData.arr[i] = valInt(int(f))
+        else:
+          outputData.arr[i] = valFloat(f)
+        inc i
+
     return valBool(success == 1)
   else:
     # Native: Future SDL3 GPU + SDL_shadercross implementation
     return valBool(false)
   
   return valBool(false)
+
+proc nimini_runComputeShaderAsync*(env: ref Env; args: seq[Value]): Value {.nimini.} =
+  ## Execute compute shader asynchronously with callback
+  ## Usage: runComputeShaderAsync("name", input, output, callback=onComplete)
+  ## 
+  ## Callback signature: fn onComplete() { ... }
+  ## Input/output arrays are modified in-place, accessible in callback
+  if args.len < 4:
+    return valBool(false)
+  
+  let name = valueToString(args[0])
+  let inputData = args[1]
+  let outputData = args[2]
+  let callback = args[3]
+  
+  if callback.kind != vkFunction:
+    echo "[Compute Shader] Callback must be a function"
+    return valBool(false)
+  
+  if inputData.kind != vkArray:
+    echo "[Compute Shader] Input must be an array"
+    return valBool(false)
+  
+  # Find shader
+  var shader: WGSLShader
+  var found = false
+  for s in gShaders:
+    if s.name == name:
+      shader = s
+      found = true
+      break
+  
+  if not found:
+    echo "[Compute Shader] Shader not found: ", name
+    return valBool(false)
+  
+  when defined(emscripten):
+    # Capture a stable environment for async callback execution.
+    # The current `env` may be a short-lived call/update env.
+    var rootEnv = env
+    while rootEnv != nil and rootEnv.parent != nil:
+      rootEnv = rootEnv.parent
+
+    # Convert arrays
+    var inputArr: seq[cfloat] = @[]
+    for v in inputData.arr:
+      if v.kind == vkFloat: inputArr.add(v.f.cfloat)
+      elif v.kind == vkInt: inputArr.add(v.i.cfloat)
+      else: inputArr.add(0.cfloat)
+    
+    let outputLen = outputData.arr.len
+    let outputPtr = (if outputLen > 0:
+      cast[ptr cfloat](allocShared0(outputLen * 4))
+    else:
+      nil)
+
+    # Determine preferred output type based on existing array contents
+    let outputAsInts = (outputData.arr.len > 0 and outputData.arr[0].kind == vkInt)
+
+    # Store callback + buffers with environment (keeps seqs alive)
+    let callbackId = gNextCallbackId
+    inc gNextCallbackId
+    var cb: ComputeCallback
+    new(cb)
+    cb.callback = callback
+    cb.env = rootEnv
+    cb.outputData = outputData
+    cb.outputPtr = outputPtr
+    cb.outputLen = outputLen
+    cb.outputOwned = true
+    cb.outputAsInts = outputAsInts
+    cb.inputArr = inputArr
+    gComputeCallbacks[callbackId] = cb
+    
+    # Call JavaScript bridge function
+    let success = tStorie_runComputeShaderAsync(
+      shader.code.cstring,
+      if inputArr.len > 0: addr inputArr[0] else: nil, inputArr.len.cint,
+      outputPtr, outputLen.cint,
+      shader.workgroupSize.x.cint,
+      shader.workgroupSize.y.cint,
+      shader.workgroupSize.z.cint,
+      callbackId.cint
+    )
+    
+    return valBool(success == 1)  # Started successfully
+  else:
+    return valBool(false)
 
 # Register bindings
 proc registerWGSLBindings*() =
@@ -425,4 +574,7 @@ proc registerWGSLBindings*() =
   )
   queuePluginRegistration(proc() =
     registerNative("runComputeShader", nimini_runComputeShader)
+  )
+  queuePluginRegistration(proc() =
+    registerNative("runComputeShaderAsync", nimini_runComputeShaderAsync)
   )

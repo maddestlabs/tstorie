@@ -334,6 +334,59 @@ proc execBlock(sts: seq[Stmt]; env: ref Env): ExecResult
 
 # Function call --------------------------------------------------------
 
+proc callFunctionValue*(fnValue: Value; args: seq[Value]; env: ref Env): Value =
+  ## Call a function Value directly (native or user-defined).
+  ## This is useful for bindings that receive callbacks as Values.
+  if fnValue.kind != vkFunction:
+    quit "Runtime Error: Value is not callable"
+
+  let fn = fnValue.fnVal
+  if fn.isNative:
+    return fn.native(env, args)
+
+  # User-defined function
+  let callEnv = newEnv(env)
+  callEnv.deferStack = @[]
+
+  # Bind parameters (no var-param copy-back here; args are Values already)
+  for i, pname in fn.params:
+    if i < args.len:
+      defineVar(callEnv, pname, args[i])
+    else:
+      defineVar(callEnv, pname, valNil())
+
+  # Initialize 'result' variable if function has a return type
+  if fn.returnType != nil:
+    defineVar(callEnv, "result", Value(kind: vkMap, map: initTable[string, Value]()))
+
+  # Execute body, propagate return
+  var returnValue = valNil()
+  var hasReturnValue = false
+
+  for st in fn.stmts:
+    let res = execStmt(st, callEnv)
+    if res.hasReturn():
+      returnValue = res.value
+      hasReturnValue = true
+      break
+
+  # Execute deferred statements in reverse order (LIFO)
+  for i in countdown(callEnv.deferStack.len - 1, 0):
+    discard execStmt(callEnv.deferStack[i], callEnv)
+
+  if hasReturnValue:
+    return returnValue
+
+  # If no explicit return but function has return type
+  if fn.returnType != nil:
+    # Check if last statement was an expression (implicit return in Nim)
+    if fn.stmts.len > 0 and fn.stmts[^1].kind == skExpr:
+      return evalExpr(fn.stmts[^1].expr, callEnv)
+    # Otherwise return the 'result' variable
+    return getVar(callEnv, "result")
+
+  return valNil()
+
 proc evalCall(name: string; args: seq[Expr]; env: ref Env): Value =
   # Check for isolated RNG function calls (rand with Rand as first arg)
   if name in ["rand", "randFloat", "sample", "shuffle", "choice"] and args.len > 0:

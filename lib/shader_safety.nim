@@ -145,3 +145,44 @@ proc formatValidationErrors*(errors: seq[ValidationError]): string =
     lines.add("  [" & err.field & "] " & err.message)
   
   return lines.join("\n")
+
+proc validateComputeShader*(shader: auto): ValidationResult =
+  ## Validate compute shader is safe and well-formed
+  ## Checks workgroup size, bindings, and entry point
+  result = ValidationResult(valid: true, errors: @[])
+  
+  # Check workgroup size limits
+  let totalThreads = shader.workgroupSize.x * shader.workgroupSize.y * shader.workgroupSize.z
+  if totalThreads > 256:
+    result.valid = false
+    result.errors.add(newValidationError("workgroupSize", 
+      "Workgroup size too large: " & $totalThreads & " threads (max 256)"))
+  
+  if shader.workgroupSize.x == 0 or shader.workgroupSize.y == 0 or shader.workgroupSize.z == 0:
+    result.valid = false
+    result.errors.add(newValidationError("workgroupSize", 
+      "Workgroup size dimensions must be > 0"))
+  
+  # Check for infinite loops
+  if "while(true)" in shader.code or "for(;;)" in shader.code:
+    result.valid = false
+    result.errors.add(newValidationError("code", 
+      "Potential infinite loop detected"))
+  
+  # Validate bindings
+  if shader.bindings.len < 2:
+    result.valid = false
+    result.errors.add(newValidationError("bindings", 
+      "Compute shader requires at least 2 bindings (input/output buffers)"))
+  
+  # Check entry point
+  if "fn main" notin shader.code:
+    result.valid = false
+    result.errors.add(newValidationError("code", 
+      "Compute shader missing 'fn main' entry point"))
+  
+  # Check for @compute decorator
+  if "@compute" notin shader.code:
+    result.valid = false
+    result.errors.add(newValidationError("code", 
+      "Compute shader missing '@compute' decorator"))
