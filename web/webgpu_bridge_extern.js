@@ -53,5 +53,16 @@ mergeInto(LibraryManager.library, {
     if (typeof window !== 'undefined' && window.tStorie_webgpuCancel) {
       window.tStorie_webgpuCancel();
     }
+  },
+  
+  tStorie_injectWGSLShader: function(namePtr, vertexPtr, fragmentPtr, uniformsPtr) {
+    if (typeof window !== 'undefined' && window.tStorie_injectWGSLShader) {
+      const name = UTF8ToString(namePtr);
+      const vertex = UTF8ToString(vertexPtr);
+      const fragment = UTF8ToString(fragmentPtr);
+      const uniformsJson = UTF8ToString(uniformsPtr);
+      return window.tStorie_injectWGSLShader(name, vertex, fragment, uniformsJson);
+    }
+    return 0;
   }
 });

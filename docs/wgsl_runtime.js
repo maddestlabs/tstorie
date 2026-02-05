@@ -13,6 +13,151 @@
  * Future: Native support via SDL3 GPU + SDL_shadercross
  */
 
+// ================================================================
+// WGSL FRAGMENT SHADER INJECTION (from markdown code blocks)
+// ================================================================
+
+/**
+ * Inject a WGSL fragment shader from user markdown code blocks
+ * Called via webgpu_bridge_extern.js from Nim
+ * 
+ * @param {string} name - Shader name
+ * @param {string} vertexCode - Vertex shader WGSL (empty if included in fragment)
+ * @param {string} fragmentCode - Fragment shader WGSL
+ * @param {string} uniformsJson - JSON string of uniforms object
+ * @returns {number} - 1 on success, 0 on failure
+ */
+window.tStorie_injectWGSLShader = function(name, vertexCode, fragmentCode, uniformsJson) {
+  console.log('[WGSL Bridge] tStorie_injectWGSLShader called:', name);
+  
+  try {
+    // === SAFETY LAYER 1: Circuit Breaker ===
+    if (!window._shaderSafety) {
+      window._shaderSafety = {
+        failureCount: 0,
+        maxFailures: 3,
+        cooldownUntil: 0
+      };
+    }
+    
+    const now = Date.now();
+    if (window._shaderSafety.failureCount >= window._shaderSafety.maxFailures) {
+      if (now < window._shaderSafety.cooldownUntil) {
+        console.error('[WGSL SAFETY] Circuit breaker OPEN - shader system disabled');
+        return 0;
+      } else {
+        console.log('[WGSL SAFETY] Circuit breaker reset after cooldown');
+        window._shaderSafety.failureCount = 0;
+      }
+    }
+    
+    // === SAFETY LAYER 2: Input Validation ===
+    if (!name || !/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(name)) {
+      console.error('[WGSL SAFETY] Invalid shader name:', name);
+      window._shaderSafety.failureCount++;
+      return 0;
+    }
+    
+    if (fragmentCode.length > 500000 || vertexCode.length > 500000) {
+      console.error('[WGSL SAFETY] Shader code too large (max 500KB)');
+      window._shaderSafety.failureCount++;
+      return 0;
+    }
+    
+    // === SAFETY LAYER 3: Parse Uniforms ===
+    let uniforms = {};
+    try {
+      uniforms = JSON.parse(uniformsJson);
+      
+      const uniformNames = Object.keys(uniforms);
+      if (uniformNames.length > 64) {
+        console.error('[WGSL SAFETY] Too many uniforms (max 64):', uniformNames.length);
+        window._shaderSafety.failureCount++;
+        return 0;
+      }
+      
+      for (const uname of uniformNames) {
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/.test(uname)) {
+          console.error('[WGSL SAFETY] Invalid uniform name:', uname);
+          window._shaderSafety.failureCount++;
+          return 0;
+        }
+      }
+      
+      console.log('[WGSL Bridge] Validated', uniformNames.length, 'uniforms:', uniformNames);
+    } catch (e) {
+      console.error('[WGSL SAFETY] Failed to parse uniforms JSON:', e);
+      window._shaderSafety.failureCount++;
+      return 0;
+    }
+    
+    // === SAFETY LAYER 4: Register Shader ===
+    if (!window.shaderCodes) {
+      window.shaderCodes = [];
+    }
+    
+    // Check for duplicates
+    const existingIdx = window.shaderCodes.findIndex(s => s.name === name);
+    if (existingIdx >= 0) {
+      console.warn('[WGSL Bridge] Shader already registered - skipping:', name);
+      return 1; // Success - already registered
+    }
+    
+    // Build shader config
+    // Note: We combine vertex+fragment into fragmentShader field if vertex is empty
+    const combinedCode = vertexCode ? vertexCode + '\n' + fragmentCode : fragmentCode;
+    
+    const shaderConfig = {
+      name: name,
+      content: `function getShaderConfig() { 
+        return { 
+          vertexShader: \`${vertexCode}\`, 
+          fragmentShader: \`${combinedCode}\`, 
+          uniforms: ${JSON.stringify(uniforms)} 
+        }; 
+      }`
+    };
+    
+    window.shaderCodes.push(shaderConfig);
+    window.shaderReady = true;
+    
+    console.log('[WGSL Bridge] ✓ Registered shader:', name, '(total:', window.shaderCodes.length, ')');
+    
+    // Initialize shader system (like frontmatter loader does)
+    if (typeof window.initShaderSystem === 'function') {
+      console.log('[WGSL Bridge] Initializing shader system...');
+      try {
+        // initShaderSystem is async but we can't await here
+        // It will complete in the background and set window.shaderSystem when ready
+        window.initShaderSystem();
+        console.log('[WGSL Bridge] Shader system initialization started (async)');
+      } catch (error) {
+        console.error('[WGSL Bridge] Failed to start shader system:', error);
+      }
+    } else {
+      console.warn('[WGSL Bridge] Shader system not available - initShaderSystem not found');
+    }
+    
+    // Success - reset failure count
+    window._shaderSafety.failureCount = 0;
+    return 1;
+    
+  } catch (error) {
+    console.error('[WGSL SAFETY] CRITICAL ERROR:', error);
+    console.error('[WGSL SAFETY] Stack:', error.stack);
+    
+    if (window._shaderSafety) {
+      window._shaderSafety.failureCount++;
+      window._shaderSafety.cooldownUntil = Date.now() + 5000; // 5 sec cooldown
+      
+      if (window._shaderSafety.failureCount >= window._shaderSafety.maxFailures) {
+        console.error('[WGSL SAFETY] Circuit breaker TRIGGERED - shader system disabled');
+      }
+    }
+    return 0;
+  }
+};
+
 // Shader cache: name → {pipeline, bindGroup, buffers}
 const shaderCache = new Map();
 

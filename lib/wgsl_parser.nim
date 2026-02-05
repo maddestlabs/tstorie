@@ -30,6 +30,7 @@ proc parseWGSLShader*(name: string, code: string): WGSLShader =
     let trimmed = line.strip()
     
     # Detect shader type from @compute, @vertex, @fragment
+    # Priority: compute > fragment > vertex (fragment shaders often include vertex code)
     if "@compute" in trimmed:
       result.kind = ComputeShader
       
@@ -52,31 +53,48 @@ proc parseWGSLShader*(name: string, code: string): WGSLShader =
               except:
                 discard  # Keep defaults
     
-    elif "@vertex" in trimmed:
-      result.kind = VertexShader
-    
     elif "@fragment" in trimmed:
       result.kind = FragmentShader
     
+    elif "@vertex" in trimmed:
+      # Only set as vertex if we haven't found fragment
+      if result.kind != FragmentShader:
+        result.kind = VertexShader
+    
     # Detect uniform struct start
-    if trimmed.startsWith("struct") and "uniform" in code.toLower():
+    if trimmed.startsWith("struct"):
+      # First, end any previous struct we were parsing
+      inUniformStruct = false
+      
       # Look for: struct UniformName {
       let parts = trimmed.split()
       if parts.len >= 2:
-        uniformStructName = parts[1].replace("{", "").strip()
-        inUniformStruct = trimmed.endsWith("{")
-        continue
+        let structName = parts[1].replace("{", "").strip()
+        # Only parse structs that look like uniform definitions
+        # Common names: Uniforms, UniformData, Params, etc.
+        if "uniform" in structName.toLower() or structName == "Uniforms":
+          uniformStructName = structName
+          inUniformStruct = trimmed.endsWith("{") or (parts.len > 2 and parts[2] == "{")
+          continue
     
     # Collect uniform field names
     if inUniformStruct:
-      if trimmed.endsWith("}") or trimmed == "}":
+      # Check for closing brace (with or without semicolon)
+      if "}" in trimmed:
         inUniformStruct = false
+        continue
       elif ':' in trimmed:
         # Parse field: fieldName: type,
         let parts = trimmed.split(':')
         if parts.len >= 1:
           let fieldName = parts[0].strip()
-          if fieldName.len > 0 and not fieldName.startsWith("//"):
+          # Skip lines with @ decorators (like @builtin, @location) or function signatures
+          # Also skip built-in uniforms that the shader system provides automatically
+          # Also skip padding fields (e.g., _pad0, _pad1, etc.)
+          if fieldName.len > 0 and not fieldName.startsWith("//") and 
+             not fieldName.startsWith("@") and not ("fn " in fieldName) and
+             not fieldName.startsWith("_pad") and
+             fieldName notin ["time", "resolution"]:
             result.uniforms.add(fieldName)
     
     # Detect bindings: @group(0) @binding(N)

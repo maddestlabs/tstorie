@@ -1165,7 +1165,8 @@ proc getSectionRawContent(section: Section): string =
       # This marker will be recognized during rendering
       lines.add("{{ANSI:" & bufferKey & "}}")
     of WGSLBlock:
-      # WGSL shaders don't render as content - they're GPU compute code
+      # WGSL shaders are GPU code - injected via registerWGSLShaders()
+      # They don't render as visible content, only execute on GPU
       # Skip in content rendering
       discard
   

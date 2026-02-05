@@ -1693,6 +1693,115 @@ when defined(emscripten):
     js_webgpuCancel()
     return valNil()
 
+  proc nimini_setShaderUniform(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Set a shader uniform value: setShaderUniform("shaderName", "uniformName", value)
+    ## Value can be a number or array [x, y, z, w]
+    ## Example: setShaderUniform("paper", "paperNoise", 0.5)
+    ## Example: setShaderUniform("custom", "color", [1.0, 0.5, 0.2])
+    if args.len < 3:
+      return valNil()
+    
+    let shaderName = args[0].s
+    let uniformName = args[1].s
+    let value = args[2]
+    
+    # Convert value to JSON for JavaScript
+    var jsonValue = ""
+    case value.kind
+    of vkInt:
+      jsonValue = $value.i
+    of vkFloat:
+      jsonValue = $value.f
+    of vkArray:
+      let arr = value.arr
+      var nums: seq[string] = @[]
+      for v in arr:
+        if v.kind == vkInt:
+          nums.add($v.i)
+        elif v.kind == vkFloat:
+          nums.add($v.f)
+      if nums.len > 0:
+        jsonValue = "[" & nums.join(",") & "]"
+      else:
+        return valNil()
+    else:
+      return valNil()
+    
+    # Call JavaScript to update the shader system's uniform values
+    let jsCode = """
+      (function() {
+        try {
+          if (!window.shaderSystem) {
+            console.warn('[Shader] Shader system not initialized yet - call ignored');
+            return false;
+          }
+          if (!window.shaderSystem.pipelines) {
+            console.warn('[Shader] Shader system has no pipelines - call ignored');
+            return false;
+          }
+          const shader = window.shaderSystem.pipelines.find(s => s.name === '""" & shaderName & """');
+          if (shader && shader.uniforms) {
+            shader.uniforms['""" & uniformName & """'] = """ & jsonValue & """;
+            console.log('[Shader] Updated """ & shaderName & """.""" & uniformName & """ =', """ & jsonValue & """);
+            return true;
+          }
+          console.warn('[Shader] Could not find shader "' + '""" & shaderName & """' + '" or uniform "' + '""" & uniformName & """' + '"');
+          return false;
+        } catch (error) {
+          console.error('[Shader] Error in setShaderUniform:', error);
+          return false;
+        }
+      })()
+    """
+    emscripten_run_script(jsCode.cstring)
+    return valNil()
+
+  proc nimini_getShaderUniform(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## Get current shader uniform value: getShaderUniform("shaderName", "uniformName")
+    ## Returns the current value (number or array)
+    ## Example: let intensity = getShaderUniform("paper", "paperNoise")
+    if args.len < 2:
+      return valNil()
+    
+    let shaderName = args[0].s
+    let uniformName = args[1].s
+    
+    # For now, return nil - full implementation would need EM_JS to return values
+    # Users can track values in their own variables for now
+    return valNil()
+  
+  proc nimini_listShaderUniforms(env: ref Env; args: seq[Value]): Value {.nimini.} =
+    ## List all uniform names for a shader: listShaderUniforms("shaderName")
+    ## Prints to console and returns nil
+    ## Example: listShaderUniforms("paper")
+    if args.len < 1:
+      return valNil()
+    
+    let shaderName = args[0].s
+    
+    let jsCode = """
+      (function() {
+        try {
+          if (!window.shaderSystem || !window.shaderSystem.pipelines) {
+            console.warn('[Shader] Shader system not ready');
+            return false;
+          }
+          const shader = window.shaderSystem.pipelines.find(s => s.name === '""" & shaderName & """');
+          if (shader && shader.uniforms) {
+            console.log('[Shader] Uniforms for """ & shaderName & """:', shader.uniforms);
+            return true;
+          }
+          console.warn('[Shader] Could not find shader "' + '""" & shaderName & """' + '"');
+          return false;
+        } catch (error) {
+          console.error('[Shader] Error in listShaderUniforms:', error);
+          return false;
+        }
+      })()
+    """
+    emscripten_run_script(jsCode.cstring)
+    return valNil()
+
 proc createNiminiContext(state: AppState): NiminiContext =
   ## Create a Nimini interpreter context with exposed APIs
   initRuntime()
@@ -1907,6 +2016,11 @@ proc createNiminiContext(state: AppState): NiminiContext =
     registerNative("webgpuGet", nimini_webgpuGet)
     registerNative("webgpuSize", nimini_webgpuSize)
     registerNative("webgpuCancel", nimini_webgpuCancel)
+    
+    # Register shader uniform control API (web only)
+    registerNative("setShaderUniform", nimini_setShaderUniform)
+    registerNative("getShaderUniform", nimini_getShaderUniform)
+    registerNative("listShaderUniforms", nimini_listShaderUniforms)
   
   # Note: Figlet functions are now registered via exportNiminiProcs above.
   # The metadata (storieLibs, description, dependencies) for the export system

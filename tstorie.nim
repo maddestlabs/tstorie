@@ -1288,6 +1288,15 @@ when defined(emscripten):
         # Also update globalState styleSheet for API access
         globalState.styleSheet = doc.styleSheet
         
+        # Register WGSL shaders for nimini access (if any)
+        if doc.wgslShaders.len > 0:
+          try:
+            echo "[emLoadMarkdownFromJS] Registering ", doc.wgslShaders.len, " WGSL shaders"
+            registerWGSLShaders(doc.wgslShaders)
+            echo "[emLoadMarkdownFromJS] WGSL shaders registered"
+          except Exception as e:
+            echo "[emLoadMarkdownFromJS] ERROR registering WGSL shaders: ", e.msg
+        
         # Update global default style from stylesheet
         if doc.styleSheet.hasKey("default"):
           # Use explicit "default" style if defined
@@ -1854,7 +1863,9 @@ when defined(emscripten) and defined(sdl3Backend):
         storieCtx.embeddedContent = doc.embeddedContent
         
         # Register WGSL shaders for nimini access
+        echo "[setMarkdownContent] About to register ", doc.wgslShaders.len, " WGSL shaders"
         registerWGSLShaders(doc.wgslShaders)
+        echo "[setMarkdownContent] WGSL shaders registered"
         
         # Also update globalState styleSheet for API access
         globalState.styleSheet = doc.styleSheet

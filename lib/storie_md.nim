@@ -741,6 +741,38 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
                   codeBlock: cb
                 ))
                 hasCurrentSection = true
+            
+            # Inject all WGSL shaders from expanded content
+            for shader in expandedDoc.wgslShaders:
+              result.wgslShaders.add(shader)
+              
+              # Add to current section as WGSL block
+              if hasCurrentSection:
+                currentSection.blocks.add(ContentBlock(
+                  kind: WGSLBlock,
+                  wgslShader: shader
+                ))
+              else:
+                # Create default section if needed
+                inc sectionCounter
+                let sectionId = "section_" & $sectionCounter
+                currentSection = Section(
+                  id: sectionId,
+                  title: "",
+                  level: 1,
+                  blocks: @[],
+                  metadata: initTable[string, string]()
+                )
+                currentSection.blocks.add(ContentBlock(
+                  kind: HeadingBlock,
+                  level: 1,
+                  title: ""
+                ))
+                currentSection.blocks.add(ContentBlock(
+                  kind: WGSLBlock,
+                  wgslShader: shader
+                ))
+                hasCurrentSection = true
           
           except Exception:
             # If decompression fails, skip this block
@@ -810,11 +842,13 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
         # WGSL GPU Shader block: ```wgsl compute:shaderName or ```wgsl
         var shaderName = "shader_" & $(result.wgslShaders.len + 1)
         
-        # Parse shader name from: wgsl compute:particlePhysics
+        # Parse shader name from: wgsl compute:particlePhysics or wgsl fragment:tint
         for part in headerParts[1..^1]:
           if ':' in part:
             shaderName = part.split(':')[1].strip()
             break
+        
+        echo "[MD Parser] Found WGSL block: ", shaderName, " (raw header: ", headerParts.join(" "), ")"
         
         # Extract shader code
         var codeLines: seq[string] = @[]
@@ -828,6 +862,8 @@ proc parseMarkdownDocument*(content: string): MarkdownDocument =
         # Parse WGSL metadata
         let shaderCode = codeLines.join("\n")
         let wgslShader = parseWGSLShader(shaderName, shaderCode)
+        
+        echo "[MD Parser] Parsed shader: ", wgslShader.name, " kind=", wgslShader.kind, " uniforms=", wgslShader.uniforms.len
         
         # Add to shader collection
         result.wgslShaders.add(wgslShader)

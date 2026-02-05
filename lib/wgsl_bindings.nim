@@ -15,6 +15,16 @@ import ../nimini/type_converters
 import ../nimini/auto_pointer  # For queuePluginRegistration
 import storie_types
 import tables, strutils
+import shader_safety
+
+# ================================================================
+# EXTERNAL JS BRIDGE DECLARATIONS
+# ================================================================
+
+when defined(emscripten):
+  # Bridge function defined in webgpu_bridge_extern.js
+  proc tStorie_injectWGSLShader(namePtr: cstring, vertexPtr: cstring, 
+                                fragmentPtr: cstring, uniformsPtr: cstring): cint {.importc.}
 
 # ================================================================
 # JAVASCRIPT BRIDGE (EM_JS)
@@ -123,12 +133,113 @@ EM_JS(void, js_logReturnShaders, (int count), {
 var gShaders*: seq[WGSLShader] = @[]
 
 proc registerWGSLShaders*(shaders: seq[WGSLShader]) =
-  ## Register WGSL shaders from parsed markdown
-  when defined(emscripten):
-    js_logRegisterShaders(cint(shaders.len))
+  ## Register WGSL shaders from parsed markdown with comprehensive safety validation
+  ## Uses JS bridge pattern (webgpu_bridge_extern.js → wgsl_runtime.js)
+  
+  echo "[WGSL-NIM] Registering ", shaders.len, " shaders via JS bridge"
+  
   gShaders = shaders
+  
   when defined(emscripten):
-    js_logAfterRegister(cint(gShaders.len))
+    var successCount = 0
+    var failureCount = 0
+    
+    for shader in shaders:
+      # === NIM-SIDE SAFETY VALIDATION ===
+      let nameValid = validateShaderName(shader.name)
+      let codeValid = validateShaderCode(shader.code)
+      let uniformsValid = validateUniforms(shader.uniforms)
+      
+      if not nameValid.valid:
+        echo "[WGSL-NIM] ✗ REJECTED - Invalid name: ", shader.name
+        echo formatValidationErrors(nameValid.errors)
+        inc failureCount
+        continue
+      
+      if not codeValid.valid:
+        echo "[WGSL-NIM] ✗ REJECTED - Invalid code: ", shader.name
+        echo formatValidationErrors(codeValid.errors)
+        inc failureCount
+        continue
+      
+      if not uniformsValid.valid:
+        echo "[WGSL-NIM] ✗ REJECTED - Invalid uniforms: ", shader.name
+        echo formatValidationErrors(uniformsValid.errors)
+        inc failureCount
+        continue
+      
+      # Only process fragment shaders for now
+      if shader.kind != FragmentShader:
+        echo "[WGSL-NIM] ○ SKIPPED - Not a fragment shader: ", shader.name
+        continue
+      
+      echo "[WGSL-NIM] ✓ Validated: ", shader.name, " (", shader.uniforms.len, " uniforms)"
+      
+      # Determine vertex/fragment split
+      var vertexShader = ""
+      var fragmentShader = shader.code
+      
+      let hasVertexShader = "@vertex" in shader.code and "fn vertexMain" in shader.code
+      
+      if not hasVertexShader:
+        # Fragment-only shader - add default vertex shader
+        vertexShader = """
+struct VertexOutput {
+  @builtin(position) position: vec4f,
+  @location(0) uv: vec2f,
+};
+
+@vertex
+fn vertexMain(@location(0) pos: vec2f) -> VertexOutput {
+  var output: VertexOutput;
+  output.position = vec4f(pos, 0.0, 1.0);
+  output.uv = pos * 0.5 + 0.5;
+  return output;
+}
+"""
+      
+      # Build uniforms JSON with sensible defaults
+      # Use 1.0 for tint/color uniforms (neutral = no change)
+      # Use 0.0 for time and other additive values
+      var uniformsJson = "{"
+      if shader.uniforms.len > 0:
+        var first = true
+        for uniformName in shader.uniforms:
+          if not first: uniformsJson.add(",")
+          let safeName = uniformName.replace("\"", "\\\"")
+          
+          # Smart defaults based on uniform name
+          let defaultValue = 
+            if "time" in uniformName.toLower: "0.0"
+            elif "tint" in uniformName.toLower or "color" in uniformName.toLower: "1.0"
+            elif uniformName.toLower in ["resolution", "cellsize"]: "1.0"
+            else: "1.0"  # Default to 1.0 (neutral multiplier)
+          
+          uniformsJson.add("\"" & safeName & "\": " & defaultValue)
+          first = false
+      uniformsJson.add("}")
+      uniformsJson = sanitizeJSON(uniformsJson)
+      
+      echo "[WGSL-NIM] Injecting via bridge: ", shader.name
+      
+      # Call JS bridge
+      let result = tStorie_injectWGSLShader(
+        shader.name.cstring,
+        vertexShader.cstring,
+        fragmentShader.cstring,
+        uniformsJson.cstring
+      )
+      
+      if result == 1:
+        echo "[WGSL-NIM] ✓ Successfully injected: ", shader.name
+        inc successCount
+      else:
+        echo "[WGSL-NIM] ✗ FAILED to inject: ", shader.name
+        inc failureCount
+    
+    echo "[WGSL-NIM] Registration complete: ", successCount, " success, ", failureCount, " failed"
+  else:
+    echo "[WGSL-NIM] Not compiled for emscripten - shaders stored only"
 
 # ================================================================
 # NIMINI BINDINGS
